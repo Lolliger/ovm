@@ -1,0 +1,12 @@
+# Hochgeladene Dateien nur ausliefern, niemals als Skript ausführen
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh|htaccess|html?|svg|js)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes -ExecCGI
+Header set X-Content-Type-Options "nosniff"

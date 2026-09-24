@@ -1,0 +1,7 @@
+# Live-Daten (werden auf dem Server über /admin gepflegt)
+/data/*
+!/data/.htaccess
+!/data/index.html
+/uploads/*
+!/uploads/.htaccess
+.DS_Store
