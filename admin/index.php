@@ -4,6 +4,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/lib/bootstrap.php';
 require dirname(__DIR__) . '/lib/admin.php';
 require dirname(__DIR__) . '/lib/registration.php';
+require dirname(__DIR__) . '/lib/totp.php';
 
 header('X-Frame-Options: DENY');
 header('Cache-Control: no-store');
@@ -38,12 +39,47 @@ if (!is_setup()) {
 
 if (!is_logged_in()) {
     $error = '';
+    start_session();
+    // Step 2 of the login: password was correct, now the authenticator code.
+    $pending = $_SESSION['2fa'] ?? null;
+    if ($pending && ($pending['v'] !== (auth_data()['v'] ?? null) || time() - $pending['t'] > 300)) {
+        unset($_SESSION['2fa']);
+        $pending = null;
+        $error = $action === 'login2fa' ? 'Zeit abgelaufen, bitte erneut anmelden.' : '';
+    }
+    if ($action === 'cancel2fa') {
+        unset($_SESSION['2fa']);
+        redirect(admin_url());
+    }
+    if ($pending && $action === 'login2fa') {
+        if (!csrf_check()) {
+            $error = 'Sitzung abgelaufen, bitte erneut versuchen.';
+        } elseif (rate_limited('login', 8, 900)) {
+            $error = 'Zu viele Versuche. Bitte 15 Minuten warten.';
+        } elseif (verify_second_factor((string) ($_POST['code'] ?? ''))) {
+            unset($_SESSION['2fa']);
+            login_session(auth_data()['v']);
+            redirect(admin_url());
+        } else {
+            usleep(400000);
+            $error = 'Der Code ist falsch oder abgelaufen.';
+        }
+    }
+    if ($pending) {
+        admin_login_page('2fa', $error);
+        exit;
+    }
     if ($action === 'login') {
         if (!csrf_check()) {
             $error = 'Sitzung abgelaufen, bitte erneut versuchen.';
         } elseif (rate_limited('login', 8, 900)) {
             $error = 'Zu viele Versuche. Bitte 15 Minuten warten.';
         } elseif (check_password((string) ($_POST['password'] ?? ''))) {
+            if (totp_enabled()) {
+                session_regenerate_id(true);
+                $_SESSION['2fa'] = ['v' => auth_data()['v'], 't' => time()];
+                redirect(admin_url());
+            }
             login_session(auth_data()['v']);
             redirect(admin_url(array_filter(['s' => $s])));
         } else {
@@ -54,6 +90,8 @@ if (!is_logged_in()) {
     admin_login_page('login', $error);
     exit;
 }
+
+purge_registrations();
 
 /* ---------- Logged in: actions (POST) ---------- */
 
@@ -81,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($def['fields'] as $f) {
                         $content[$s][$f['key']] = field_value($f, $in[$f['key']] ?? '', $f['key'], $errors);
                     }
-                    save_content($content);
+                    save_content($content, $def['label']);
                     foreach ($errors as $er) {
                         flash($er, 'error');
                     }
@@ -114,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $content[$s] = array_values($list);
-                save_content($content);
+                save_content($content, $def['label'] . ': ' . ($item[$def['title_field']] ?? ''));
                 foreach ($errors as $er) {
                     flash($er, 'error');
                 }
@@ -136,8 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             [$list[$idx], $list[$to]] = [$list[$to], $list[$idx]];
                         }
                     }
+                    $label = ($schema[$s]['label'] ?? $s) . ': ' . ($action === 'delete_item' ? 'Eintrag gelöscht' : 'Reihenfolge geändert');
                     $content[$s] = array_values($list);
-                    save_content($content);
+                    save_content($content, $label);
                 }
                 redirect(admin_url(['s' => $s]));
 
@@ -206,9 +245,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!is_array($data) || !isset($data['site'], $data['home'])) {
                     flash('Das ist keine gültige Backup-Datei.', 'error');
                 } else {
-                    write_json(DATA_DIR . '/content-before-import-' . date('Ymd-His') . '.json', content());
-                    save_content(array_intersect_key($data, $schema));
-                    flash('Backup wiederhergestellt. Der vorherige Stand wurde im Ordner /data gesichert.');
+                    save_content(array_intersect_key($data, $schema), 'Backup-Import');
+                    flash('Backup wiederhergestellt. Der vorherige Stand ist unter „Versionen“ gesichert.');
+                }
+                redirect(admin_url(['s' => 'settings']));
+
+            case 'history_restore':
+                $path = history_path((string) ($_POST['file'] ?? ''));
+                $version = $path ? read_json($path) : [];
+                if (empty($version['content'])) {
+                    flash('Version nicht gefunden.', 'error');
+                } else {
+                    save_content($version['content'], 'Wiederherstellung (Stand vom ' . date('d.m.Y H:i', strtotime($version['saved'])) . ')');
+                    flash('Version vom ' . date('d.m.Y, H:i', strtotime($version['saved'])) . ' wiederhergestellt. Der Stand davor ist ebenfalls gesichert.');
+                }
+                redirect(admin_url(['s' => 'history']));
+
+            case 'totp_add':
+                $secret = $_SESSION['totp_new'] ?? '';
+                $name = trim(mb_substr((string) ($_POST['name'] ?? ''), 0, 60)) ?: 'Gerät';
+                $step = $secret ? totp_verify($secret, (string) ($_POST['code'] ?? '')) : null;
+                if ($step === null) {
+                    flash('Der Code stimmt nicht. Bitte den aktuellen Code aus der App eingeben (Uhrzeit am Handy prüfen).', 'error');
+                    redirect(admin_url(['s' => 'settings', 'add2fa' => 1]));
+                }
+                $first = !totp_enabled();
+                $auth = auth_data();
+                $auth['totp'][] = ['id' => bin2hex(random_bytes(4)), 'name' => $name, 'secret' => $secret, 'created' => date('c'), 'last_step' => $step];
+                write_json(AUTH_FILE, $auth);
+                unset($_SESSION['totp_new']);
+                flash('„' . $name . '“ hinzugefügt. Ab jetzt wird beim Login ein Code verlangt.');
+                if ($first || empty($auth['recovery'])) {
+                    $_SESSION['recovery_show'] = new_recovery_codes();
+                }
+                redirect(admin_url(['s' => 'settings']));
+
+            case 'totp_remove':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Zum Entfernen eines Geräts bitte das richtige Passwort eingeben.', 'error');
+                } else {
+                    $auth = auth_data();
+                    $id = (string) ($_POST['id'] ?? '');
+                    $auth['totp'] = array_values(array_filter($auth['totp'] ?? [], fn ($d) => $d['id'] !== $id));
+                    if (!$auth['totp']) {
+                        unset($auth['recovery']);
+                    }
+                    write_json(AUTH_FILE, $auth);
+                    flash($auth['totp'] ? 'Gerät entfernt.' : 'Gerät entfernt. Zwei-Faktor-Login ist jetzt AUS.', $auth['totp'] ? 'ok' : 'error');
+                }
+                redirect(admin_url(['s' => 'settings']));
+
+            case 'recovery_new':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Bitte das richtige Passwort eingeben.', 'error');
+                } else {
+                    $_SESSION['recovery_show'] = new_recovery_codes();
+                    flash('Neue Notfall-Codes erstellt. Die alten gelten nicht mehr.');
                 }
                 redirect(admin_url(['s' => 'settings']));
         }
@@ -225,6 +317,18 @@ if ($s === 'export') {
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Disposition: attachment; filename="omun-inhalte-' . date('Y-m-d') . '.json"');
     readfile(CONTENT_FILE);
+    exit;
+}
+
+if ($s === 'history_download') {
+    $path = history_path((string) ($_GET['file'] ?? ''));
+    if (!$path) {
+        http_response_code(404);
+        exit('Nicht gefunden');
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="omun-version-' . basename($path) . '"');
+    echo json_encode(read_json($path)['content'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -265,6 +369,7 @@ function admin_head(string $title): void
 <title><?= e($title) ?> · Admin</title>
 <link rel="icon" href="<?= e(url('assets/img/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="stylesheet" href="<?= e(url('admin/admin.css')) ?>?v=<?= filemtime(__DIR__ . '/admin.css') ?>">
+<script src="<?= e(url('admin/qrcode.js')) ?>" defer></script>
 <script src="<?= e(url('admin/admin.js')) ?>?v=<?= filemtime(__DIR__ . '/admin.js') ?>" defer></script>
 </head>
     <?php
@@ -272,7 +377,7 @@ function admin_head(string $title): void
 
 function admin_login_page(string $mode, string $error): void
 {
-    admin_head($mode === 'setup' ? 'Einrichtung' : 'Login');
+    admin_head(['setup' => 'Einrichtung', '2fa' => 'Bestätigungscode'][$mode] ?? 'Login');
     ?>
 <body class="login">
   <form class="login-box" method="post">
@@ -285,6 +390,14 @@ function admin_login_page(string $mode, string $error): void
       <label>Neues Passwort (mind. 10 Zeichen)<input type="password" name="password" autocomplete="new-password" required autofocus minlength="10"></label>
       <label>Passwort wiederholen<input type="password" name="password2" autocomplete="new-password" required minlength="10"></label>
       <button class="btn" type="submit">Passwort speichern</button>
+    <?php elseif ($mode === '2fa'): ?>
+      <input type="hidden" name="a" value="login2fa">
+      <p>Gib den 6-stelligen Code aus deiner Authenticator-App ein.</p>
+      <?php if ($error): ?><p class="flash flash-error"><?= e($error) ?></p><?php endif; ?>
+      <label>Code<input name="code" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" maxlength="11" required autofocus class="code-input"></label>
+      <button class="btn" type="submit">Bestätigen</button>
+      <p class="help">Handy nicht da? Du kannst stattdessen einen deiner Notfall-Codes eingeben (Format <code>xxxxx-xxxxx</code>).</p>
+      <button class="link-btn" type="submit" name="a" value="cancel2fa" formnovalidate>Abbrechen</button>
     <?php else: ?>
       <input type="hidden" name="a" value="login">
       <?php if ($error): ?><p class="flash flash-error"><?= e($error) ?></p><?php endif; ?>
@@ -300,7 +413,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'settings' => 'Passwort & Backup'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -322,7 +435,8 @@ function admin_page(string $s, array $schema): void
     <?php endforeach; ?>
     <p class="nav-label">Verwaltung</p>
     <a href="<?= e(admin_url(['s' => 'media'])) ?>"<?= $s === 'media' ? ' class="active"' : '' ?>>Dateien &amp; Bilder</a>
-    <a href="<?= e(admin_url(['s' => 'settings'])) ?>"<?= $s === 'settings' ? ' class="active"' : '' ?>>Passwort &amp; Backup</a>
+    <a href="<?= e(admin_url(['s' => 'history'])) ?>"<?= $s === 'history' ? ' class="active"' : '' ?>>Versionen</a>
+    <a href="<?= e(admin_url(['s' => 'settings'])) ?>"<?= $s === 'settings' ? ' class="active"' : '' ?>>Sicherheit &amp; Backup<?= totp_enabled() ? '' : ' <span class="count warn">!</span>' ?></a>
   </nav>
   <main class="main">
     <?php foreach (take_flash() as [$type, $msg]): ?>
@@ -344,6 +458,8 @@ function admin_page(string $s, array $schema): void
         view_media();
     } elseif ($s === 'settings') {
         view_settings();
+    } elseif ($s === 'history') {
+        view_history();
     } else {
         view_dashboard($schema, $regCount);
     }
@@ -366,6 +482,13 @@ function view_dashboard(array $schema, int $regCount): void
 {
     ?>
     <h1>Übersicht</h1>
+    <?php if (!totp_enabled()): ?>
+      <p class="flash flash-error">Zwei-Faktor-Login ist noch nicht aktiv. <a href="<?= e(admin_url(['s' => 'settings'])) ?>">Jetzt einrichten →</a></p>
+    <?php endif; ?>
+    <?php $purgeAt = registrations_purge_at(); ?>
+    <?php if ($regCount && $purgeAt && $purgeAt > time() && $purgeAt - time() < 14 * 86400): ?>
+      <p class="flash flash-error">Die Anmeldungen werden am <?= e(date('d.m.Y', $purgeAt)) ?> automatisch gelöscht. Bei Bedarf vorher <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">als CSV sichern</a>.</p>
+    <?php endif; ?>
     <div class="tiles">
       <a class="tile" href="<?= e(admin_url(['s' => 'registrations'])) ?>"><strong><?= $regCount ?></strong><span>Anmeldungen</span></a>
       <a class="tile" href="<?= e(admin_url(['s' => 'registration'])) ?>"><strong><?= c('registration.open') ? 'offen' : 'zu' ?></strong><span>Anmeldung</span></a>
@@ -497,6 +620,15 @@ function view_registrations(): void
       <h1>Anmeldungen</h1>
       <?php if ($regs): ?><a class="btn" href="<?= e(admin_url(['s' => 'registrations_csv'])) ?>">Als Excel/CSV herunterladen</a><?php endif; ?>
     </div>
+    <?php $purgeAt = registrations_purge_at(); ?>
+    <p class="help">
+      <?php if ($purgeAt): ?>
+        Automatische Löschung: am <strong><?= e(date('d.m.Y', $purgeAt)) ?></strong> (<?= (int) c('registration.retention_days') ?> Tage nach Konferenzende) werden alle Anmeldungen zu dieser Konferenz gelöscht.
+      <?php else: ?>
+        Automatische Löschung ist aus.
+      <?php endif; ?>
+      Einstellbar unter <a href="<?= e(admin_url(['s' => 'registration'])) ?>">Anmeldung</a>.
+    </p>
     <?php if (!$regs): ?>
       <p class="empty">Noch keine Anmeldungen.</p>
       <?php return; ?>
@@ -570,7 +702,8 @@ function view_media(): void
 function view_settings(): void
 {
     ?>
-    <div class="page-title"><h1>Passwort &amp; Backup</h1></div>
+    <div class="page-title"><h1>Sicherheit &amp; Backup</h1></div>
+    <?php view_2fa(); ?>
     <form class="edit-form" method="post">
       <?= csrf_field() ?><input type="hidden" name="a" value="password">
       <h2>Passwort ändern</h2>
@@ -592,5 +725,112 @@ function view_settings(): void
       <div class="field"><label>Backup-Datei (.json)<input type="file" name="backup" accept=".json,application/json" required></label></div>
       <div class="save-bar"><button class="btn-ghost">Wiederherstellen</button></div>
     </form>
+    <?php
+}
+
+function view_2fa(): void
+{
+    $devices = totp_devices();
+    $recovery = $_SESSION['recovery_show'] ?? null;
+    unset($_SESSION['recovery_show']);
+    ?>
+    <div class="edit-form" id="twofa">
+      <h2>Zwei-Faktor-Login <?= $devices ? '<span class="pill on">aktiv</span>' : '<span class="pill off">aus</span>' ?></h2>
+      <p>Zusätzlich zum Passwort wird beim Login ein 6-stelliger Code aus einer Authenticator-App verlangt
+        (z. B. Google Authenticator, Microsoft Authenticator, Authy, 2FAS, Aegis). Jedes Handy wird einzeln hinzugefügt,
+        der Code von <em>jedem</em> eingetragenen Gerät funktioniert. Geht ein Handy verloren, einfach nur dieses Gerät entfernen.</p>
+
+      <?php if ($recovery): ?>
+        <div class="recovery">
+          <h3>Deine Notfall-Codes – jetzt sichern!</h3>
+          <p>Jeder Code funktioniert <strong>einmal</strong> statt eines App-Codes, falls kein Handy verfügbar ist.
+            Ausdrucken oder im Passwort-Manager speichern. Sie werden <strong>nur jetzt</strong> angezeigt.</p>
+          <ul><?php foreach ($recovery as $rc): ?><li><code><?= e($rc) ?></code></li><?php endforeach; ?></ul>
+          <button type="button" class="btn-ghost copy" data-copy="<?= e(implode("\n", $recovery)) ?>">Alle kopieren</button>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($devices): ?>
+        <ul class="item-list">
+          <?php foreach ($devices as $d): ?>
+            <li>
+              <span class="item-title"><?= e($d['name']) ?>
+                <small>hinzugefügt <?= e(date('d.m.Y', strtotime($d['created']))) ?><?= !empty($d['last_used']) ? ' · zuletzt benutzt ' . e(date('d.m.Y H:i', strtotime($d['last_used']))) : '' ?></small></span>
+              <form method="post" class="inline remove-device" data-confirm="„<?= e($d['name']) ?>“ entfernen?">
+                <?= csrf_field() ?><input type="hidden" name="a" value="totp_remove"><input type="hidden" name="id" value="<?= e($d['id']) ?>">
+                <input type="password" name="password" placeholder="Passwort" required autocomplete="current-password">
+                <button class="btn-ghost danger">Entfernen</button>
+              </form>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+        <p class="help">Übrige Notfall-Codes: <?= count(auth_data()['recovery'] ?? []) ?> von 8.</p>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['add2fa'])): ?>
+        <?php
+        if (empty($_SESSION['totp_new'])) {
+            $_SESSION['totp_new'] = totp_new_secret();
+        }
+        $secret = $_SESSION['totp_new'];
+        $host = preg_replace('/^www\./', '', preg_replace('/[^a-z0-9.-]/i', '', $_SERVER['HTTP_HOST'] ?? 'omun'));
+        $uri = totp_uri($secret, 'Admin (' . $host . ')', c('site.name', 'OMUN'));
+        ?>
+        <div class="add-device">
+          <div class="qr" data-qr="<?= e($uri) ?>" aria-label="QR-Code"></div>
+          <form method="post" class="add-device-form">
+            <?= csrf_field() ?><input type="hidden" name="a" value="totp_add">
+            <ol>
+              <li>Authenticator-App öffnen und <strong>QR-Code scannen</strong>. Oder den Schlüssel von Hand eingeben:<br>
+                <code class="secret"><?= e(trim(chunk_split($secret, 4, ' '))) ?></code></li>
+              <li>Gerät benennen und den <strong>angezeigten 6-stelligen Code</strong> eingeben.</li>
+            </ol>
+            <div class="field"><label>Name des Geräts<input name="name" placeholder="z. B. Handy Philip" required maxlength="60"></label></div>
+            <div class="field"><label>Code aus der App<input name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="7" class="code-input"></label></div>
+            <div class="row-actions"><button class="btn">Gerät hinzufügen</button><a href="<?= e(admin_url(['s' => 'settings'])) ?>">Abbrechen</a></div>
+          </form>
+        </div>
+        <p class="help">Mehrere Handys: Jedes Gerät einzeln hinzufügen (danach erneut auf „Weiteres Gerät hinzufügen“). Denselben QR-Code auf mehreren Handys zu scannen geht auch, dann lassen sie sich aber nicht einzeln entfernen.</p>
+      <?php else: ?>
+        <p><a class="btn" href="<?= e(admin_url(['s' => 'settings', 'add2fa' => 1])) ?>#twofa"><?= $devices ? '+ Weiteres Gerät hinzufügen' : 'Zwei-Faktor-Login einrichten' ?></a></p>
+      <?php endif; ?>
+
+      <?php if ($devices): ?>
+        <form method="post" class="inline-form" data-confirm="Neue Notfall-Codes erstellen? Die alten werden ungültig.">
+          <?= csrf_field() ?><input type="hidden" name="a" value="recovery_new">
+          <input type="password" name="password" placeholder="Passwort" required autocomplete="current-password">
+          <button class="btn-ghost">Neue Notfall-Codes erstellen</button>
+        </form>
+      <?php endif; ?>
+      <p class="help">Alle Geräte und Notfall-Codes verloren? Per SFTP die Datei <code>data/auth.json</code> löschen und unter /admin ein neues Passwort setzen (2FA ist danach aus).</p>
+    </div>
+    <?php
+}
+
+function view_history(): void
+{
+    $versions = history_list();
+    ?>
+    <div class="page-title"><h1>Versionen</h1></div>
+    <p class="help">Vor jeder Änderung an den Inhalten wird automatisch der vorherige Stand gesichert (die letzten <?= HISTORY_KEEP ?>).
+      Mit „Wiederherstellen“ springen <strong>alle</strong> Texte und Einstellungen auf diesen Stand zurück. Der aktuelle Stand wird dabei vorher auch gesichert, du kannst es also rückgängig machen.
+      Hochgeladene Dateien und Anmeldungen sind davon nicht betroffen.</p>
+    <?php if (!$versions): ?>
+      <p class="empty">Noch keine Versionen. Sie entstehen automatisch, sobald du etwas speicherst.</p>
+      <?php return; ?>
+    <?php endif; ?>
+    <ul class="item-list">
+      <?php foreach ($versions as $v): ?>
+        <li>
+          <span class="item-title">Stand vor: <?= e($v['label']) ?>
+            <small><?= e(date('d.m.Y, H:i:s', strtotime($v['saved']))) ?> Uhr · <?= e(human_size($v['size'])) ?></small></span>
+          <a class="btn-ghost" href="<?= e(admin_url(['s' => 'history_download', 'file' => $v['file']])) ?>">Download</a>
+          <form method="post" class="inline" data-confirm="Alle Inhalte auf den Stand vom <?= e(date('d.m.Y, H:i', strtotime($v['saved']))) ?> zurücksetzen?">
+            <?= csrf_field() ?><input type="hidden" name="a" value="history_restore"><input type="hidden" name="file" value="<?= e($v['file']) ?>">
+            <button class="btn-ghost">Wiederherstellen</button>
+          </form>
+        </li>
+      <?php endforeach; ?>
+    </ul>
     <?php
 }

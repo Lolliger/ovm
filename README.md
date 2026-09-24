@@ -52,8 +52,22 @@ Erreichbar nur über `omun.de/admin` (nirgends verlinkt). Dort lässt sich bearb
 - Anmeldungen ansehen, als CSV/Excel exportieren, löschen
 - Passwort ändern, Backup herunterladen/wiederherstellen
 
-Passwort vergessen? Per SFTP die Datei `data/auth.json` löschen und danach unter `/admin`
-ein neues Passwort setzen.
+Passwort vergessen oder alle 2FA-Geräte verloren? Per SFTP die Datei `data/auth.json` löschen und
+danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach aus und muss neu eingerichtet werden).
+
+## Sicherheit
+
+- **Login:** Passwort nur als bcrypt-Hash gespeichert; max. 8 Versuche pro 15 Minuten und IP-Adresse
+- **Zwei-Faktor-Login (TOTP):** unter *Sicherheit & Backup*; beliebig viele Authenticator-Apps
+  (jedes Gerät einzeln entfernbar), dazu 8 einmalige Notfall-Codes; ein Code kann nicht zweimal benutzt werden
+- **Sitzung:** HttpOnly/SameSite-Cookie, Abmeldung nach 3 h Inaktivität; Passwortwechsel meldet alle Geräte ab
+- **CSRF-Schutz** für jede Aktion im Admin, keine Einbettung in fremde Seiten, `noindex`
+- **Versionen:** vor jeder Änderung wird der vorherige Stand gesichert (letzte 50), Wiederherstellen mit einem Klick
+- **Uploads:** nur Bilder, PDF und Office-Dateien; im Upload-Ordner wird kein Code ausgeführt
+- **Ausgabe:** alle Inhalte werden HTML-escaped, Markdown erlaubt kein eigenes HTML
+- **Anmeldeformular:** Honeypot, Mindest-Ausfüllzeit, max. 10 Anmeldungen pro Stunde und IP;
+  Anmeldungen werden automatisch X Tage nach Konferenzende gelöscht (einstellbar, Standard 90)
+- **Nach dem Hochladen prüfen:** `https://omun.de/data/auth.json` muss **403 Forbidden** liefern.
 
 ## Lokal testen
 

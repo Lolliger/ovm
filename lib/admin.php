@@ -365,9 +365,110 @@ function upload_for(string $key): ?array
     ];
 }
 
-function save_content(array $content): void
+/** Saves the content; the previous state is kept in the version history first. */
+function save_content(array $content, string $label): void
 {
+    snapshot_content($label);
     write_json(CONTENT_FILE, $content);
+}
+
+/* ---------- Version history ---------- */
+
+const HISTORY_DIR = DATA_DIR . '/history';
+const HISTORY_KEEP = 50;
+
+function snapshot_content(string $label): void
+{
+    if (!is_file(CONTENT_FILE)) {
+        return;
+    }
+    $name = date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.json';
+    write_json(HISTORY_DIR . '/' . $name, [
+        'saved' => date('c'),
+        'label' => $label,
+        'content' => read_json(CONTENT_FILE),
+    ]);
+    $files = glob(HISTORY_DIR . '/*.json') ?: [];
+    rsort($files);
+    foreach (array_slice($files, HISTORY_KEEP) as $old) {
+        @unlink($old);
+    }
+}
+
+/** Newest first: [file, saved, label, size]. */
+function history_list(): array
+{
+    $files = glob(HISTORY_DIR . '/*.json') ?: [];
+    rsort($files);
+    $out = [];
+    foreach ($files as $f) {
+        $v = read_json($f);
+        $out[] = ['file' => basename($f), 'saved' => $v['saved'] ?? '', 'label' => $v['label'] ?? '', 'size' => filesize($f)];
+    }
+    return $out;
+}
+
+function history_path(string $file): ?string
+{
+    $file = basename($file);
+    return preg_match('/^\d{8}-\d{6}-[0-9a-f]{6}\.json$/', $file) && is_file(HISTORY_DIR . '/' . $file) ? HISTORY_DIR . '/' . $file : null;
+}
+
+/* ---------- Two-factor authentication ---------- */
+
+function totp_devices(): array
+{
+    return auth_data()['totp'] ?? [];
+}
+
+function totp_enabled(): bool
+{
+    return (bool) totp_devices();
+}
+
+/** Checks an app code (any device) or a one-time recovery code. */
+function verify_second_factor(string $code): bool
+{
+    $auth = auth_data();
+    foreach ($auth['totp'] ?? [] as $k => $dev) {
+        $step = totp_verify($dev['secret'], $code, (int) ($dev['last_step'] ?? 0));
+        if ($step !== null) {
+            $auth['totp'][$k]['last_step'] = $step;
+            $auth['totp'][$k]['last_used'] = date('c');
+            write_json(AUTH_FILE, $auth);
+            return true;
+        }
+    }
+    $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $code));
+    if (strlen($normalized) === 10) {
+        foreach ($auth['recovery'] ?? [] as $k => $hash) {
+            if (password_verify($normalized, $hash)) {
+                array_splice($auth['recovery'], $k, 1);
+                write_json(AUTH_FILE, $auth);
+                flash('Notfall-Code verwendet. Es sind noch ' . count($auth['recovery']) . ' übrig.', count($auth['recovery']) < 3 ? 'error' : 'ok');
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/** Creates 8 new recovery codes, stores their hashes and returns them for one-time display. */
+function new_recovery_codes(): array
+{
+    $alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+    $codes = [];
+    for ($i = 0; $i < 8; $i++) {
+        $c = '';
+        for ($j = 0; $j < 10; $j++) {
+            $c .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        $codes[] = substr($c, 0, 5) . '-' . substr($c, 5);
+    }
+    $auth = auth_data();
+    $auth['recovery'] = array_map(fn ($c) => password_hash(str_replace('-', '', $c), PASSWORD_DEFAULT), $codes);
+    write_json(AUTH_FILE, $auth);
+    return $codes;
 }
 
 function unique_slug(array $list, string $slug, string $ownId, bool $topLevel = false): string

@@ -72,3 +72,13 @@
     }
   });
 })();
+
+// QR code for adding an authenticator app (generated locally, nothing is sent anywhere).
+(function () {
+  var el = document.querySelector('[data-qr]');
+  if (!el || typeof qrcode === 'undefined') return;
+  var qr = qrcode(0, 'M');
+  qr.addData(el.getAttribute('data-qr'));
+  qr.make();
+  el.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+})();

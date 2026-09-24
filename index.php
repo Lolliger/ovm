@@ -19,6 +19,8 @@ require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/templates/layout.php';
 require __DIR__ . '/lib/registration.php';
 
+purge_registrations_daily();
+
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 if (BASE !== '' && str_starts_with($path, BASE)) {
     $path = substr($path, strlen(BASE));

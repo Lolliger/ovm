@@ -92,3 +92,54 @@ function notify_registration(array $entry): void
     }
     @mail($to, $subject, $body, implode("\r\n", $headers));
 }
+
+/**
+ * Date after which registrations for the current conference are deleted
+ * (conference end + retention days), or null if auto-deletion is off.
+ */
+function registrations_purge_at(): ?int
+{
+    $days = (int) c('registration.retention_days');
+    $end = c('conference.date_end') ?: c('conference.date_start');
+    $ts = $end ? strtotime($end . ' 23:59:59') : false;
+    return $days > 0 && $ts ? $ts + $days * 86400 : null;
+}
+
+/**
+ * Deletes registrations that are past their retention period.
+ * As a safety net nothing is kept longer than a year, even if the conference
+ * date was moved to the next year before the old data was deleted.
+ * Returns the number of deleted registrations.
+ */
+function purge_registrations(): int
+{
+    $purgeAt = registrations_purge_at();
+    if ($purgeAt === null || !is_file(REGISTRATIONS_FILE)) {
+        return 0;
+    }
+    $end = $purgeAt - (int) c('registration.retention_days') * 86400;
+    $now = time();
+    $regs = read_json(REGISTRATIONS_FILE);
+    $keep = array_values(array_filter($regs, function ($r) use ($now, $end, $purgeAt) {
+        $created = strtotime($r['created'] ?? '') ?: $now;
+        if ($now > $purgeAt && $created <= $end) {
+            return false;
+        }
+        return $now - $created < 365 * 86400;
+    }));
+    if (count($keep) !== count($regs)) {
+        write_json(REGISTRATIONS_FILE, $keep);
+    }
+    return count($regs) - count($keep);
+}
+
+/** Runs the purge at most once a day from public page views. */
+function purge_registrations_daily(): void
+{
+    $marker = DATA_DIR . '/purge-check';
+    if (is_file($marker) && filemtime($marker) > time() - 86400) {
+        return;
+    }
+    @touch($marker);
+    purge_registrations();
+}

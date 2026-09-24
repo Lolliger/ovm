@@ -99,6 +99,7 @@ function schema(): array
                 ['key' => 'closed_message', 'label' => 'Text, wenn die Anmeldung geschlossen ist', 'type' => 'markdown'],
                 ['key' => 'success_message', 'label' => 'Text nach erfolgreicher Anmeldung', 'type' => 'markdown'],
                 ['key' => 'notify_email', 'label' => 'Benachrichtigung bei neuer Anmeldung an', 'type' => 'email', 'help' => 'Leer lassen = keine E-Mails.'],
+                ['key' => 'retention_days', 'label' => 'Anmeldungen automatisch löschen … Tage nach Konferenzende', 'type' => 'text', 'help' => 'z. B. 90. Muss zur Frist in der Datenschutzerklärung passen. 0 = nie automatisch löschen.'],
             ],
         ],
         'committees' => [
