@@ -1,0 +1,152 @@
+{
+  "site": {
+    "name": "OMUN",
+    "full_name": "Oskar von Miller Model United Nations",
+    "description": "OMUN is the Model United Nations conference of the Oskar-von-Miller-Gymnasium in Munich: students debate global issues as delegates of the UN member states.",
+    "school": "Oskar-von-Miller-Gymnasium München",
+    "address": "Oskar-von-Miller-Gymnasium\nSiegfriedstraße 22\n80803 München",
+    "email": "info@omun.de",
+    "instagram": "",
+    "school_url": "https://www.ovmg.de",
+    "logo": "",
+    "og_image": "",
+    "color_un": "#009edb",
+    "color_accent": "#046bd2",
+    "color_ink": "#1e293b",
+    "color_paper": "#f0f5fa",
+    "banner_show": true,
+    "banner_text": "Registration for OMUN 2027 is open",
+    "banner_link": "/register"
+  },
+  "home": {
+    "hero_kicker": "Model United Nations · Munich",
+    "hero_title": "Three days. Forty nations. *One* resolution.",
+    "hero_text": "OMUN brings students from Munich and beyond to the Oskar-von-Miller-Gymnasium to debate, negotiate and draft resolutions as delegates of the United Nations.",
+    "hero_image": "",
+    "hero_image_caption": "",
+    "show_countdown": true,
+    "about_heading": "What is OMUN?",
+    "about_text": "Model United Nations is a simulation of the United Nations. Every participant represents a member state in one of the committees, researches its position and argues for it: in speeches, in lobbying sessions and in the corridors.\n\nOMUN is organised entirely by students of the Oskar-von-Miller-Gymnasium. Whether it is your first conference or your tenth, you will find a committee that suits you.",
+    "stats": [
+      { "value": "6", "label": "committees" },
+      { "value": "150+", "label": "delegates" },
+      { "value": "3", "label": "days of debate" }
+    ],
+    "steps_heading": "How to take part",
+    "steps": [
+      { "title": "Register", "text": "Sign up on your own or as a school delegation. We assign countries and committees after the deadline." },
+      { "title": "Prepare", "text": "Read the study guide of your committee, research your country's position and write a position paper." },
+      { "title": "Debate", "text": "Give speeches, lobby for support, merge draft resolutions and vote them through the committee." }
+    ],
+    "quote": "Diplomacy is the art of letting someone else have your way.",
+    "quote_author": "Daniele Varè",
+    "cta_heading": "Ready to represent a nation?",
+    "cta_text": "Registration is open until the deadline. Places in each committee are limited."
+  },
+  "conference": {
+    "edition": "OMUN 2027",
+    "motto": "Rebuilding Trust in a Divided World",
+    "date_start": "2027-03-11",
+    "date_end": "2027-03-13",
+    "start_time": "09:00",
+    "venue": "Oskar-von-Miller-Gymnasium",
+    "venue_address": "Siegfriedstraße 22\n80803 München",
+    "map_url": "https://www.openstreetmap.org/search?query=Oskar-von-Miller-Gymnasium%20M%C3%BCnchen",
+    "fee": "€ 20 per delegate (incl. lunch)",
+    "language": "English",
+    "intro": "OMUN takes place over three days at the Oskar-von-Miller-Gymnasium in Munich-Schwabing. Below you find the preliminary programme. Details may still change; the final version is published in the delegate booklet.",
+    "schedule": [
+      { "day": "Thursday", "time": "08:30–09:00", "title": "Registration", "location": "Foyer" },
+      { "day": "Thursday", "time": "09:00–10:30", "title": "Opening Ceremony", "location": "Aula" },
+      { "day": "Thursday", "time": "11:00–13:00", "title": "Lobbying", "location": "Committee rooms" },
+      { "day": "Thursday", "time": "13:00–14:00", "title": "Lunch", "location": "Mensa" },
+      { "day": "Thursday", "time": "14:00–16:30", "title": "Committee Session", "location": "Committee rooms" },
+      { "day": "Friday", "time": "09:00–12:30", "title": "Committee Session", "location": "Committee rooms" },
+      { "day": "Friday", "time": "12:30–13:30", "title": "Lunch", "location": "Mensa" },
+      { "day": "Friday", "time": "13:30–16:30", "title": "Committee Session", "location": "Committee rooms" },
+      { "day": "Friday", "time": "19:00–22:00", "title": "Delegates' Social", "location": "TBA" },
+      { "day": "Saturday", "time": "09:00–12:00", "title": "General Assembly", "location": "Aula" },
+      { "day": "Saturday", "time": "12:30–14:00", "title": "Closing Ceremony", "location": "Aula" }
+    ],
+    "body": "## Dress code\nWestern business attire is expected during all sessions.\n\n## Laptops\nPlease bring a laptop or tablet to write clauses and amendments. Wi-Fi is available on site.\n\n## Getting here\nThe school is a short walk from the U-Bahn station *Münchner Freiheit* (U3/U6)."
+  },
+  "registration": {
+    "open": true,
+    "deadline": "2027-01-31",
+    "intro": "Fill in the form to register for OMUN. School delegations: please register every delegate individually and give the same school name. You will receive your country and committee allocation by e-mail after the deadline.",
+    "roles": ["Delegate", "Chair (application)", "Press team", "Admin staff"],
+    "closed_message": "Registration is currently closed. Follow us on Instagram to find out when it opens.",
+    "success_message": "Thank you! We have received your registration and will be in touch by e-mail.",
+    "notify_email": ""
+  },
+  "committees": [
+    {
+      "id": "c1", "slug": "general-assembly-1", "name": "General Assembly First Committee", "abbr": "GA1", "level": "Beginner",
+      "topics": ["Regulating lethal autonomous weapons systems", "Preventing an arms race in outer space"],
+      "summary": "The GA1 deals with disarmament and international security. A good first committee for new delegates.",
+      "description": "The First Committee of the General Assembly (Disarmament and International Security) considers all disarmament and security questions within the scope of the UN Charter.",
+      "chairs": "TBA", "image": "", "study_guide": ""
+    },
+    {
+      "id": "c2", "slug": "human-rights-council", "name": "Human Rights Council", "abbr": "HRC", "level": "Intermediate",
+      "topics": ["Protecting privacy in the age of mass surveillance", "Rights of climate refugees"],
+      "summary": "The HRC promotes and protects human rights around the world.",
+      "description": "", "chairs": "TBA", "image": "", "study_guide": ""
+    },
+    {
+      "id": "c3", "slug": "environment-programme", "name": "UN Environment Programme", "abbr": "UNEP", "level": "Beginner",
+      "topics": ["Plastic pollution in the oceans", "Financing the transition away from fossil fuels"],
+      "summary": "UNEP sets the global environmental agenda.",
+      "description": "", "chairs": "TBA", "image": "", "study_guide": ""
+    },
+    {
+      "id": "c4", "slug": "world-health-organization", "name": "World Health Organization", "abbr": "WHO", "level": "Intermediate",
+      "topics": ["Pandemic preparedness", "Access to essential medicines"],
+      "summary": "The WHO directs and coordinates international health within the UN system.",
+      "description": "", "chairs": "TBA", "image": "", "study_guide": ""
+    },
+    {
+      "id": "c5", "slug": "economic-and-social-council", "name": "Economic and Social Council", "abbr": "ECOSOC", "level": "Intermediate",
+      "topics": ["Regulating artificial intelligence in the labour market", "Debt relief for developing countries"],
+      "summary": "ECOSOC coordinates the economic and social work of the UN.",
+      "description": "", "chairs": "TBA", "image": "", "study_guide": ""
+    },
+    {
+      "id": "c6", "slug": "security-council", "name": "Security Council", "abbr": "SC", "level": "Advanced",
+      "topics": ["The situation in the Sahel region", "Maritime security in the Red Sea"],
+      "summary": "Fifteen members, five vetoes. For experienced delegates only.",
+      "description": "", "chairs": "TBA", "image": "", "study_guide": ""
+    }
+  ],
+  "team": [
+    { "id": "t1", "name": "Name TBA", "role": "Secretary-General", "group": "Secretariat", "photo": "", "bio": "" },
+    { "id": "t2", "name": "Name TBA", "role": "Deputy Secretary-General", "group": "Secretariat", "photo": "", "bio": "" },
+    { "id": "t3", "name": "Name TBA", "role": "Head of Organisation", "group": "Organising Team", "photo": "", "bio": "" },
+    { "id": "t4", "name": "Name TBA", "role": "Head of Press", "group": "Organising Team", "photo": "", "bio": "" },
+    { "id": "t5", "name": "Name TBA", "role": "Supervising teacher", "group": "Teachers", "photo": "", "bio": "" }
+  ],
+  "news": [
+    {
+      "id": "n1", "slug": "registration-open", "title": "Registration for OMUN 2027 is open", "date": "2026-09-24", "image": "",
+      "excerpt": "Registration for the next conference is now open. Committees and topics are online.",
+      "body": "Registration for OMUN 2027 is now open. Have a look at the committees and their topics, then sign up via the registration form.\n\nStudy guides will be published here in the coming weeks.",
+      "published": true
+    }
+  ],
+  "gallery": [],
+  "faq": [
+    { "id": "f1", "question": "Do I need any MUN experience?", "answer": "No. Committees marked *Beginner* are made for first-time delegates, and the chairs will explain the rules of procedure at the start." },
+    { "id": "f2", "question": "Which language is spoken?", "answer": "All sessions are held in English." },
+    { "id": "f3", "question": "Who can take part?", "answer": "Students from grade 9 upwards, from our own school and from other schools." },
+    { "id": "f4", "question": "What is a position paper?", "answer": "A one-page summary of your country's position on the committee topic. Your study guide explains what it should contain." },
+    { "id": "f5", "question": "Can I choose my country?", "answer": "You can state preferences in the registration form. We try to take them into account, but cannot guarantee them." }
+  ],
+  "downloads": [],
+  "sponsors": [],
+  "archive": [],
+  "pages": [],
+  "legal": {
+    "imprint": "## Angaben gemäß § 5 DDG\n\n[Name der verantwortlichen Person]\n[Funktion, z. B. betreuende Lehrkraft / Schulleitung]\nOskar-von-Miller-Gymnasium\nSiegfriedstraße 22\n80803 München\n\n## Kontakt\n\nE-Mail: [info@omun.de]\n\n## Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV\n\n[Name]\n[Anschrift wie oben]\n\n## Haftung für Links\n\nUnsere Website enthält Links zu externen Websites Dritter, auf deren Inhalte wir keinen Einfluss haben. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber verantwortlich. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Links umgehend entfernen.\n\n## Bildnachweise\n\n[Fotos: OMUN-Pressteam, sofern nicht anders angegeben]",
+    "privacy": "## 1. Verantwortliche Stelle\n\n[Name der verantwortlichen Person]\nOskar-von-Miller-Gymnasium\nSiegfriedstraße 22, 80803 München\nE-Mail: [info@omun.de]\n\n## 2. Hosting\n\nDiese Website wird bei der STRATO AG, Otto-Ostrowski-Straße 7, 10249 Berlin, gehostet. Beim Aufruf der Website verarbeitet der Hoster technisch notwendige Daten (z. B. IP-Adresse, Datum und Uhrzeit, aufgerufene Seite, Browsertyp) in Server-Logfiles. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem sicheren und stabilen Betrieb). Mit STRATO besteht ein Vertrag zur Auftragsverarbeitung.\n\n## 3. Cookies, Schriften und Tracking\n\nDiese Website verwendet keine Tracking- oder Analyse-Tools und bindet keine externen Dienste ein. Schriftarten werden lokal von unserem Server geladen. Cookies werden nur im geschützten Verwaltungsbereich gesetzt und sind technisch notwendig.\n\n## 4. Anmeldeformular\n\nWenn Sie sich über das Formular zur Konferenz anmelden, verarbeiten wir die angegebenen Daten (Name, E-Mail-Adresse, Schule, Klassenstufe, Wünsche zu Gremium und Land sowie freiwillige Angaben) ausschließlich zur Organisation und Durchführung der Konferenz. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO bzw. Ihre Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO. Bei Minderjährigen unter 16 Jahren ist die Einwilligung der Erziehungsberechtigten erforderlich.\n\nDie Daten werden auf dem Server unseres Hosters gespeichert, nicht an Dritte weitergegeben und spätestens [drei Monate] nach Ende der Konferenz gelöscht.\n\n## 5. Kontakt per E-Mail\n\nWenn Sie uns per E-Mail kontaktieren, verarbeiten wir Ihre Angaben zur Bearbeitung der Anfrage (Art. 6 Abs. 1 lit. b bzw. f DSGVO).\n\n## 6. Ihre Rechte\n\nSie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch und können eine erteilte Einwilligung jederzeit widerrufen. Außerdem haben Sie das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren, z. B. beim Bayerischen Landesamt für Datenschutzaufsicht.\n\n*Stand: [Monat Jahr]. Bitte vor Veröffentlichung von der Schule prüfen lassen.*"
+  }
+}
