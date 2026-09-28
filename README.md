@@ -71,8 +71,17 @@ danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach au
 
 ## Lokal testen
 
-```bash
-php -S localhost:8000 index.php
-```
+Einmalig PHP installieren:
 
-Dann http://localhost:8000 und http://localhost:8000/admin/ öffnen.
+- **Mac:** Homebrew installieren (brew.sh), dann im Terminal `brew install php`
+- **Windows:** auf windows.php.net/download die Version 8.x als „VS17 x64 Thread Safe“ Zip laden und nach
+  `C:\php` entpacken. Dort `php.ini-development` kopieren, die Kopie in `php.ini` umbenennen und darin das `;` vor
+  `extension_dir = "ext"`, `extension=mbstring`, `extension=fileinfo` und `extension=gd` entfernen.
+
+Danach per Doppelklick starten: **`start-windows.bat`** bzw. **`start-mac.command`**
+(Mac beim ersten Mal: Rechtsklick → Öffnen). Der Browser öffnet http://localhost:8000, der Admin liegt unter
+http://localhost:8000/admin.
+
+Oder im Terminal im Projektordner: `php -S localhost:8000 index.php`
+
+Lokale Änderungen landen nur im lokalen `data/`- und `uploads/`-Ordner und haben keine Auswirkung auf die echte Website.
