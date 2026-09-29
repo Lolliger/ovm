@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** "https://omun.de" – used for absolute links in e-mails. */
+/** "https://omun.eu" – used for absolute links in e-mails. */
 function site_origin(): string
 {
     $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';

@@ -1,6 +1,6 @@
 # OMUN – Website
 
-Website der **Oskar von Miller Model United Nations** (omun.de).
+Website der **Oskar von Miller Model United Nations** (omun.eu).
 Schlankes PHP ohne Datenbank und ohne Framework. Alle Inhalte liegen als JSON-Datei auf dem Server
 und werden über **/admin** gepflegt.
 
@@ -22,13 +22,13 @@ und werden über **/admin** gepflegt.
 Voraussetzung: ein Strato-Hosting-Paket mit **PHP 8.1 oder neuer** (im Strato-Kundenmenü unter
 *Einstellungen → PHP-Version* einstellen).
 
-1. Im Strato-Kundenmenü **SSL** für omun.de aktivieren (ist in den Paketen enthalten).
+1. Im Strato-Kundenmenü **SSL** für omun.eu aktivieren (ist in den Paketen enthalten).
 2. Per **SFTP** (z. B. mit FileZilla, Zugangsdaten im Kundenmenü unter *SFTP/SSH*) den kompletten
    Inhalt dieses Repositorys in das Verzeichnis hochladen, auf das die Domain zeigt.
    Wichtig: auch die versteckten Dateien `.htaccess` mit hochladen.
 3. Sicherstellen, dass die Ordner `data/` und `uploads/` beschreibbar sind (normalerweise
    automatisch der Fall, sonst Rechte auf `755` setzen).
-4. **Sofort** `https://omun.de/admin` aufrufen und das Admin-Passwort festlegen.
+4. **Sofort** `https://omun.eu/admin` aufrufen und das Admin-Passwort festlegen.
    Solange noch kein Passwort gesetzt ist, kann das jeder tun, der die Seite aufruft.
 5. Im Admin unter *Impressum & Datenschutz* die Platzhalter in `[eckigen Klammern]` ersetzen und
    die Texte von der Schule prüfen lassen.
@@ -41,7 +41,7 @@ Diese beiden Ordner enthalten die Live-Inhalte und dürfen nicht überschrieben 
 
 ## Admin-Bereich
 
-Erreichbar nur über `omun.de/admin` (nirgends verlinkt). Dort lässt sich bearbeiten:
+Erreichbar nur über `omun.eu/admin` (nirgends verlinkt). Dort lässt sich bearbeiten:
 
 - Allgemeines & Design (Name, Kontakt, Farben, Logo, Hinweisleiste)
 - Startseite, Konferenz (Termine, Ort, Zeitplan), Anmeldeformular (öffnen/schließen)
@@ -79,7 +79,7 @@ kann man den Login-Link herauskopieren.
 - **Ausgabe:** alle Inhalte werden HTML-escaped, Markdown erlaubt kein eigenes HTML
 - **Anmeldeformular:** Honeypot, Mindest-Ausfüllzeit, max. 10 Anmeldungen pro Stunde und IP;
   Anmeldungen werden automatisch X Tage nach Konferenzende gelöscht (einstellbar, Standard 90)
-- **Nach dem Hochladen prüfen:** `https://omun.de/data/auth.json` muss **403 Forbidden** liefern.
+- **Nach dem Hochladen prüfen:** `https://omun.eu/data/auth.json` muss **403 Forbidden** liefern.
 
 ## Lokal testen
 
