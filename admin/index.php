@@ -5,6 +5,7 @@ require dirname(__DIR__) . '/lib/bootstrap.php';
 require dirname(__DIR__) . '/lib/admin.php';
 require dirname(__DIR__) . '/lib/registration.php';
 require dirname(__DIR__) . '/lib/totp.php';
+require dirname(__DIR__) . '/lib/updater.php';
 
 header('X-Frame-Options: DENY');
 header('Cache-Control: no-store');
@@ -292,6 +293,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 redirect(admin_url(['s' => 'settings']));
 
+            case 'update':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Zum Einspielen eines Updates bitte das richtige Admin-Passwort eingeben.', 'error');
+                    redirect(admin_url(['s' => 'update']));
+                }
+                $u = $_FILES['package'] ?? null;
+                if (!$u || $u['error'] !== UPLOAD_ERR_OK) {
+                    flash($u && $u['error'] !== UPLOAD_ERR_NO_FILE ? upload_error_text((int) $u['error']) : 'Bitte die Update-Zip auswählen.', 'error');
+                    redirect(admin_url(['s' => 'update']));
+                }
+                [$count, $old, $new] = apply_update($u['tmp_name']);
+                flash("Update eingespielt: Version $old → $new ($count Dateien). Inhalte, Bilder und Anmeldungen wurden nicht verändert.");
+                redirect(admin_url(['s' => 'update']));
+
             case 'history_restore':
                 $path = history_path((string) ($_POST['file'] ?? ''));
                 $version = $path ? read_json($path) : [];
@@ -359,6 +374,20 @@ if ($s === 'export') {
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Disposition: attachment; filename="omun-inhalte-' . date('Y-m-d') . '.json"');
     readfile(CONTENT_FILE);
+    exit;
+}
+
+if ($s === 'code_backup') {
+    $file = basename((string) ($_GET['file'] ?? ''));
+    $path = CODE_BACKUP_DIR . '/' . $file;
+    if (!preg_match('/^code-[\w.-]+\.zip$/', $file) || !is_file($path)) {
+        http_response_code(404);
+        exit('Nicht gefunden');
+    }
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $file . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
     exit;
 }
 
@@ -473,7 +502,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -495,6 +524,7 @@ function admin_page(string $s, array $schema): void
     <?php endforeach; ?>
     <p class="nav-label">Verwaltung</p>
     <a href="<?= e(admin_url(['s' => 'media'])) ?>"<?= $s === 'media' ? ' class="active"' : '' ?>>Dateien &amp; Bilder</a>
+    <a href="<?= e(admin_url(['s' => 'update'])) ?>"<?= $s === 'update' ? ' class="active"' : '' ?>>Update <span class="count"><?= e(current_version()) ?></span></a>
     <a href="<?= e(admin_url(['s' => 'history'])) ?>"<?= $s === 'history' ? ' class="active"' : '' ?>>Versionen</a>
     <a href="<?= e(admin_url(['s' => 'settings'])) ?>"<?= $s === 'settings' ? ' class="active"' : '' ?>>Sicherheit &amp; Backup<?= totp_enabled() ? '' : ' <span class="count warn">!</span>' ?></a>
   </nav>
@@ -520,6 +550,8 @@ function admin_page(string $s, array $schema): void
         view_settings();
     } elseif ($s === 'history') {
         view_history();
+    } elseif ($s === 'update') {
+        view_update();
     } else {
         view_dashboard($schema, $regCount);
     }
@@ -914,5 +946,39 @@ function view_history(): void
         </li>
       <?php endforeach; ?>
     </ul>
+    <?php
+}
+
+function view_update(): void
+{
+    $backups = code_backups();
+    ?>
+    <div class="page-title"><h1>Update</h1><span class="muted">Installierte Version: <strong><?= e(current_version()) ?></strong></span></div>
+    <form class="edit-form" method="post" enctype="multipart/form-data" data-confirm="Update jetzt einspielen?">
+      <?= csrf_field() ?><input type="hidden" name="a" value="update">
+      <h2>Neue Version einspielen</h2>
+      <p>Die Update-Zip hier hochladen – der Server ersetzt die Programmdateien selbst.
+        <strong>Texte, Einstellungen, Passwort, Bilder und Anmeldungen</strong> (Ordner <code>data/</code> und <code>uploads/</code>)
+        werden dabei <strong>nie</strong> verändert, auch wenn sie in der Zip enthalten sind.
+        Vorher wird die aktuelle Version automatisch gesichert.</p>
+      <div class="field"><label>Update-Zip<input type="file" name="package" accept=".zip,application/zip" required></label></div>
+      <div class="field"><label>Admin-Passwort zur Bestätigung<input type="password" name="password" required autocomplete="current-password"></label></div>
+      <div class="save-bar"><button class="btn">Update einspielen</button></div>
+    </form>
+
+    <div class="edit-form">
+      <h2>Sicherungen der vorherigen Versionen</h2>
+      <?php if (!$backups): ?>
+        <p class="muted">Noch keine – eine Sicherung entsteht automatisch bei jedem Update.</p>
+      <?php else: ?>
+        <p>Falls nach einem Update etwas nicht funktioniert: Sicherung herunterladen und oben wieder als Update einspielen.</p>
+        <ul class="item-list">
+          <?php foreach ($backups as $b): ?>
+            <li><span class="item-title"><?= e($b['file']) ?><small><?= e(date('d.m.Y, H:i', $b['time'])) ?> Uhr · <?= e(human_size($b['size'])) ?></small></span>
+              <a class="btn-ghost" href="<?= e(admin_url(['s' => 'code_backup', 'file' => $b['file']])) ?>">Download</a></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
     <?php
 }

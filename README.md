@@ -36,8 +36,14 @@ Voraussetzung: ein Strato-Hosting-Paket mit **PHP 8.1 oder neuer** (im Strato-Ku
 
 ### Updates einspielen
 
-Bei späteren Code-Updates einfach alle Dateien **außer** `data/` und `uploads/` neu hochladen.
-Diese beiden Ordner enthalten die Live-Inhalte und dürfen nicht überschrieben werden.
+Im Admin unter **Update** die Update-Zip hochladen und mit dem Admin-Passwort bestätigen. Der Server
+ersetzt die Programmdateien selbst; `data/` und `uploads/` (Inhalte, Passwort, Anmeldungen, Bilder)
+werden nie verändert. Vorher wird die laufende Version als Zip in `data/code-backups/` gesichert
+(letzte 5, im Admin herunterladbar – zum Zurückspringen einfach wieder als Update einspielen).
+
+**Niemals den ganzen Webspace-Ordner löschen** – sonst sind Inhalte, Passwort und Anmeldungen weg.
+Falls der Admin nicht erreichbar ist: per Dateimanager alle Dateien **außer** `data/` und `uploads/`
+ersetzen.
 
 ## Admin-Bereich
 

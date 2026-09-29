@@ -229,3 +229,4 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .reg-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 1rem 1rem; }
 .reg-actions form { margin: 0; padding: 0; }
 .reg-actions .btn-ghost { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
+.muted { color: var(--muted); }

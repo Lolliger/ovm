@@ -169,6 +169,7 @@ flowchart TD
 | **Uploads** | Prüft Endung und MIME-Typ, vergibt eindeutige Namen, verkleinert und dreht Fotos (falls GD verfügbar). | `lib/admin.php` → `store_upload()`, `optimize_image()` |
 | **Anmeldungen** | Liste, Suche, CSV-Export (mit BOM und Schutz vor Formeln), einzelne oder alle löschen. | `admin/index.php` → `view_registrations()` und `case 'reg_*'` |
 | **Sicherheit** | Passwortwechsel, 2FA-Geräte hinzufügen und entfernen, Notfall-Codes, Backup-Export und -Import. | `admin/index.php` → `view_settings()`, `view_2fa()` |
+| **Update** | Nimmt eine Update-Zip entgegen (Passwort nötig), prüft alle Pfade, sichert die laufende Version und ersetzt die Programmdateien. `data/` und `uploads/` werden übersprungen. | `lib/updater.php` → `apply_update()`, `admin/index.php` → `view_update()` |
 
 ---
 
@@ -241,7 +242,7 @@ Die folgenden Punkte sind beim Lesen des Codes aufgefallen. Ⓡ = echtes Risiko 
 | **B2** Ⓑ | PHP-Einstellung `post_max_size` | Ist ein Upload größer als `post_max_size`, verwirft PHP den ganzen POST, also auch das CSRF-Token. | Die irreführende Meldung **„Sitzung abgelaufen“** beim Hochladen großer Dateien. Datei verkleinern oder das Limit im Strato-Menü erhöhen. |
 | **B3** Ⓑ | PHP-Einstellung `session.gc_maxlifetime` | Der Code erlaubt 3 h Inaktivität, PHP löscht Sessions aber evtl. schon nach dem Server-Standard (oft 24 min). | Man wird nach ca. 20–30 Minuten abgemeldet. |
 | **B4** Ⓑ | `lib/totp.php` | Die Codes hängen von der Uhrzeit ab (±30 s Toleranz), und derselbe Code gilt nur einmal. | „Code falsch“: Uhrzeit am Handy auf automatisch stellen oder auf den nächsten Code warten. |
-| **B5** Ⓑ | Deployment | Wer beim Update `data/` oder `uploads/` überschreibt, verliert Inhalte, Passwort und Anmeldungen. | Alles ist wieder auf Standard, das Passwort ist das aus der Zip. |
+| **B5** Ⓑ | Deployment | Wer den Webspace-Ordner löscht oder `data/`/`uploads/` überschreibt, verliert Inhalte, Passwort und Anmeldungen. Updates deshalb nur über **Admin → Update**. | Alles ist wieder auf Standard. Code-Sicherungen liegen in `data/code-backups/`, Inhalte nur im Backup. |
 | **B6** Ⓑ | `lib/bootstrap.php` → `BASE`, `.htaccess` → `RewriteBase /` | Der Code unterstützt Unterordner, die `.htaccess` ist aber fest auf das Hauptverzeichnis eingestellt. | In einem Unterordner (z. B. `/test/`) funktionieren die Unterseiten nicht. `RewriteBase` anpassen. |
 | **B7** Ⓑ | `lib/admin.php` → `optimize_image()`, `store_upload()` | Die Bildverkleinerung braucht die PHP-Erweiterung GD, die MIME-Prüfung braucht fileinfo. Fehlen sie, wird der Schritt **still übersprungen**. | Riesige Handy-Fotos, langsame Seite. |
 | **B8** Ⓑ | Kopplung `lib/schema.php` ↔ `lib/defaults.json` ↔ `templates/` | Ein neues Feld muss an drei Stellen eingetragen werden. `content()` ergänzt fehlende Werte nur eine Ebene tief, also nicht in Listeneinträgen. | Ein neues Feld erscheint im Admin, aber nicht auf der Seite (Template vergessen) oder umgekehrt. |
