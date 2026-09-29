@@ -71,6 +71,18 @@ $statuses = registration_statuses();
       </article>
     <?php endforeach; ?>
 
+    <details class="portal-card change-password"<?= $error && ($_POST['a'] ?? '') === 'password' ? ' open' : '' ?>>
+      <summary><h2>Change password</h2></summary>
+      <form class="form" method="post" action="<?= e(url('portal')) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="a" value="password">
+        <input type="hidden" name="username" value="<?= e($email) ?>" autocomplete="username">
+        <div class="field"><label for="p-new">New password (at least 10 characters)</label><input id="p-new" type="password" name="new_password" required minlength="10" autocomplete="new-password"></div>
+        <div class="field"><label for="p-new2">Repeat new password</label><input id="p-new2" type="password" name="new_password2" required minlength="10" autocomplete="new-password"></div>
+        <button class="btn" type="submit">Save new password</button>
+      </form>
+    </details>
+
     <p class="muted">Something wrong with your details? Write to <a href="mailto:<?= e(c('site.email')) ?>"><?= e(c('site.email')) ?></a>.</p>
   </div>
 </section>

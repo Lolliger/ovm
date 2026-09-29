@@ -96,7 +96,7 @@ flowchart TD
     REG --> REGS[("data/registrations.json")]
     REG --> MAIL["Benachrichtigung + Bestätigung<br/>⚠ lib/mailer.php · send_mail()"]
     ROUTER -->|"/portal/*"| PORTAL["Teilnehmer-Bereich<br/>lib/portal.php"]
-    PORTAL --> TOK[("data/login-tokens.json")]
+    PORTAL --> TOK[("data/login-tokens.json<br/>data/accounts.json")]
     PORTAL --> REGS
     PORTAL --> PAPERS[("data/papers/")]
     PORTAL --> MAIL
@@ -117,7 +117,7 @@ flowchart TD
 | **Seiten-Template** | Eine Datei pro Seitentyp, gemeinsame Bausteine stehen in `_pagehead.php` und `_files.php`. | `templates/` |
 | **Anmeldung** | Validierung, Honeypot, Mindestzeit, Rate-Limit, Speichern, Mail und danach ein Redirect. | `lib/registration.php` → `handle_registration()` |
 | **Mailversand** | Einziger Weg für E-Mails (Benachrichtigung, Bestätigung, Login-Links). Lokal (`php -S`) landen Mails in `data/mail-outbox/`. | `lib/mailer.php` → `send_mail()` |
-| **Teilnehmer-Bereich** | Login per Einmal-Link (30 min). Der Link zeigt nur einen Button, erst der Klick verbraucht ihn – so können Mail-Scanner ihn nicht entwerten. Übersicht der eigenen Anmeldungen, Upload/Download des Position Papers. | `lib/portal.php` → `portal_route()`, `templates/portal*.php` |
+| **Teilnehmer-Bereich** | Login mit E-Mail + Passwort (wird nach der Anmeldung erzeugt und gemailt). „Passwort vergessen“ per Einmal-Link (30 min; erst der Klick auf den Button verbraucht ihn). Übersicht der eigenen Anmeldungen, Paper-Upload, Passwort ändern. | `lib/portal.php` → `portal_route()`, `send_confirmation()`, `templates/portal*.php` |
 
 ---
 
@@ -211,6 +211,7 @@ flowchart LR
 | `data/history/*.json` | Stand **vor** jeder Änderung, maximal 50 | `snapshot_content()` | … ist nur kein Zurücksetzen möglich, sonst keine Folgen. |
 | `data/registrations.json` | Anmeldungen inkl. Status, Zuteilung, Paper-Infos | nur über `update_json()` (mit Lock) | … gilt die Liste als leer. |
 | `data/login-tokens.json` | Gehashte Login-Links mit Ablaufzeit | `lib/portal.php` | … sind offene Login-Links ungültig, sonst harmlos. |
+| `data/accounts.json` | Teilnehmer-Konten: E-Mail → Passwort-Hash | `set_account_password()`, aufgeräumt von `delete_orphan_accounts()` | … kann sich niemand mehr ins Portal einloggen; im Admin „Neue Zugangsdaten senden“. |
 | `data/papers/` | Hochgeladene Position Papers (nicht öffentlich) | `store_paper()` | … zeigt der Download „File not found“. |
 | `data/auth.json` | Passwort-Hash, Session-Version `v`, 2FA-Geräte, Notfall-Codes | Admin | … ist die **Ersteinrichtung wieder offen** (siehe R3). |
 | `data/ratelimit-*.json` | Zeitstempel der Versuche pro IP-Hash | `rate_limited()` | … ist das harmlos und wird neu angelegt. |

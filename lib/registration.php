@@ -130,6 +130,9 @@ function purge_registrations(): int
     foreach ($removed as $r) {
         delete_paper_file($r);
     }
+    if ($removed) {
+        delete_orphan_accounts();
+    }
     return count($removed);
 }
 

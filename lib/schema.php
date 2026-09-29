@@ -106,9 +106,9 @@ function schema(): array
             'label' => 'Teilnehmer-Bereich',
             'type' => 'object',
             'fields' => [
-                ['key' => 'confirm_email', 'label' => 'Bestätigungs-Mail mit Login-Link nach der Anmeldung senden', 'type' => 'bool'],
+                ['key' => 'confirm_email', 'label' => 'Bestätigungs-Mail mit Zugangsdaten nach der Anmeldung senden', 'type' => 'bool'],
                 ['key' => 'confirm_subject', 'label' => 'Betreff der Bestätigungs-Mail', 'type' => 'text'],
-                ['key' => 'confirm_text', 'label' => 'Text der Bestätigungs-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {first_name}, {last_name}, {conference}, {link} (persönlicher Login-Link, 30 Min. gültig), {portal} (Adresse des Teilnehmer-Bereichs), {email} (Kontakt-E-Mail). Die Angaben aus dem Formular werden automatisch unten angehängt.'],
+                ['key' => 'confirm_text', 'label' => 'Text der Bestätigungs-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {first_name}, {last_name}, {conference}, {portal} (Adresse des Teilnehmer-Bereichs), {username} (E-Mail-Adresse), {password} (erzeugtes Passwort), {email} (Kontakt-E-Mail). Fehlt {password} im Text, werden die Zugangsdaten automatisch angehängt. Die Formular-Angaben stehen immer unten.'],
                 ['key' => 'intro', 'label' => 'Text oben im Teilnehmer-Bereich', 'type' => 'markdown'],
                 ['key' => 'papers_open', 'label' => 'Position Papers können hochgeladen werden', 'type' => 'bool'],
                 ['key' => 'paper_deadline', 'label' => 'Abgabefrist Position Papers', 'type' => 'date', 'help' => 'Nach diesem Tag ist kein Upload mehr möglich. Leer = keine Frist.'],

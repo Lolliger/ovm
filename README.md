@@ -64,14 +64,17 @@ danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach au
 
 ## Teilnehmer-Bereich (/portal)
 
-Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit einem persönlichen Login-Link
-(kein Passwort, 30 Minuten gültig, nur einmal nutzbar; neuer Link jederzeit unter `/portal`).
-Dort sehen sie Status und Zuteilung (Land, Gremium inkl. Study Guide) und können ihr Position Paper
-hochladen (PDF/Word, max. 10 MB, bis zur Frist ersetzbar). Papers liegen geschützt in `data/papers/`
-und werden mit der Anmeldung gelöscht.
+Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit **Zugangsdaten**:
+Benutzername = ihre E-Mail-Adresse, Passwort = automatisch erzeugt (z. B. `Kavo-Rimu-Teza-Lopa-47`).
+Wer sich mit derselben Adresse erneut anmeldet, behält sein Passwort. Im Portal sehen sie Status und
+Zuteilung (Land, Gremium inkl. Study Guide), können ihr Position Paper hochladen (PDF/Word, max. 10 MB,
+bis zur Frist ersetzbar) und ihr Passwort ändern. „Passwort vergessen?“ schickt einen einmaligen
+Login-Link (30 Minuten gültig). Im Admin gibt es pro Anmeldung „Neue Zugangsdaten senden“.
 
-Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt – dort
-kann man den Login-Link herauskopieren.
+Passwörter werden nur als Hash gespeichert (`data/accounts.json`), Papers geschützt in `data/papers/`;
+beides wird mit der Anmeldung gelöscht.
+
+Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt.
 
 ## Sicherheit
 

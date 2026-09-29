@@ -221,6 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     return array_values(array_filter($regs, fn ($r) => ($r['id'] ?? '') !== $id));
                 });
+                delete_orphan_accounts();
                 flash('Anmeldung gelöscht.');
                 redirect(admin_url(['s' => 'registrations']));
 
@@ -241,15 +242,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Anmeldung aktualisiert.');
                 redirect(admin_url(['s' => 'registrations', 'open' => $id]) . '#reg-' . rawurlencode($id));
 
-            case 'reg_sendlink':
+            case 'reg_sendcreds':
                 $email = '';
                 foreach (read_json(REGISTRATIONS_FILE) as $r) {
                     if (($r['id'] ?? '') === ($_POST['id'] ?? '')) {
                         $email = $r['email'];
                     }
                 }
-                if ($email && send_login_link($email)) {
-                    flash('Login-Link an ' . $email . ' gesendet.');
+                if ($email && send_new_credentials($email)) {
+                    flash('Neue Zugangsdaten an ' . $email . ' gesendet. Das alte Passwort gilt nicht mehr.');
                 } else {
                     flash('Die E-Mail konnte nicht gesendet werden. Ist der Mailversand im Hosting-Paket aktiv?', 'error');
                 }
@@ -263,6 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         return [];
                     });
+                    delete_orphan_accounts();
                     flash('Alle Anmeldungen wurden gelöscht.');
                 } else {
                     flash('Zum Bestätigen bitte LÖSCHEN eintippen.', 'error');
@@ -762,7 +764,7 @@ function view_registrations(): void
             <?php if (!empty($r['paper'])): ?>
               <a class="btn-ghost" href="<?= e(admin_url(['s' => 'paper', 'id' => $r['id']])) ?>">Position Paper herunterladen (<?= e(human_size((int) $r['paper']['size'])) ?>, <?= e(date('d.m.Y', strtotime($r['paper']['uploaded']))) ?>)</a>
             <?php endif; ?>
-            <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="reg_sendlink"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost">Login-Link erneut senden</button></form>
+            <form method="post" data-confirm="Neues Passwort erzeugen und an <?= e($r['email']) ?> schicken? Das bisherige Passwort gilt dann nicht mehr."><?= csrf_field() ?><input type="hidden" name="a" value="reg_sendcreds"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost">Neue Zugangsdaten senden</button></form>
             <form method="post" data-confirm="Anmeldung wirklich löschen? Ein hochgeladenes Position Paper wird mitgelöscht."><?= csrf_field() ?><input type="hidden" name="a" value="reg_delete"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost danger">Anmeldung löschen</button></form>
           </div>
         </details>

@@ -671,3 +671,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--un); outlin
 .paper-current a { font-weight: 500; }
 .paper-form { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
 .paper-form input[type=file] { flex: 1 1 14rem; width: auto; }
+.change-password summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.change-password summary::-webkit-details-marker { display: none; }
+.change-password summary::after { content: "+"; font-size: 1.5rem; font-weight: 300; color: var(--link); }
+.change-password[open] summary::after { content: "–"; }
+.change-password summary h2 { font-size: 1.35rem; }

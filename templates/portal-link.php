@@ -7,9 +7,9 @@ require __DIR__ . '/_pagehead.php';
   <div class="container narrow">
     <?php if ($error): ?>
       <div class="notice notice-error" role="alert"><p><?= e($error) ?></p></div>
-      <p><a class="btn" href="<?= e(url('portal')) ?>">Request a new link</a></p>
+      <p><a class="btn" href="<?= e(url('portal/forgot')) ?>">Request a new link</a> <a class="more" href="<?= e(url('portal')) ?>">Log in with password</a></p>
     <?php elseif ($token === ''): ?>
-      <p>This link is incomplete. <a href="<?= e(url('portal')) ?>">Request a new login link</a>.</p>
+      <p>This link is incomplete. <a href="<?= e(url('portal/forgot')) ?>">Request a new login link</a>.</p>
     <?php else: ?>
       <form class="form" method="post" action="<?= e(url('portal/login')) ?>">
         <?= csrf_field() ?>
