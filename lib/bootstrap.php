@@ -153,6 +153,7 @@ function start_session(): void
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => BASE . '/',
+        'domain' => function_exists('session_cookie_domain') ? session_cookie_domain() : '',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
         'samesite' => 'Strict',

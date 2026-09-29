@@ -159,6 +159,7 @@
     "retention_days": "90"
   },
   "portal": {
+    "portal_url": "https://conference.omun.eu",
     "confirm_email": true,
     "confirm_subject": "Your registration for {conference}",
     "confirm_text": "Hello {first_name},\n\nthank you for registering for {conference}! We have received your registration and will let you know about your country and committee allocation.\n\nIn your personal delegate area you can see the status of your registration and upload your position paper later on.\n\nYour login details:\nWebsite:  {portal}\nUsername: {username}\nPassword: {password}\n\nPlease keep this e-mail safe. You can change your password after logging in.\n\nIf you have any questions, write to us at {email}.\n\nSee you soon!\nYour OMUN team",

@@ -72,7 +72,7 @@ function consume_login_token(string $token): ?string
 
 function login_link(string $token): string
 {
-    return site_origin() . url('portal/login') . '?token=' . rawurlencode($token);
+    return login_url() . '/link?token=' . rawurlencode($token);
 }
 
 /** Replaces {placeholders} in admin-editable mail texts. */
@@ -160,7 +160,7 @@ function send_confirmation(array $entry): bool
         $password = generate_password();
         set_account_password($entry['email'], $password);
     }
-    $portal = site_origin() . url('portal');
+    $portal = login_url();
     $vars = [
         'first_name' => $entry['first_name'],
         'last_name' => $entry['last_name'],
@@ -195,7 +195,7 @@ function send_new_credentials(string $email): bool
     }
     $password = generate_password();
     set_account_password($email, $password);
-    $vars = ['portal' => site_origin() . url('portal'), 'username' => $email, 'password' => $password];
+    $vars = ['portal' => login_url(), 'username' => $email, 'password' => $password];
     $body = "Hello,\n\nhere are your (new) login details for the " . c('site.name') . " delegate area."
         . credentials_block($vars)
         . "\nAny previous password no longer works. You can change the password after logging in.\n";
@@ -344,15 +344,105 @@ function committee_by_label(string $label): ?array
     return null;
 }
 
-/* ---------- Routes: /portal, /portal/login, /portal/logout, /portal/paper ---------- */
+/* ---------- Where the portal lives ---------- */
 
-function portal_route(?string $sub): void
+/*
+ * The delegate area can run on its own subdomain (e.g. conference.omun.eu),
+ * set in the admin. The subdomain must point to the same folder as the main
+ * site, so both share data/ and the login session (cookie for the whole domain).
+ * Login itself happens on the main site at /login. Without a subdomain (or when
+ * testing locally) everything runs on the main site under /portal.
+ */
+
+function request_host(): string
+{
+    return strtolower(preg_replace('/[^a-z0-9.:-]/i', '', $_SERVER['HTTP_HOST'] ?? ''));
+}
+
+function strip_port(string $host): string
+{
+    return preg_replace('/:\d+$/', '', $host);
+}
+
+/** "conference.omun.eu" (with ":port" if the setting has one), or null. */
+function portal_host_setting(): ?string
+{
+    $u = parse_url(trim((string) c('portal.portal_url')));
+    if (empty($u['host'])) {
+        return null;
+    }
+    return strtolower($u['host']) . (isset($u['port']) ? ':' . $u['port'] : '');
+}
+
+/** The shared parent domain, e.g. "omun.eu". */
+function portal_base_domain(): ?string
+{
+    $host = portal_host_setting();
+    $pos = $host ? strpos(strip_port($host), '.') : false;
+    return $pos === false ? null : substr(strip_port($host), $pos + 1);
+}
+
+/** True when the portal runs on its own subdomain for the domain of this request. */
+function split_portal(): bool
+{
+    $base = portal_base_domain();
+    $current = strip_port(request_host());
+    return $base !== null && ($current === $base || str_ends_with($current, '.' . $base));
+}
+
+function on_portal_host(): bool
+{
+    return split_portal() && request_host() === portal_host_setting();
+}
+
+/** Origin of the main website, also when called from the portal subdomain. */
+function main_origin(): string
+{
+    if (!on_portal_host()) {
+        return site_origin();
+    }
+    $host = request_host();
+    return (str_starts_with(site_origin(), 'https') ? 'https' : 'http') . '://' . substr($host, strpos($host, '.') + 1);
+}
+
+/** Absolute address of the delegate area's start page. */
+function portal_home(): string
+{
+    return split_portal() ? rtrim(trim((string) c('portal.portal_url')), '/') . '/' : site_origin() . url('portal');
+}
+
+/** Link to a page inside the delegate area ('' = start page, 'paper', 'logout'). */
+function portal_link(string $page = ''): string
+{
+    return on_portal_host() ? url($page) : url(rtrim('portal/' . $page, '/'));
+}
+
+function login_url(): string
+{
+    return main_origin() . url('login');
+}
+
+/** Cookie domain so that omun.eu/login and conference.omun.eu share the session. */
+function session_cookie_domain(): string
+{
+    return split_portal() ? (string) portal_base_domain() : '';
+}
+
+function redirect_to(string $location): never
+{
+    header('Location: ' . $location, true, 303);
+    exit;
+}
+
+/* ---------- Routes on the main site: /login, /login/forgot, /login/link ---------- */
+
+function login_route(?string $sub): void
 {
     header('X-Robots-Tag: noindex');
     header('Cache-Control: private, no-store');
     $post = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 
-    if ($sub === 'login') {
+    if ($sub === 'link') {
         $token = (string) ($_GET['token'] ?? '');
         $error = '';
         // The link opens a page with a button; only the POST logs in. This way
@@ -364,8 +454,7 @@ function portal_route(?string $sub): void
                 $error = 'Too many attempts. Please try again later.';
             } elseif ($email = consume_login_token((string) ($_POST['token'] ?? ''))) {
                 portal_login($email);
-                header('Location: ' . url('portal'), true, 303);
-                exit;
+                redirect_to(portal_home());
             } else {
                 $error = 'This login link is invalid or has expired.';
             }
@@ -374,28 +463,7 @@ function portal_route(?string $sub): void
         return;
     }
 
-    if ($sub === 'logout') {
-        if ($post && csrf_check()) {
-            start_session();
-            unset($_SESSION['portal']);
-        }
-        header('Location: ' . url('portal'), true, 303);
-        exit;
-    }
-
-    $email = portal_email();
-
-    if ($sub === 'paper') {
-        foreach ($email ? registrations_for($email) : [] as $reg) {
-            if ($reg['id'] === ($_GET['id'] ?? '')) {
-                send_paper($reg);
-            }
-        }
-        http_response_code(404);
-        exit('File not found');
-    }
     if ($sub === 'forgot') {
-        // "Forgot password": ask for the e-mail address and send a login link.
         $sent = false;
         $error = '';
         if ($post) {
@@ -414,31 +482,64 @@ function portal_route(?string $sub): void
         render('portal-forgot', ['title' => 'Forgot password', 'sent' => $sent, 'error' => $error]);
         return;
     }
+
     if ($sub !== null) {
         not_found();
     }
+    if (portal_email()) {
+        redirect_to(portal_home());
+    }
+    $error = '';
+    $address = '';
+    if ($post) {
+        $address = trim((string) ($_POST['email'] ?? ''));
+        if (!csrf_check()) {
+            $error = 'Your session expired. Please try again.';
+        } elseif (rate_limited('portal-password', 10, 900)) {
+            $error = 'Too many attempts. Please wait 15 minutes and try again.';
+        } elseif (verify_account($address, (string) ($_POST['password'] ?? ''))) {
+            portal_login(normalize_email($address));
+            redirect_to(portal_home());
+        } else {
+            usleep(300000);
+            $error = 'E-mail address or password is wrong.';
+        }
+    }
+    render('portal-login', ['title' => 'Delegate login', 'error' => $error, 'address' => $address]);
+}
 
-    if (!$email) {
-        // Login form: e-mail address + password.
-        $error = '';
-        $address = '';
-        if ($post) {
-            $address = trim((string) ($_POST['email'] ?? ''));
-            if (!csrf_check()) {
-                $error = 'Your session expired. Please try again.';
-            } elseif (rate_limited('portal-password', 10, 900)) {
-                $error = 'Too many attempts. Please wait 15 minutes and try again.';
-            } elseif (verify_account($address, (string) ($_POST['password'] ?? ''))) {
-                portal_login(normalize_email($address));
-                header('Location: ' . url('portal'), true, 303);
-                exit;
-            } else {
-                usleep(300000);
-                $error = 'E-mail address or password is wrong.';
+/* ---------- The delegate area: start page, /paper, /logout ---------- */
+
+function portal_route(?string $sub): void
+{
+    header('X-Robots-Tag: noindex');
+    header('Cache-Control: private, no-store');
+    $post = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+
+    if ($sub === 'logout') {
+        if ($post && csrf_check()) {
+            start_session();
+            unset($_SESSION['portal']);
+        }
+        redirect_to(login_url());
+    }
+
+    $email = portal_email();
+
+    if ($sub === 'paper') {
+        foreach ($email ? registrations_for($email) : [] as $reg) {
+            if ($reg['id'] === ($_GET['id'] ?? '')) {
+                send_paper($reg);
             }
         }
-        render('portal-login', ['title' => 'Delegate login', 'error' => $error, 'address' => $address]);
-        return;
+        http_response_code(404);
+        exit('File not found');
+    }
+    if ($sub !== null) {
+        not_found();
+    }
+    if (!$email) {
+        redirect_to(login_url());
     }
 
     $message = '';
@@ -476,4 +577,21 @@ function portal_route(?string $sub): void
         }
     }
     render('portal', ['title' => 'Your registration', 'email' => $email, 'regs' => registrations_for($email), 'message' => $message, 'error' => $error]);
+}
+
+/** Requests on the portal subdomain: only the delegate area, everything else goes to the main site. */
+function portal_host_route(array $parts): void
+{
+    $first = $parts[0] ?? '';
+    if ($first === 'portal') {
+        array_shift($parts); // old links like conference.omun.eu/portal/paper
+        $first = $parts[0] ?? '';
+    }
+    if (count($parts) <= 1 && in_array($first, ['', 'paper', 'logout'], true)) {
+        portal_route($first === '' ? null : $first);
+        return;
+    }
+    $query = ($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '';
+    header('Location: ' . main_origin() . url(implode('/', array_map('rawurlencode', $parts))) . $query, true, 301);
+    exit;
 }

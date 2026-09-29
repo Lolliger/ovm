@@ -48,6 +48,11 @@ function not_found(): void
     exit;
 }
 
+if (on_portal_host()) {
+    portal_host_route($parts);
+    exit;
+}
+
 $route = $parts[0] ?? '';
 $sub = $parts[1] ?? null;
 if (count($parts) > 2) {
@@ -108,7 +113,14 @@ switch ($route) {
         }
         render('register', ['title' => 'Register', 'nav' => 'register', 'result' => $result]);
         break;
+    case 'login':
+        login_route($sub);
+        break;
     case 'portal':
+        if (split_portal()) {
+            // The delegate area lives on its own subdomain.
+            redirect_to(rtrim(portal_home(), '/') . ($sub ? '/' . rawurlencode($sub) : '/') . (isset($_GET['id']) ? '?id=' . rawurlencode((string) $_GET['id']) : ''));
+        }
         portal_route($sub);
         break;
     case 'imprint':

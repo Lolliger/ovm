@@ -676,3 +676,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--un); outlin
 .change-password summary::after { content: "+"; font-size: 1.5rem; font-weight: 300; color: var(--link); }
 .change-password[open] summary::after { content: "–"; }
 .change-password summary h2 { font-size: 1.35rem; }
+
+.header-login { color: var(--text); font-size: 0.9375rem; font-weight: 500; text-decoration: none; padding: 0.5rem 0.6rem; border-radius: var(--radius); }
+.header-login:hover { background: var(--surface-2); }
+.header-login[aria-current="page"] { color: var(--link); }
+@media (max-width: 479px) { .header-login { display: none; } }

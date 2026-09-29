@@ -95,7 +95,8 @@ flowchart TD
     REG --> RL["Rate-Limit<br/>rate_limited()"]
     REG --> REGS[("data/registrations.json")]
     REG --> MAIL["Benachrichtigung + Bestätigung<br/>⚠ lib/mailer.php · send_mail()"]
-    ROUTER -->|"/portal/*"| PORTAL["Teilnehmer-Bereich<br/>lib/portal.php"]
+    ROUTER -->|"/login/*"| PORTAL["Login + Teilnehmer-Bereich<br/>lib/portal.php"]
+    SUB["conference.omun.eu<br/>(gleicher Ordner)"] -->|"on_portal_host()"| PORTAL
     PORTAL --> TOK[("data/login-tokens.json<br/>data/accounts.json")]
     PORTAL --> REGS
     PORTAL --> PAPERS[("data/papers/")]
@@ -117,6 +118,7 @@ flowchart TD
 | **Seiten-Template** | Eine Datei pro Seitentyp, gemeinsame Bausteine stehen in `_pagehead.php` und `_files.php`. | `templates/` |
 | **Anmeldung** | Validierung, Honeypot, Mindestzeit, Rate-Limit, Speichern, Mail und danach ein Redirect. | `lib/registration.php` → `handle_registration()` |
 | **Mailversand** | Einziger Weg für E-Mails (Benachrichtigung, Bestätigung, Login-Links). Lokal (`php -S`) landen Mails in `data/mail-outbox/`. | `lib/mailer.php` → `send_mail()` |
+| **Portal-Subdomain** | Läuft `conference.omun.eu` auf demselben Ordner, erkennt `index.php` die Subdomain und zeigt dort nur den Teilnehmer-Bereich; alles andere wird auf die Hauptseite umgeleitet. Das Session-Cookie gilt für die ganze Domain, damit der Login von omun.eu/login dort ankommt. | `lib/portal.php` → `on_portal_host()`, `portal_host_route()`, `session_cookie_domain()`; Einstellung *Teilnehmer-Bereich → Adresse* |
 | **Teilnehmer-Bereich** | Login mit E-Mail + Passwort (wird nach der Anmeldung erzeugt und gemailt). „Passwort vergessen“ per Einmal-Link (30 min; erst der Klick auf den Button verbraucht ihn). Übersicht der eigenen Anmeldungen, Paper-Upload, Passwort ändern. | `lib/portal.php` → `portal_route()`, `send_confirmation()`, `templates/portal*.php` |
 
 ---
@@ -244,6 +246,7 @@ Die folgenden Punkte sind beim Lesen des Codes aufgefallen. Ⓡ = echtes Risiko 
 | **B3** Ⓑ | PHP-Einstellung `session.gc_maxlifetime` | Der Code erlaubt 3 h Inaktivität, PHP löscht Sessions aber evtl. schon nach dem Server-Standard (oft 24 min). | Man wird nach ca. 20–30 Minuten abgemeldet. |
 | **B4** Ⓑ | `lib/totp.php` | Die Codes hängen von der Uhrzeit ab (±30 s Toleranz), und derselbe Code gilt nur einmal. | „Code falsch“: Uhrzeit am Handy auf automatisch stellen oder auf den nächsten Code warten. |
 | **B5** Ⓑ | Deployment | Wer den Webspace-Ordner löscht oder `data/`/`uploads/` überschreibt, verliert Inhalte, Passwort und Anmeldungen. Updates deshalb nur über **Admin → Update**. | Alles ist wieder auf Standard. Code-Sicherungen liegen in `data/code-backups/`, Inhalte nur im Backup. |
+| **B9** Ⓑ | Subdomain `conference.omun.eu` | Zeigt die Subdomain bei Strato auf einen anderen Ordner oder hat kein SSL, landet man nach dem Login auf einer leeren/fehlerhaften Seite. | Subdomain auf denselben Ordner wie omun.eu stellen, SSL aktivieren – oder im Admin die Adresse leeren (dann /portal). |
 | **B6** Ⓑ | `lib/bootstrap.php` → `BASE`, `.htaccess` → `RewriteBase /` | Der Code unterstützt Unterordner, die `.htaccess` ist aber fest auf das Hauptverzeichnis eingestellt. | In einem Unterordner (z. B. `/test/`) funktionieren die Unterseiten nicht. `RewriteBase` anpassen. |
 | **B7** Ⓑ | `lib/admin.php` → `optimize_image()`, `store_upload()` | Die Bildverkleinerung braucht die PHP-Erweiterung GD, die MIME-Prüfung braucht fileinfo. Fehlen sie, wird der Schritt **still übersprungen**. | Riesige Handy-Fotos, langsame Seite. |
 | **B8** Ⓑ | Kopplung `lib/schema.php` ↔ `lib/defaults.json` ↔ `templates/` | Ein neues Feld muss an drei Stellen eingetragen werden. `content()` ergänzt fehlende Werte nur eine Ebene tief, also nicht in Listeneinträgen. | Ein neues Feld erscheint im Admin, aber nicht auf der Seite (Template vergessen) oder umgekehrt. |

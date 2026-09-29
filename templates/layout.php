@@ -157,6 +157,7 @@ function render(string $template, array $vars = []): void
       <?php endforeach; ?>
     <?php endif; ?>
     <a class="btn" href="<?= e(url('register')) ?>">Register</a>
+    <a class="minor" href="<?= e(url('login')) ?>">Delegate login</a>
   </nav>
 </aside>
 
@@ -190,6 +191,7 @@ function render(string $template, array $vars = []): void
         <a href="<?= e($href) ?>"<?= $nav === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
       <?php endforeach; ?>
     </nav>
+    <a class="header-login" href="<?= e(url('login')) ?>"<?= $nav === 'login' ? ' aria-current="page"' : '' ?>>Login</a>
     <a class="btn btn-small header-cta" href="<?= e(url('register')) ?>"<?= $nav === 'register' ? ' aria-current="page"' : '' ?>>Register</a>
   </div>
 </header>
@@ -219,7 +221,7 @@ function render(string $template, array $vars = []): void
         <?php foreach (secondary_nav() as [$key, $label, $href]): ?>
           <li><a href="<?= e($href) ?>"><?= e($label) ?></a></li>
         <?php endforeach; ?>
-        <li><a href="<?= e(url('portal')) ?>">Delegate login</a></li>
+        <li><a href="<?= e(url('login')) ?>">Delegate login</a></li>
         <?php if (c('site.email')): ?><li><a href="mailto:<?= e(c('site.email')) ?>"><?= e(c('site.email')) ?></a></li><?php endif; ?>
         <?php if (c('site.instagram')): ?><li><a href="<?= e(c('site.instagram')) ?>" rel="noopener" target="_blank">Instagram</a></li><?php endif; ?>
         <?php if (c('site.school_url')): ?><li><a href="<?= e(c('site.school_url')) ?>" rel="noopener" target="_blank"><?= e(c('site.school')) ?></a></li><?php endif; ?>

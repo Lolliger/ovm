@@ -62,10 +62,15 @@ Erreichbar nur über `omun.eu/admin` (nirgends verlinkt). Dort lässt sich bearb
 Passwort vergessen oder alle 2FA-Geräte verloren? Per SFTP die Datei `data/auth.json` löschen und
 danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach aus und muss neu eingerichtet werden).
 
-## Teilnehmer-Bereich (/portal)
+## Teilnehmer-Bereich (conference.omun.eu)
+
+Login unter **omun.eu/login** (Button „Login“ im Header), danach geht es auf **conference.omun.eu**.
+Die Adresse ist im Admin unter *Teilnehmer-Bereich* einstellbar. Voraussetzung bei Strato: die Subdomain
+`conference.omun.eu` anlegen, auf **denselben Ordner** wie omun.eu zeigen lassen und SSL aktivieren –
+nur so teilen sich beide Daten und Login. Feld leer lassen = alles unter omun.eu/portal.
 
 Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit **Zugangsdaten**:
-Benutzername = ihre E-Mail-Adresse, Passwort = automatisch erzeugt (z. B. `Kavo-Rimu-Teza-Lopa-47`).
+Benutzername = ihre E-Mail-Adresse, Passwort = automatisch erzeugt (z. B. `Kavo-Rimu-Teza-Lopa-47`), die Mail verlinkt auf omun.eu/login.
 Wer sich mit derselben Adresse erneut anmeldet, behält sein Passwort. Im Portal sehen sie Status und
 Zuteilung (Land, Gremium inkl. Study Guide), können ihr Position Paper hochladen (PDF/Word, max. 10 MB,
 bis zur Frist ersetzbar) und ihr Passwort ändern. „Passwort vergessen?“ schickt einen einmaligen

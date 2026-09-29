@@ -568,7 +568,7 @@ function admin_page(string $s, array $schema): void
 function public_link(string $s): string
 {
     $map = ['home' => '', 'site' => '', 'conference' => 'conference', 'registration' => 'register', 'committees' => 'committees', 'team' => 'team',
-        'news' => 'news', 'gallery' => 'gallery', 'faq' => 'faq', 'downloads' => 'downloads', 'sponsors' => 'sponsors', 'archive' => 'archive', 'legal' => 'imprint', 'portal' => 'portal'];
+        'news' => 'news', 'gallery' => 'gallery', 'faq' => 'faq', 'downloads' => 'downloads', 'sponsors' => 'sponsors', 'archive' => 'archive', 'legal' => 'imprint', 'portal' => 'login'];
     return isset($map[$s]) ? url($map[$s]) : '';
 }
 

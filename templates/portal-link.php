@@ -7,11 +7,11 @@ require __DIR__ . '/_pagehead.php';
   <div class="container narrow">
     <?php if ($error): ?>
       <div class="notice notice-error" role="alert"><p><?= e($error) ?></p></div>
-      <p><a class="btn" href="<?= e(url('portal/forgot')) ?>">Request a new link</a> <a class="more" href="<?= e(url('portal')) ?>">Log in with password</a></p>
+      <p><a class="btn" href="<?= e(url('login/forgot')) ?>">Request a new link</a> <a class="more" href="<?= e(url('login')) ?>">Log in with password</a></p>
     <?php elseif ($token === ''): ?>
-      <p>This link is incomplete. <a href="<?= e(url('portal/forgot')) ?>">Request a new login link</a>.</p>
+      <p>This link is incomplete. <a href="<?= e(url('login/forgot')) ?>">Request a new login link</a>.</p>
     <?php else: ?>
-      <form class="form" method="post" action="<?= e(url('portal/login')) ?>">
+      <form class="form" method="post" action="<?= e(url('login/link')) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="token" value="<?= e($token) ?>">
         <p>Click the button to open your delegate area.</p>

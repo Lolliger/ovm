@@ -12,13 +12,13 @@ require __DIR__ . '/_pagehead.php';
         <p class="muted">Nothing arrived? Check your spam folder or try again in a minute.</p>
       </div>
     <?php else: ?>
-      <form class="form" method="post" action="<?= e(url('portal/forgot')) ?>">
+      <form class="form" method="post" action="<?= e(url('login/forgot')) ?>">
         <?php if ($error): ?><div class="notice notice-error" role="alert"><?= e($error) ?></div><?php endif; ?>
         <?= csrf_field() ?>
         <div class="field"><label for="p-email">E-mail</label><input id="p-email" type="email" name="email" required autocomplete="email" autofocus></div>
         <button class="btn" type="submit">Send login link</button>
       </form>
-      <p class="muted"><a href="<?= e(url('portal')) ?>">Back to login</a></p>
+      <p class="muted"><a href="<?= e(url('login')) ?>">Back to login</a></p>
     <?php endif; ?>
   </div>
 </section>

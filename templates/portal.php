@@ -8,7 +8,7 @@ $statuses = registration_statuses();
   <div class="container narrow portal">
     <div class="portal-top">
       <p class="muted">Logged in as <strong><?= e($email) ?></strong></p>
-      <form method="post" action="<?= e(url('portal/logout')) ?>"><?= csrf_field() ?><button class="btn-link" type="submit">Log out</button></form>
+      <form method="post" action="<?= e(portal_link('logout')) ?>"><?= csrf_field() ?><button class="btn-link" type="submit">Log out</button></form>
     </div>
     <?php if ($message): ?><div class="notice notice-ok" role="status"><?= e($message) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="notice notice-error" role="alert"><?= e($error) ?></div><?php endif; ?>
@@ -34,7 +34,7 @@ $statuses = registration_statuses();
           <div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div>
           <div><dt>Committee</dt><dd>
             <?php if ($committee): ?>
-              <a href="<?= e(url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
+              <a href="<?= e(main_origin() . url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
               <?php if (!empty($committee['study_guide'])): ?> · <a href="<?= e(media($committee['study_guide'])) ?>" download>Study guide ↓</a><?php endif; ?>
             <?php else: ?>
               <?= e(($r['assigned_committee'] ?? '') ?: 'Not allocated yet') ?>
@@ -48,7 +48,7 @@ $statuses = registration_statuses();
           <h3>Position paper</h3>
           <?php if (!empty($r['paper'])): ?>
             <p class="paper-current">
-              <a href="<?= e(url('portal/paper') . '?id=' . rawurlencode($r['id'])) ?>"><?= e($r['paper']['name']) ?></a>
+              <a href="<?= e(portal_link('paper') . '?id=' . rawurlencode($r['id'])) ?>"><?= e($r['paper']['name']) ?></a>
               <span class="muted">uploaded <?= e(date('j F Y, H:i', strtotime($r['paper']['uploaded']))) ?></span>
             </p>
           <?php endif; ?>
@@ -57,7 +57,7 @@ $statuses = registration_statuses();
           <?php elseif (papers_open()): ?>
             <?php if (c('portal.paper_info')): ?><div class="prose muted"><?= md(c('portal.paper_info')) ?></div><?php endif; ?>
             <?php if (c('portal.paper_deadline')): ?><p><strong>Deadline: <?= e(format_date(c('portal.paper_deadline'))) ?></strong></p><?php endif; ?>
-            <form class="paper-form" method="post" enctype="multipart/form-data" action="<?= e(url('portal')) ?>">
+            <form class="paper-form" method="post" enctype="multipart/form-data" action="<?= e(portal_link()) ?>">
               <?= csrf_field() ?>
               <input type="hidden" name="a" value="paper">
               <input type="hidden" name="id" value="<?= e($r['id']) ?>">
@@ -73,7 +73,7 @@ $statuses = registration_statuses();
 
     <details class="portal-card change-password"<?= $error && ($_POST['a'] ?? '') === 'password' ? ' open' : '' ?>>
       <summary><h2>Change password</h2></summary>
-      <form class="form" method="post" action="<?= e(url('portal')) ?>">
+      <form class="form" method="post" action="<?= e(portal_link()) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="a" value="password">
         <input type="hidden" name="username" value="<?= e($email) ?>" autocomplete="username">
