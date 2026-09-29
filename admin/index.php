@@ -212,14 +212,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'reg_delete':
                 $id = (string) ($_POST['id'] ?? '');
-                $regs = array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => ($r['id'] ?? '') !== $id));
-                write_json(REGISTRATIONS_FILE, $regs);
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($id) {
+                    foreach ($regs as $r) {
+                        if (($r['id'] ?? '') === $id) {
+                            delete_paper_file($r);
+                        }
+                    }
+                    return array_values(array_filter($regs, fn ($r) => ($r['id'] ?? '') !== $id));
+                });
                 flash('Anmeldung gelöscht.');
+                redirect(admin_url(['s' => 'registrations']));
+
+            case 'reg_update':
+                $id = (string) ($_POST['id'] ?? '');
+                $status = array_key_exists($_POST['status'] ?? '', registration_statuses()) ? $_POST['status'] : 'received';
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($id, $status) {
+                    foreach ($regs as &$r) {
+                        if (($r['id'] ?? '') === $id) {
+                            $r['status'] = $status;
+                            $r['assigned_country'] = trim(mb_substr((string) ($_POST['assigned_country'] ?? ''), 0, 100));
+                            $r['assigned_committee'] = trim(mb_substr((string) ($_POST['assigned_committee'] ?? ''), 0, 150));
+                            $r['admin_note'] = trim(mb_substr((string) ($_POST['admin_note'] ?? ''), 0, 2000));
+                        }
+                    }
+                    return $regs;
+                });
+                flash('Anmeldung aktualisiert.');
+                redirect(admin_url(['s' => 'registrations', 'open' => $id]) . '#reg-' . rawurlencode($id));
+
+            case 'reg_sendlink':
+                $email = '';
+                foreach (read_json(REGISTRATIONS_FILE) as $r) {
+                    if (($r['id'] ?? '') === ($_POST['id'] ?? '')) {
+                        $email = $r['email'];
+                    }
+                }
+                if ($email && send_login_link($email)) {
+                    flash('Login-Link an ' . $email . ' gesendet.');
+                } else {
+                    flash('Die E-Mail konnte nicht gesendet werden. Ist der Mailversand im Hosting-Paket aktiv?', 'error');
+                }
                 redirect(admin_url(['s' => 'registrations']));
 
             case 'reg_delete_all':
                 if (($_POST['confirm'] ?? '') === 'LÖSCHEN') {
-                    write_json(REGISTRATIONS_FILE, []);
+                    update_json(REGISTRATIONS_FILE, function (array $regs) {
+                        foreach ($regs as $r) {
+                            delete_paper_file($r);
+                        }
+                        return [];
+                    });
                     flash('Alle Anmeldungen wurden gelöscht.');
                 } else {
                     flash('Zum Bestätigen bitte LÖSCHEN eintippen.', 'error');
@@ -332,6 +374,16 @@ if ($s === 'history_download') {
     exit;
 }
 
+if ($s === 'paper') {
+    foreach (read_json(REGISTRATIONS_FILE) as $r) {
+        if (($r['id'] ?? '') === ($_GET['id'] ?? '')) {
+            send_paper($r);
+        }
+    }
+    http_response_code(404);
+    exit('Nicht gefunden');
+}
+
 if ($s === 'registrations_csv') {
     $regs = read_json(REGISTRATIONS_FILE);
     header('Content-Type: text/csv; charset=utf-8');
@@ -339,13 +391,21 @@ if ($s === 'registrations_csv') {
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM, so Excel shows umlauts correctly
     $fields = registration_fields();
-    fputcsv($out, array_merge(['Datum'], array_column($fields, 0)), ';');
+    $statuses = registration_statuses();
+    fputcsv($out, array_merge(['Datum', 'Status', 'Land (zugeteilt)', 'Gremium (zugeteilt)', 'Position Paper'], array_column($fields, 0), ['Notiz']), ';');
     foreach ($regs as $r) {
-        $row = [date('d.m.Y H:i', strtotime($r['created']))];
+        $row = [
+            date('d.m.Y H:i', strtotime($r['created'])),
+            $statuses[$r['status'] ?? 'received'][1] ?? '',
+            $r['assigned_country'] ?? '',
+            $r['assigned_committee'] ?? '',
+            !empty($r['paper']) ? 'ja (' . date('d.m.Y', strtotime($r['paper']['uploaded'])) . ')' : 'nein',
+        ];
         foreach ($fields as $k => $_) {
             $v = (string) ($r[$k] ?? '');
             $row[] = preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v; // no formula injection
         }
+        $row[] = $r['admin_note'] ?? '';
         fputcsv($out, $row, ';');
     }
     exit;
@@ -474,7 +534,7 @@ function admin_page(string $s, array $schema): void
 function public_link(string $s): string
 {
     $map = ['home' => '', 'site' => '', 'conference' => 'conference', 'registration' => 'register', 'committees' => 'committees', 'team' => 'team',
-        'news' => 'news', 'gallery' => 'gallery', 'faq' => 'faq', 'downloads' => 'downloads', 'sponsors' => 'sponsors', 'archive' => 'archive', 'legal' => 'imprint'];
+        'news' => 'news', 'gallery' => 'gallery', 'faq' => 'faq', 'downloads' => 'downloads', 'sponsors' => 'sponsors', 'archive' => 'archive', 'legal' => 'imprint', 'portal' => 'portal'];
     return isset($map[$s]) ? url($map[$s]) : '';
 }
 
@@ -615,6 +675,10 @@ function view_registrations(): void
     $byRole = array_count_values(array_map(fn ($r) => $r['role'] ?: '–', $regs));
     $byCommittee = array_count_values(array_map(fn ($r) => $r['committee_1'] ?: '–', $regs));
     arsort($byCommittee);
+    $statuses = registration_statuses();
+    $byStatus = array_count_values(array_map(fn ($r) => $statuses[$r['status'] ?? 'received'][1] ?? '–', $regs));
+    $papers = count(array_filter($regs, fn ($r) => !empty($r['paper'])));
+    $committeeOptions = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm['name'], ' –'), c('committees', []));
     ?>
     <div class="page-title">
       <h1>Anmeldungen</h1>
@@ -635,15 +699,18 @@ function view_registrations(): void
     <?php endif; ?>
     <div class="summary">
       <div><h3>Nach Teilnahmeart</h3><ul><?php foreach ($byRole as $k => $n): ?><li><span><?= e((string) $k) ?></span><strong><?= $n ?></strong></li><?php endforeach; ?></ul></div>
+      <div><h3>Status</h3><ul><?php foreach ($byStatus as $k => $n): ?><li><span><?= e((string) $k) ?></span><strong><?= $n ?></strong></li><?php endforeach; ?>
+        <li><span>Position Papers abgegeben</span><strong><?= $papers ?></strong></li></ul></div>
       <div><h3>Erstwunsch Gremium</h3><ul><?php foreach ($byCommittee as $k => $n): ?><li><span><?= e((string) $k) ?></span><strong><?= $n ?></strong></li><?php endforeach; ?></ul></div>
     </div>
     <input type="search" class="filter" placeholder="Suchen (Name, Schule, E-Mail …)" data-filter=".reg">
     <div class="regs">
       <?php foreach ($regs as $r): ?>
-        <details class="reg">
+        <?php $st = $r['status'] ?? 'received'; ?>
+        <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
-            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong>
-            <span><?= e($r['school']) ?> · <?= e($r['role']) ?></span>
+            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
+            <span><?= e($r['school']) ?> · <?= e($r['role']) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e($r['assigned_committee']) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
           </summary>
           <dl>
@@ -651,10 +718,25 @@ function view_registrations(): void
               <?php if (($r[$k] ?? '') !== ''): ?><dt><?= e($label) ?></dt><dd><?= nl2br(e($r[$k])) ?></dd><?php endif; ?>
             <?php endforeach; ?>
           </dl>
-          <form method="post" data-confirm="Anmeldung wirklich löschen?"><?= csrf_field() ?><input type="hidden" name="a" value="reg_delete"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost danger">Anmeldung löschen</button></form>
+          <form method="post" class="reg-edit">
+            <?= csrf_field() ?><input type="hidden" name="a" value="reg_update"><input type="hidden" name="id" value="<?= e($r['id']) ?>">
+            <label>Status<select name="status"><?php foreach ($statuses as $key => [, $label]): ?><option value="<?= e($key) ?>"<?= $st === $key ? ' selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></label>
+            <label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label>
+            <label>Gremium (zugeteilt)<input name="assigned_committee" list="committee-options" value="<?= e($r['assigned_committee'] ?? '') ?>"></label>
+            <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
+            <button class="btn">Speichern</button>
+          </form>
+          <div class="reg-actions">
+            <?php if (!empty($r['paper'])): ?>
+              <a class="btn-ghost" href="<?= e(admin_url(['s' => 'paper', 'id' => $r['id']])) ?>">Position Paper herunterladen (<?= e(human_size((int) $r['paper']['size'])) ?>, <?= e(date('d.m.Y', strtotime($r['paper']['uploaded']))) ?>)</a>
+            <?php endif; ?>
+            <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="reg_sendlink"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost">Login-Link erneut senden</button></form>
+            <form method="post" data-confirm="Anmeldung wirklich löschen? Ein hochgeladenes Position Paper wird mitgelöscht."><?= csrf_field() ?><input type="hidden" name="a" value="reg_delete"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost danger">Anmeldung löschen</button></form>
+          </div>
         </details>
       <?php endforeach; ?>
     </div>
+    <datalist id="committee-options"><?php foreach ($committeeOptions as $o): ?><option value="<?= e($o) ?>"><?php endforeach; ?></datalist>
     <form class="danger-zone" method="post" data-confirm="Wirklich ALLE Anmeldungen löschen? Das kann nicht rückgängig gemacht werden.">
       <?= csrf_field() ?><input type="hidden" name="a" value="reg_delete_all">
       <h3>Alle Anmeldungen löschen</h3>

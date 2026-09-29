@@ -108,6 +108,9 @@ switch ($route) {
         }
         render('register', ['title' => 'Register', 'nav' => 'register', 'result' => $result]);
         break;
+    case 'portal':
+        portal_route($sub);
+        break;
     case 'imprint':
     case 'impressum':
         render('legal', ['title' => 'Impressum', 'body' => c('legal.imprint')]);

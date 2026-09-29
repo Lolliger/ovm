@@ -102,6 +102,19 @@ function schema(): array
                 ['key' => 'retention_days', 'label' => 'Anmeldungen automatisch löschen … Tage nach Konferenzende', 'type' => 'text', 'help' => 'z. B. 90. Muss zur Frist in der Datenschutzerklärung passen. 0 = nie automatisch löschen.'],
             ],
         ],
+        'portal' => [
+            'label' => 'Teilnehmer-Bereich',
+            'type' => 'object',
+            'fields' => [
+                ['key' => 'confirm_email', 'label' => 'Bestätigungs-Mail mit Login-Link nach der Anmeldung senden', 'type' => 'bool'],
+                ['key' => 'confirm_subject', 'label' => 'Betreff der Bestätigungs-Mail', 'type' => 'text'],
+                ['key' => 'confirm_text', 'label' => 'Text der Bestätigungs-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {first_name}, {last_name}, {conference}, {link} (persönlicher Login-Link, 30 Min. gültig), {portal} (Adresse des Teilnehmer-Bereichs), {email} (Kontakt-E-Mail). Die Angaben aus dem Formular werden automatisch unten angehängt.'],
+                ['key' => 'intro', 'label' => 'Text oben im Teilnehmer-Bereich', 'type' => 'markdown'],
+                ['key' => 'papers_open', 'label' => 'Position Papers können hochgeladen werden', 'type' => 'bool'],
+                ['key' => 'paper_deadline', 'label' => 'Abgabefrist Position Papers', 'type' => 'date', 'help' => 'Nach diesem Tag ist kein Upload mehr möglich. Leer = keine Frist.'],
+                ['key' => 'paper_info', 'label' => 'Hinweis zum Position Paper', 'type' => 'markdown'],
+            ],
+        ],
         'committees' => [
             'label' => 'Gremien',
             'type' => 'list',

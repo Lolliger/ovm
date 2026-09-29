@@ -215,3 +215,17 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .remove-device input, .inline-form input { width: 9rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; }
 .inline-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .item-list .btn-ghost { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+
+/* Registration management */
+.st { font-family: "Geist", sans-serif; font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; background: #eef2f6; color: var(--muted); margin-left: 0.35rem; vertical-align: 1px; }
+.st-confirmed { background: #dcfae6; color: var(--ok); }
+.st-waitlist { background: #fef0c7; color: #93370d; }
+.st-cancelled { background: #fee4e2; color: var(--danger); }
+.st-paper { background: #e3edf9; color: var(--accent); }
+.reg .reg-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.6rem 0.75rem; align-items: end; padding: 1rem; margin: 0 1rem 1rem; background: #f7f9fc; border: 1px solid var(--line); border-radius: var(--radius); }
+.reg-edit label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; font-weight: 600; }
+.reg-edit .wide { grid-column: 1 / -1; }
+.reg-edit .btn { justify-self: start; }
+.reg-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 1rem 1rem; }
+.reg-actions form { margin: 0; padding: 0; }
+.reg-actions .btn-ghost { padding: 0.4rem 0.75rem; font-size: 0.85rem; }

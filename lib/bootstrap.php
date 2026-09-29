@@ -7,6 +7,8 @@ define('UPLOAD_DIR', ROOT . '/uploads');
 define('CONTENT_FILE', DATA_DIR . '/content.json');
 define('AUTH_FILE', DATA_DIR . '/auth.json');
 define('REGISTRATIONS_FILE', DATA_DIR . '/registrations.json');
+define('PAPERS_DIR', DATA_DIR . '/papers');
+define('TOKENS_FILE', DATA_DIR . '/login-tokens.json');
 
 // Base path, so the site also works in a subfolder (e.g. for a test install).
 $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
@@ -16,6 +18,7 @@ if (str_ends_with($scriptDir, '/admin')) {
 define('BASE', $scriptDir);
 
 require __DIR__ . '/markdown.php';
+require __DIR__ . '/mailer.php';
 require __DIR__ . '/schema.php';
 
 date_default_timezone_set('Europe/Berlin');
@@ -72,23 +75,38 @@ function write_json(string $file, $data): void
     }
 }
 
-/** Append to a JSON list under an exclusive lock (used for registrations). */
+/**
+ * Read-modify-write of a JSON file under an exclusive lock, so parallel
+ * requests (e.g. a new registration while the admin deletes one) cannot
+ * overwrite each other. $fn receives the current data and returns the new data.
+ */
+function update_json(string $file, callable $fn)
+{
+    if (!is_dir(dirname($file))) {
+        mkdir(dirname($file), 0755, true);
+    }
+    $lock = fopen($file . '.lock', 'c');
+    if (!$lock) {
+        throw new RuntimeException('Could not lock ' . basename($file) . ' – check folder permissions of /data.');
+    }
+    flock($lock, LOCK_EX);
+    try {
+        $data = $fn(read_json($file));
+        write_json($file, $data);
+        return $data;
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+/** Appends an entry to a JSON list (used for registrations). */
 function append_json(string $file, array $entry): void
 {
-    $fh = fopen($file, 'c+');
-    if (!$fh) {
-        throw new RuntimeException('Could not open ' . basename($file));
-    }
-    flock($fh, LOCK_EX);
-    $raw = stream_get_contents($fh);
-    $list = json_decode($raw ?: '[]', true) ?: [];
-    $list[] = $entry;
-    ftruncate($fh, 0);
-    rewind($fh);
-    fwrite($fh, json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    fflush($fh);
-    flock($fh, LOCK_UN);
-    fclose($fh);
+    update_json($file, function (array $list) use ($entry) {
+        $list[] = $entry;
+        return $list;
+    });
 }
 
 /** Loads the site content; on first run it is seeded from lib/defaults.json. */

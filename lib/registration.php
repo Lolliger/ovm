@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/portal.php';
+
 /** Fields of the public registration form: key => [label, required]. */
 function registration_fields(): array
 {
@@ -61,9 +63,11 @@ function handle_registration(): ?array
         return ['ok' => false, 'errors' => $errors, 'values' => $values];
     }
 
-    $entry = ['id' => bin2hex(random_bytes(6)), 'created' => date('c')] + $values;
+    $values['email'] = normalize_email($values['email']);
+    $entry = ['id' => bin2hex(random_bytes(6)), 'created' => date('c'), 'status' => 'received'] + $values;
     append_json(REGISTRATIONS_FILE, $entry);
     notify_registration($entry);
+    send_confirmation($entry);
 
     return ['ok' => true, 'errors' => [], 'values' => []];
 }
@@ -71,26 +75,16 @@ function handle_registration(): ?array
 function notify_registration(array $entry): void
 {
     $to = (string) c('registration.notify_email');
-    if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL) || !function_exists('mail')) {
+    if (!$to) {
         return;
     }
-    $host = preg_replace('/^www\./', '', preg_replace('/[^a-z0-9.-]/i', '', $_SERVER['HTTP_HOST'] ?? 'localhost'));
     $lines = [];
     foreach (registration_fields() as $key => [$label]) {
         $lines[] = str_pad($label . ':', 26) . ($entry[$key] ?? '');
     }
-    $body = "New registration on {$host}\n\n" . implode("\n", $lines)
-        . "\n\nAll registrations: https://{$host}" . url('admin/?s=registrations') . "\n";
-    $subject = '=?UTF-8?B?' . base64_encode('OMUN registration: ' . $entry['first_name'] . ' ' . $entry['last_name']) . '?=';
-    $headers = [
-        'From: OMUN <noreply@' . $host . '>',
-        'Content-Type: text/plain; charset=UTF-8',
-    ];
-    // Reply-To only if the address is clean (prevents header injection).
-    if (filter_var($entry['email'], FILTER_VALIDATE_EMAIL) && !preg_match('/[\r\n]/', $entry['email'])) {
-        $headers[] = 'Reply-To: ' . $entry['email'];
-    }
-    @mail($to, $subject, $body, implode("\r\n", $headers));
+    $body = 'New registration on ' . mail_domain() . "\n\n" . implode("\n", $lines)
+        . "\n\nAll registrations: " . site_origin() . url('admin/?s=registrations') . "\n";
+    send_mail($to, c('site.name') . ' registration: ' . $entry['first_name'] . ' ' . $entry['last_name'], $body, $entry['email']);
 }
 
 /**
@@ -119,18 +113,24 @@ function purge_registrations(): int
     }
     $end = $purgeAt - (int) c('registration.retention_days') * 86400;
     $now = time();
-    $regs = read_json(REGISTRATIONS_FILE);
-    $keep = array_values(array_filter($regs, function ($r) use ($now, $end, $purgeAt) {
-        $created = strtotime($r['created'] ?? '') ?: $now;
-        if ($now > $purgeAt && $created <= $end) {
-            return false;
+    $removed = [];
+    update_json(REGISTRATIONS_FILE, function (array $regs) use ($now, $end, $purgeAt, &$removed) {
+        $keep = [];
+        foreach ($regs as $r) {
+            $created = strtotime($r['created'] ?? '') ?: $now;
+            $expired = ($now > $purgeAt && $created <= $end) || $now - $created >= 365 * 86400;
+            if ($expired) {
+                $removed[] = $r;
+            } else {
+                $keep[] = $r;
+            }
         }
-        return $now - $created < 365 * 86400;
-    }));
-    if (count($keep) !== count($regs)) {
-        write_json(REGISTRATIONS_FILE, $keep);
+        return $keep;
+    });
+    foreach ($removed as $r) {
+        delete_paper_file($r);
     }
-    return count($regs) - count($keep);
+    return count($removed);
 }
 
 /** Runs the purge at most once a day from public page views. */

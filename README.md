@@ -49,11 +49,23 @@ Erreichbar nur über `omun.de/admin` (nirgends verlinkt). Dort lässt sich bearb
 - beliebige weitere Seiten (z. B. „Host Families“), wahlweise im Menü oder Footer
 - Impressum & Datenschutz
 - Dateien & Bilder (Upload, Übersicht, wo verwendet)
-- Anmeldungen ansehen, als CSV/Excel exportieren, löschen
+- Anmeldungen ansehen, Status/Land/Gremium zuteilen, Position Papers herunterladen, als CSV/Excel exportieren, löschen
+- Teilnehmer-Bereich: Bestätigungs-Mail, Portal-Texte, Abgabefrist für Position Papers
 - Passwort ändern, Backup herunterladen/wiederherstellen
 
 Passwort vergessen oder alle 2FA-Geräte verloren? Per SFTP die Datei `data/auth.json` löschen und
 danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach aus und muss neu eingerichtet werden).
+
+## Teilnehmer-Bereich (/portal)
+
+Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit einem persönlichen Login-Link
+(kein Passwort, 30 Minuten gültig, nur einmal nutzbar; neuer Link jederzeit unter `/portal`).
+Dort sehen sie Status und Zuteilung (Land, Gremium inkl. Study Guide) und können ihr Position Paper
+hochladen (PDF/Word, max. 10 MB, bis zur Frist ersetzbar). Papers liegen geschützt in `data/papers/`
+und werden mit der Anmeldung gelöscht.
+
+Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt – dort
+kann man den Login-Link herauskopieren.
 
 ## Sicherheit
 

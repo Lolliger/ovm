@@ -651,3 +651,23 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--un); outlin
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* Delegate portal */
+
+.portal { display: flex; flex-direction: column; gap: 1.5rem; }
+.portal-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; }
+.portal-top p { margin: 0; }
+.btn-link { background: none; border: 0; padding: 0; font: inherit; color: var(--link); text-decoration: underline; cursor: pointer; }
+.portal-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+.portal-card > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.portal-card h2 { font-size: 1.6rem; margin: 0; }
+.portal-card .facts { border: 0; padding: 0; background: none; }
+.status-confirmed { background: color-mix(in srgb, #12b76a 22%, transparent); }
+.status-waitlist { background: color-mix(in srgb, #f79009 25%, transparent); }
+.status-cancelled { background: var(--surface-2); color: var(--muted); }
+.paper { border-top: 1px solid var(--line); padding-top: 1.25rem; }
+.paper h3 { margin-bottom: 0.5rem; }
+.paper-current { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: baseline; }
+.paper-current a { font-weight: 500; }
+.paper-form { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.paper-form input[type=file] { flex: 1 1 14rem; width: auto; }

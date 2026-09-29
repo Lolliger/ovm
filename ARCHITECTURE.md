@@ -1,6 +1,6 @@
 # Architektur – OMUN-Website
 
-Überblick für Troubleshooting. Stand: Commit `ea3fa33` (September 2026).
+Überblick für Troubleshooting. Stand: September 2026 (inkl. Teilnehmer-Bereich).
 Bei größeren Änderungen am Code bitte die Diagramme mit anpassen.
 
 Das System besteht aus drei klar getrennten Teilen, die sich einen gemeinsamen Datenspeicher teilen:
@@ -93,13 +93,18 @@ flowchart TD
 
     ROUTER -->|"POST /register"| REG["Anmeldung prüfen & speichern<br/>lib/registration.php"]
     REG --> RL["Rate-Limit<br/>rate_limited()"]
-    REG --> REGS[("⚠ data/registrations.json")]
-    REG --> MAIL["Benachrichtigung<br/>⚠ @mail()"]
+    REG --> REGS[("data/registrations.json")]
+    REG --> MAIL["Benachrichtigung + Bestätigung<br/>⚠ lib/mailer.php · send_mail()"]
+    ROUTER -->|"/portal/*"| PORTAL["Teilnehmer-Bereich<br/>lib/portal.php"]
+    PORTAL --> TOK[("data/login-tokens.json")]
+    PORTAL --> REGS
+    PORTAL --> PAPERS[("data/papers/")]
+    PORTAL --> MAIL
     REG -->|"303 Redirect"| DONE["/register?done=1"]
     PURGE --> REGS
 
     classDef risk fill:#fee4e2,stroke:#d92d20,color:#7a271a
-    class BOOT,REGS,MAIL risk
+    class BOOT,MAIL risk
 ```
 
 | Knoten | Was es tut | Wo im Code |
@@ -111,6 +116,8 @@ flowchart TD
 | **Layout + Navigation** | Rahmen jeder Seite: Head, Farben aus dem Admin, Menü (blendet leere Bereiche aus), Footer. | `templates/layout.php` → `render()`, `main_nav()` |
 | **Seiten-Template** | Eine Datei pro Seitentyp, gemeinsame Bausteine stehen in `_pagehead.php` und `_files.php`. | `templates/` |
 | **Anmeldung** | Validierung, Honeypot, Mindestzeit, Rate-Limit, Speichern, Mail und danach ein Redirect. | `lib/registration.php` → `handle_registration()` |
+| **Mailversand** | Einziger Weg für E-Mails (Benachrichtigung, Bestätigung, Login-Links). Lokal (`php -S`) landen Mails in `data/mail-outbox/`. | `lib/mailer.php` → `send_mail()` |
+| **Teilnehmer-Bereich** | Login per Einmal-Link (30 min). Der Link zeigt nur einen Button, erst der Klick verbraucht ihn – so können Mail-Scanner ihn nicht entwerten. Übersicht der eigenen Anmeldungen, Upload/Download des Position Papers. | `lib/portal.php` → `portal_route()`, `templates/portal*.php` |
 
 ---
 
@@ -201,7 +208,9 @@ flowchart LR
 | `data/content.json` | Alle Texte, Listen, Einstellungen | `write_json()` (atomar), Admin | … wird sie aus `defaults.json` neu erzeugt. Ist sie **kaputt**, zeigt die Seite ohne Warnung die Standardinhalte (siehe R2). |
 | `lib/defaults.json` | Startinhalte, Liegt im Code, nicht in `data/` | nur Entwickler | … fehlen Standardwerte, und neue Felder bleiben leer. |
 | `data/history/*.json` | Stand **vor** jeder Änderung, maximal 50 | `snapshot_content()` | … ist nur kein Zurücksetzen möglich, sonst keine Folgen. |
-| `data/registrations.json` | Anmeldungen | `append_json()` (mit Lock), Löschen per `write_json()` | … gilt die Liste als leer. |
+| `data/registrations.json` | Anmeldungen inkl. Status, Zuteilung, Paper-Infos | nur über `update_json()` (mit Lock) | … gilt die Liste als leer. |
+| `data/login-tokens.json` | Gehashte Login-Links mit Ablaufzeit | `lib/portal.php` | … sind offene Login-Links ungültig, sonst harmlos. |
+| `data/papers/` | Hochgeladene Position Papers (nicht öffentlich) | `store_paper()` | … zeigt der Download „File not found“. |
 | `data/auth.json` | Passwort-Hash, Session-Version `v`, 2FA-Geräte, Notfall-Codes | Admin | … ist die **Ersteinrichtung wieder offen** (siehe R3). |
 | `data/ratelimit-*.json` | Zeitstempel der Versuche pro IP-Hash | `rate_limited()` | … ist das harmlos und wird neu angelegt. |
 | `data/purge-check` | Nur das Änderungsdatum zählt | `purge_registrations_daily()` | … läuft die Löschprüfung beim nächsten Aufruf erneut. |
@@ -216,12 +225,12 @@ Die folgenden Punkte sind beim Lesen des Codes aufgefallen. Ⓡ = echtes Risiko 
 
 | # | Stelle | Problem | Symptom |
 | --- | --- | --- | --- |
-| **R1** Ⓡ | `lib/registration.php` → `purge_registrations()`, `admin/index.php` → `case 'reg_delete'` | `append_json()` sperrt die Datei mit `flock`, Löschen und Auto-Löschung ersetzen sie aber ohne Lock per `rename`. Kommt genau dabei eine Anmeldung herein, geht sie verloren. | Eine Anmeldung fehlt, obwohl die Person die Erfolgsseite gesehen hat. Selten, am ehesten während einer Löschaktion. |
+| ~~R1~~ ✅ | Anmeldungen | **Behoben:** Alle Schreibzugriffe auf `registrations.json` laufen über `update_json()` mit gemeinsamer Lock-Datei. | – |
 | **R2** Ⓡ | `lib/bootstrap.php` → `content()` / `read_json()` | Ist `content.json` beschädigt (z. B. halb hochgeladen per SFTP), liefert `read_json()` still `[]`, und die Seite zeigt komplett die Standardinhalte. Speichert danach jemand im Admin, werden diese Standardinhalte zum neuen Stand. | Die Website zeigt plötzlich wieder die Platzhalter-Texte. **Nichts im Admin speichern**, sondern unter *Versionen* den letzten guten Stand wiederherstellen. |
 | **R3** Ⓡ | `admin/index.php` → Ersteinrichtung | Fehlt `data/auth.json` (gelöscht, nicht hochgeladen, Rechte-Problem), kann **jeder** Besucher unter /admin ein neues Passwort setzen. | Unbekanntes Passwort, der eigene Login funktioniert nicht mehr. |
 | **R4** Ⓡ | `lib/bootstrap.php` → `rate_limited()` | Lesen, Ändern, Schreiben ohne Lock: Bei vielen **gleichzeitigen** Login-Versuchen gehen Zählungen verloren. Das Limit von 8 Versuchen lässt sich so teilweise umgehen. | Nicht sichtbar. Relevant nur bei gezielten Angriffen, 2FA fängt das ab. |
 | **R5** Ⓡ | `lib/admin.php` → `save_content()` | Speichern zwei Personen gleichzeitig, gewinnt die letzte, ohne Warnung. Der überschriebene Stand liegt aber in *Versionen*. | Änderungen einer Person sind „weg“. |
-| **R6** Ⓡ | `lib/registration.php` → `notify_registration()` | `@mail()` unterdrückt alle Fehler. Ob die Mail rausging, wird nirgends protokolliert. | Anmeldungen kommen im Admin an, aber es gibt keine E-Mail. Absender `noreply@<domain>` prüfen und im Strato-Mailmenü nachsehen. |
+| **R6** Ⓡ | `lib/mailer.php` → `send_mail()` | `@mail()` unterdrückt Fehler. Nur „Login-Link erneut senden“ im Admin zeigt einen Fehlschlag an, nach der Anmeldung nicht. Login-Links hängen komplett am Mailversand. | Keine Bestätigungs- oder Login-Mails: im Admin „Login-Link erneut senden“ testen, Spam-Ordner prüfen, Absender `noreply@<domain>` im Strato-Mailmenü prüfen (ggf. SPF). |
 | **R7** Ⓡ | `index.php` / `lib/bootstrap.php` → `write_json()` | Ist `data/` nicht beschreibbar, wirft schon der erste Seitenaufruf eine Exception, ohne eigene Fehlerseite. | Weiße Seite oder Fehler 500 direkt nach dem Hochladen. Rechte von `data/` auf 755 setzen. |
 
 ### Betriebsfallen

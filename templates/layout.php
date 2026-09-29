@@ -219,6 +219,7 @@ function render(string $template, array $vars = []): void
         <?php foreach (secondary_nav() as [$key, $label, $href]): ?>
           <li><a href="<?= e($href) ?>"><?= e($label) ?></a></li>
         <?php endforeach; ?>
+        <li><a href="<?= e(url('portal')) ?>">Delegate login</a></li>
         <?php if (c('site.email')): ?><li><a href="mailto:<?= e(c('site.email')) ?>"><?= e(c('site.email')) ?></a></li><?php endif; ?>
         <?php if (c('site.instagram')): ?><li><a href="<?= e(c('site.instagram')) ?>" rel="noopener" target="_blank">Instagram</a></li><?php endif; ?>
         <?php if (c('site.school_url')): ?><li><a href="<?= e(c('site.school_url')) ?>" rel="noopener" target="_blank"><?= e(c('site.school')) ?></a></li><?php endif; ?>
