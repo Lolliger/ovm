@@ -12,7 +12,6 @@
 <body class="print-page">
   <p class="print-actions"><button class="btn" onclick="window.print()">Print / save as PDF</button></p>
   <article class="res-paper print-paper">
-    <p class="print-conf"><?= e(c('conference.edition') ?: c('site.name')) ?></p>
     <?= res_document_html($res, $ctx['committee']) ?>
     <p class="print-meta">Status: <?= e(status_label($res['status'])) ?> · Printed <?= e(date('j F Y, H:i')) ?></p>
   </article>

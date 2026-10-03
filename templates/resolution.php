@@ -140,7 +140,8 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
               <select name="main_submitter"><option value="">– none –</option>
                 <?php foreach ($members as $m): ?><option value="<?= e($m['id']) ?>"<?= $res['main_submitter'] === $m['id'] ? ' selected' : '' ?>><?= e(reg_label($m)) ?></option><?php endforeach; ?>
               </select></label>
-            <label class="field"><span>Co-submitters</span><input name="co_submitters" value="<?= e($res['co_submitters']) ?>" placeholder="e.g. France, Japan, Kenya"></label>
+            <label class="field"><span>Co-submitter(s)</span><input name="co_submitters" value="<?= e($res['co_submitters']) ?>" placeholder="e.g. France, Japan, Kenya"></label>
+            <label class="field"><span>Signatories</span><input name="signatories" value="<?= e($res['signatories'] ?? '') ?>" placeholder="e.g. Brazil, Germany, India"></label>
             <button class="btn btn-small">Save details</button>
           </form>
           <p class="status-row">Status:

@@ -39,6 +39,7 @@ function res_default(array $committee): array
         'status' => 'draft',
         'main_submitter' => '',
         'co_submitters' => '',
+        'signatories' => '',
         'clauses' => [],
         'amendments' => [],
         'current' => null,
@@ -103,8 +104,10 @@ function committee_by_slug(string $slug): ?array
  */
 function res_context(?string $slug): ?array
 {
-    $isAdmin = is_logged_in();
     $email = portal_email();
+    // Logged in as a participant (e.g. testing a delegate account) → their own
+    // rights only, even if the same browser is also logged into the admin.
+    $isAdmin = !$email && is_logged_in();
     $rank = ['viewer' => 0, 'delegate' => 1, 'chair' => 2, 'admin' => 3];
     $options = []; // slug => [committee, role, reg]
     $offer = function (array $cm, string $role, ?array $reg) use (&$options, $rank) {
@@ -217,7 +220,7 @@ function clause_numbers(array $clauses): array
             $c[$i] = 0;
         }
         $num = match ($lvl) {
-            0 => $c[0] . '.',
+            0 => $c[0] . ')',
             1 => chr(96 + min(26, $c[1])) . ')',
             default => roman($c[2]) . ')',
         };
@@ -476,6 +479,7 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
             $res['topic'] = trim(mb_substr($p('topic'), 0, 300));
             $res['main_submitter'] = $p('main_submitter');
             $res['co_submitters'] = trim(mb_substr($p('co_submitters'), 0, 1000));
+            $res['signatories'] = trim(mb_substr($p('signatories'), 0, 2000));
             $flash = 'Details saved.';
             break;
         case 'status':
@@ -616,7 +620,7 @@ function clause_html(array $cl, array $nums, bool $struck = false): string
     [$open, $rest] = clause_opening($cl['text']);
     $cls = 'clause clause-' . $cl['type'] . ' lvl-' . (int) $cl['level'] . ($struck ? ' struck' : '');
     $num = $nums[$cl['id']]['num'] ?? '';
-    $tag = $cl['type'] === 'pre' ? 'em' : ((int) $cl['level'] === 0 ? 'u' : 'span');
+    $tag = $cl['type'] === 'pre' || (int) $cl['level'] === 0 ? 'em' : 'span';
     return '<p class="' . $cls . '" data-clause="' . e($cl['id']) . '">'
         . ($num !== '' ? '<span class="num">' . e($num) . '</span> ' : '')
         . '<' . $tag . '>' . e($open) . '</' . $tag . '>' . nl2br(e($rest), false) . '</p>';
@@ -722,13 +726,17 @@ function res_document_html(array $res, array $committee, array $mine = []): stri
         return '<div class="my-amend"><span>' . $what . '</span>' . ($am['kind'] !== 'strike' ? '<p>' . nl2br(e($am['text']), false) . '</p>' : '') . '</div>';
     };
 
+    $forum = trim($committee['name'] . (($committee['abbr'] ?? '') !== '' ? ' (' . $committee['abbr'] . ')' : ''));
     $h = '<div class="res-doc">';
-    $h .= '<p class="res-committee">' . e($committee['name']) . '</p>';
+    $h .= '<img class="res-emblem" src="' . e(url('assets/img/res-emblem.jpg')) . '" alt="" width="360" height="306">';
     $h .= '<dl class="res-head">';
-    $h .= '<div><dt>Topic</dt><dd>' . e($res['topic'] ?: '–') . '</dd></div>';
-    $h .= '<div><dt>Main submitter</dt><dd>' . e($members[$res['main_submitter']] ?? '–') . '</dd></div>';
-    $h .= '<div><dt>Co-submitters</dt><dd>' . e($res['co_submitters'] ?: '–') . '</dd></div>';
+    $h .= '<div><dt>FORUM:</dt><dd>' . e($forum) . '</dd></div>';
+    $h .= '<div><dt>TOPIC:</dt><dd>' . e($res['topic']) . '</dd></div>';
+    $h .= '<div><dt>MAIN SUBMITTER:</dt><dd>' . e($members[$res['main_submitter']] ?? '') . '</dd></div>';
+    $h .= '<div><dt>CO-SUBMITTER:</dt><dd>' . e($res['co_submitters']) . '</dd></div>';
+    $h .= '<div><dt>SIGNATORIES:</dt><dd>' . e($res['signatories'] ?? '') . '</dd></div>';
     $h .= '</dl>';
+    $h .= '<p class="res-committee">' . e(mb_strtoupper($committee['name'])) . ',</p>';
     if (!$clauses && !$adds) {
         $h .= '<p class="muted res-empty">No clauses yet.</p>';
     }
@@ -742,6 +750,7 @@ function res_document_html(array $res, array $committee, array $mine = []): stri
             foreach ($adds['pre_end'] ?? [] as $am) {
                 $h .= $note($am);
             }
+            $h .= '<p class="res-op-heading">Operative Clauses</p>';
             foreach ($adds['op_start'] ?? [] as $am) {
                 $h .= $note($am);
             }
