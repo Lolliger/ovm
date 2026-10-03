@@ -118,6 +118,7 @@ flowchart TD
 | **Seiten-Template** | Eine Datei pro Seitentyp, gemeinsame Bausteine stehen in `_pagehead.php` und `_files.php`. | `templates/` |
 | **Anmeldung** | Validierung, Honeypot, Mindestzeit, Rate-Limit, Speichern, Mail und danach ein Redirect. | `lib/registration.php` → `handle_registration()` |
 | **Mailversand** | Einziger Weg für E-Mails (Benachrichtigung, Bestätigung, Login-Links). Lokal (`php -S`) landen Mails in `data/mail-outbox/`. | `lib/mailer.php` → `send_mail()` |
+| **Resolution Editor** | Ein Dokument pro Gremium mit Status draft/debate/closed, Amendments (1. und 2. Grades), Speakers List; Rechte aus Zuteilung + `is_chair` bzw. Admin-Session. Live-Updates per Polling (`?view=state`, liefert HTML-Teile nur bei geänderter `rev`). | `lib/resolution.php` → `resolution_route()`, `res_handle_post()`, `res_chair_action()`; `templates/resolution*.php`; `assets/js/resolution.js` |
 | **Portal-Subdomain** | Läuft `conference.omun.eu` auf demselben Ordner, erkennt `index.php` die Subdomain und zeigt dort nur den Teilnehmer-Bereich; alles andere wird auf die Hauptseite umgeleitet. Das Session-Cookie gilt für die ganze Domain, damit der Login von omun.eu/login dort ankommt. | `lib/portal.php` → `on_portal_host()`, `portal_host_route()`, `session_cookie_domain()`; Einstellung *Teilnehmer-Bereich → Adresse* |
 | **Teilnehmer-Bereich** | Login mit E-Mail + Passwort (wird nach der Anmeldung erzeugt und gemailt). „Passwort vergessen“ per Einmal-Link (30 min; erst der Klick auf den Button verbraucht ihn). Übersicht der eigenen Anmeldungen, Paper-Upload, Passwort ändern. | `lib/portal.php` → `portal_route()`, `send_confirmation()`, `templates/portal*.php` |
 
@@ -213,6 +214,7 @@ flowchart LR
 | `data/history/*.json` | Stand **vor** jeder Änderung, maximal 50 | `snapshot_content()` | … ist nur kein Zurücksetzen möglich, sonst keine Folgen. |
 | `data/registrations.json` | Anmeldungen inkl. Status, Zuteilung, Paper-Infos | nur über `update_json()` (mit Lock) | … gilt die Liste als leer. |
 | `data/login-tokens.json` | Gehashte Login-Links mit Ablaufzeit | `lib/portal.php` | … sind offene Login-Links ungültig, sonst harmlos. |
+| `data/resolutions/<slug>.json` | Resolution eines Gremiums: Klauseln, Amendments (mit Snapshot des Originaltexts), Speakers List, `rev` | `res_update()` (mit Lock) | … startet das Gremium mit einem leeren Entwurf. |
 | `data/accounts.json` | Teilnehmer-Konten: E-Mail → Passwort-Hash | `set_account_password()`, aufgeräumt von `delete_orphan_accounts()` | … kann sich niemand mehr ins Portal einloggen; im Admin „Neue Zugangsdaten senden“. |
 | `data/papers/` | Hochgeladene Position Papers (nicht öffentlich) | `store_paper()` | … zeigt der Download „File not found“. |
 | `data/auth.json` | Passwort-Hash, Session-Version `v`, 2FA-Geräte, Notfall-Codes | Admin | … ist die **Ersteinrichtung wieder offen** (siehe R3). |

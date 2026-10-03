@@ -81,6 +81,25 @@ beides wird mit der Anmeldung gelöscht.
 
 Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt.
 
+## Resolution Editor (conference.omun.eu/resolution)
+
+Pro Gremium eine Resolution. Wer im Admin einem Gremium zugeteilt ist, sieht im Teilnehmer-Bereich dessen
+Resolution; **Chairs** werden pro Anmeldung mit dem Häkchen „Chair“ festgelegt, Admins haben überall Chair-Rechte
+(Übersicht im Admin unter *Resolutionen*).
+
+1. **Draft:** Chairs wählen den Main Submitter; er (und die Chairs) schreiben das Dokument im MUN-Format
+   (Preambular Clauses, nummerierte Operative Clauses mit a) / i)).
+2. **Debate:** nur Chairs bearbeiten das Dokument direkt (alle sehen Änderungen live). Delegierte reichen
+   Amendments ein (Klausel ändern / hinzufügen / streichen) – sichtbar nur für sie selbst (im Dokument markiert)
+   und als Liste für die Chairs. Chairs bringen ein Amendment „on the floor“ (Beamer-Ansicht, immer mit Land),
+   nehmen an oder lehnen ab. Zum Amendment auf dem Floor kann jeder ein Amendment 2. Grades (neue Formulierung)
+   einreichen: angenommen → das ursprüngliche Amendment wird mit dieser Formulierung angenommen;
+   abgelehnt → zurück zum ursprünglichen Amendment.
+3. **Closed:** schreibgeschützt.
+
+Beamer-Ansicht (`?view=screen`, nur Chairs/Admins): aktuelles Amendment bzw. Dokument links, Speakers List
+rechts, aktualisiert sich alle 2 Sekunden. Druck/PDF über `?view=print`. Daten: `data/resolutions/<gremium>.json`.
+
 ## Sicherheit
 
 - **Login:** Passwort nur als bcrypt-Hash gespeichert; max. 8 Versuche pro 15 Minuten und IP-Adresse

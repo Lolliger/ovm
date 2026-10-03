@@ -12,6 +12,13 @@ $statuses = registration_statuses();
     </div>
     <?php if ($message): ?><div class="notice notice-ok" role="status"><?= e($message) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="notice notice-error" role="alert"><?= e($error) ?></div><?php endif; ?>
+    <?php if ($resCtx = res_context(null)): ?>
+      <a class="portal-res" href="<?= e(portal_link('resolution')) ?>">
+        <span class="kicker">Resolution editor</span>
+        <strong><?= e($resCtx['committee']['name']) ?></strong>
+        <span><?= res_is_chair($resCtx) ? 'Chair view: document, amendments, speakers list and beamer view →' : 'Read the draft resolution and submit amendments →' ?></span>
+      </a>
+    <?php endif; ?>
     <?php if (c('portal.intro')): ?><div class="prose"><?= md(c('portal.intro')) ?></div><?php endif; ?>
 
     <?php if (!$regs): ?>

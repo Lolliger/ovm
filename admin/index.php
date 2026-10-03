@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/lib/admin.php';
 require dirname(__DIR__) . '/lib/registration.php';
 require dirname(__DIR__) . '/lib/totp.php';
 require dirname(__DIR__) . '/lib/updater.php';
+require dirname(__DIR__) . '/lib/resolution.php';
 
 header('X-Frame-Options: DENY');
 header('Cache-Control: no-store');
@@ -235,6 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $r['assigned_country'] = trim(mb_substr((string) ($_POST['assigned_country'] ?? ''), 0, 100));
                             $r['assigned_committee'] = trim(mb_substr((string) ($_POST['assigned_committee'] ?? ''), 0, 150));
                             $r['admin_note'] = trim(mb_substr((string) ($_POST['admin_note'] ?? ''), 0, 2000));
+                            $r['is_chair'] = !empty($_POST['is_chair']);
                         }
                     }
                     return $regs;
@@ -504,7 +506,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -520,6 +522,7 @@ function admin_page(string $s, array $schema): void
   <nav class="sidebar">
     <a href="<?= e(admin_url()) ?>"<?= $s === '' ? ' class="active"' : '' ?>>Übersicht</a>
     <a href="<?= e(admin_url(['s' => 'registrations'])) ?>"<?= $s === 'registrations' ? ' class="active"' : '' ?>>Anmeldungen <span class="count"><?= $regCount ?></span></a>
+    <a href="<?= e(admin_url(['s' => 'resolutions'])) ?>"<?= $s === 'resolutions' ? ' class="active"' : '' ?>>Resolutionen</a>
     <p class="nav-label">Inhalte</p>
     <?php foreach ($schema as $key => $def): ?>
       <a href="<?= e(admin_url(['s' => $key])) ?>"<?= $s === $key ? ' class="active"' : '' ?>><?= e($def['label']) ?></a>
@@ -554,6 +557,8 @@ function admin_page(string $s, array $schema): void
         view_history();
     } elseif ($s === 'update') {
         view_update();
+    } elseif ($s === 'resolutions') {
+        view_resolutions();
     } else {
         view_dashboard($schema, $regCount);
     }
@@ -743,7 +748,7 @@ function view_registrations(): void
         <?php $st = $r['status'] ?? 'received'; ?>
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
-            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
+            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
             <span><?= e($r['school']) ?> · <?= e($r['role']) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e($r['assigned_committee']) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
           </summary>
@@ -757,6 +762,7 @@ function view_registrations(): void
             <label>Status<select name="status"><?php foreach ($statuses as $key => [, $label]): ?><option value="<?= e($key) ?>"<?= $st === $key ? ' selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></label>
             <label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label>
             <label>Gremium (zugeteilt)<input name="assigned_committee" list="committee-options" value="<?= e($r['assigned_committee'] ?? '') ?>"></label>
+            <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
             <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
             <button class="btn">Speichern</button>
           </form>
@@ -982,5 +988,34 @@ function view_update(): void
         </ul>
       <?php endif; ?>
     </div>
+    <?php
+}
+
+function view_resolutions(): void
+{
+    $base = split_portal() ? portal_home() : site_origin() . url('portal/');
+    ?>
+    <div class="page-title"><h1>Resolutionen</h1></div>
+    <p class="help">Pro Gremium gibt es eine Resolution. Chairs legt ihr unter <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">Anmeldungen</a> fest (Häkchen „Chair“ + zugeteiltes Gremium).
+      Als Admin habt ihr in jedem Gremium Chair-Rechte und könnt die Beamer-Ansicht öffnen.</p>
+    <?php if (!c('committees', [])): ?><p class="empty">Noch keine Gremien angelegt.</p><?php endif; ?>
+    <ul class="item-list">
+      <?php foreach (c('committees', []) as $cm): ?>
+        <?php
+        $res = res_load($cm);
+        $members = committee_members($cm);
+        $chairs = array_filter($members, fn ($m) => !empty($m['is_chair']));
+        $open = count(array_filter($res['amendments'], fn ($a) => in_array($a['status'], ['pending', 'floor'], true)));
+        $link = $base . 'resolution?c=' . rawurlencode($cm['slug']);
+        ?>
+        <li>
+          <span class="item-title"><?= e(($cm['abbr'] ?? '') ? $cm['abbr'] . ' – ' : '') ?><?= e($cm['name']) ?>
+            <small><?= e(status_label($res['status'])) ?> · <?= count($res['clauses']) ?> Klauseln · <?= $open ?> offene Amendments · <?= count($members) - count($chairs) ?> Delegierte · <?= count($chairs) ?> Chairs</small></span>
+          <a class="btn-ghost" href="<?= e($link) ?>" target="_blank">Öffnen</a>
+          <a class="btn-ghost" href="<?= e($link) ?>&amp;view=screen" target="_blank">Beamer</a>
+          <a class="btn-ghost" href="<?= e($link) ?>&amp;view=print" target="_blank">PDF</a>
+        </li>
+      <?php endforeach; ?>
+    </ul>
     <?php
 }

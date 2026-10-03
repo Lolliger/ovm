@@ -526,6 +526,10 @@ function portal_route(?string $sub): void
 
     $email = portal_email();
 
+    if ($sub === 'resolution') {
+        resolution_route();
+        return;
+    }
     if ($sub === 'paper') {
         foreach ($email ? registrations_for($email) : [] as $reg) {
             if ($reg['id'] === ($_GET['id'] ?? '')) {
@@ -587,7 +591,7 @@ function portal_host_route(array $parts): void
         array_shift($parts); // old links like conference.omun.eu/portal/paper
         $first = $parts[0] ?? '';
     }
-    if (count($parts) <= 1 && in_array($first, ['', 'paper', 'logout'], true)) {
+    if (count($parts) <= 1 && in_array($first, ['', 'paper', 'logout', 'resolution'], true)) {
         portal_route($first === '' ? null : $first);
         return;
     }

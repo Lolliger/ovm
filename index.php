@@ -18,6 +18,7 @@ if (PHP_SAPI === 'cli-server') {
 require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/templates/layout.php';
 require __DIR__ . '/lib/registration.php';
+require __DIR__ . '/lib/resolution.php';
 
 purge_registrations_daily();
 
@@ -119,7 +120,8 @@ switch ($route) {
     case 'portal':
         if (split_portal()) {
             // The delegate area lives on its own subdomain.
-            redirect_to(rtrim(portal_home(), '/') . ($sub ? '/' . rawurlencode($sub) : '/') . (isset($_GET['id']) ? '?id=' . rawurlencode((string) $_GET['id']) : ''));
+            $query = ($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '';
+            redirect_to(rtrim(portal_home(), '/') . ($sub ? '/' . rawurlencode($sub) : '/') . $query);
         }
         portal_route($sub);
         break;
