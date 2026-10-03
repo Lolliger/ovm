@@ -12,7 +12,7 @@ $regions = res_regions($ctx, $res, 'screen');
 <link rel="stylesheet" href="<?= e(url('assets/css/site.css')) ?>?v=<?= filemtime(ROOT . '/assets/css/site.css') ?>">
 <style>:root { --un: <?= safe_color('color_un', '#009edb') ?>; --accent: <?= safe_color('color_accent', '#046bd2') ?>; --ink: <?= safe_color('color_ink', '#1e293b') ?>; --paper: <?= safe_color('color_paper', '#f0f5fa') ?>; }</style>
 </head>
-<body class="screen" data-res-state="<?= e($self) ?>&amp;view=state&amp;screen=1" data-rev="<?= (int) $res['rev'] ?>">
+<body class="screen" data-res-state="<?= e($self) ?>&amp;view=state&amp;screen=1" data-rev="<?= (int) $res['rev'] ?>" data-layout="<?= e(res_layout_key($ctx, $res)) ?>">
   <header class="screen-head">
     <div>
       <p class="screen-committee"><?= e(c('site.name')) ?> · <?= e($ctx['committee']['name']) ?></p>

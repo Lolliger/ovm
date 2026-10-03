@@ -42,10 +42,10 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
   </div>
 </section>
 
-<section class="section res-section" data-res-state="<?= e($self) ?>&amp;view=state" data-rev="<?= (int) $res['rev'] ?>">
+<section class="section res-section" data-res-state="<?= e($self) ?>&amp;view=state" data-rev="<?= (int) $res['rev'] ?>" data-layout="<?= e(res_layout_key($ctx, $res)) ?>">
   <div class="container">
     <?php if ($flash): ?><div class="notice notice-<?= $flash[0] === 'error' ? 'error' : 'ok' ?>" role="status"><?= e($flash[1]) ?></div><?php endif; ?>
-    <div class="notice res-stale" hidden>The document was changed by someone else. <a href="<?= e($self) ?>">Reload</a> before editing.</div>
+    <div class="notice res-stale" hidden>The page was changed by someone else. It reloads automatically when you have finished typing – or <a href="<?= e($self) ?>">reload now</a>.</div>
 
     <div class="res-layout">
       <div class="res-main">
@@ -126,16 +126,18 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
             <?= $hidden('meta', 'settings') ?>
             <label class="field"><span>Topic</span><input name="topic" value="<?= e($res['topic']) ?>" list="topics"></label>
             <datalist id="topics"><?php foreach ($cm['topics'] ?? [] as $t): ?><option value="<?= e($t) ?>"><?php endforeach; ?></datalist>
+            <?php if (res_has_submitters($cm)): ?>
             <label class="field"><span>Main submitter</span>
               <select name="main_submitter"><option value="">– none –</option>
                 <?php foreach ($members as $m): ?><option value="<?= e($m['id']) ?>"<?= $res['main_submitter'] === $m['id'] ? ' selected' : '' ?>><?= e(reg_label($m)) ?></option><?php endforeach; ?>
               </select></label>
             <label class="field"><span>Co-submitter(s)</span><input name="co_submitters" value="<?= e($res['co_submitters']) ?>" placeholder="e.g. France, Japan, Kenya"></label>
             <label class="field"><span>Signatories</span><input name="signatories" value="<?= e($res['signatories'] ?? '') ?>" placeholder="e.g. Brazil, Germany, India"></label>
+            <?php endif; ?>
             <button class="btn btn-small">Save details</button>
           </form>
           <p class="status-row">Status:
-            <?php foreach (['draft' => 'Draft (main submitter writes)', 'debate' => 'Open debate (amendments)', 'closed' => 'Close'] as $k => $label): ?>
+            <?php foreach (['draft' => res_has_submitters($cm) ? 'Draft (main submitter writes)' : 'Draft', 'debate' => 'Open debate (amendments)', 'closed' => 'Close'] as $k => $label): ?>
               <form method="post"><?= $hidden('status', 'settings') ?><input type="hidden" name="status" value="<?= $k ?>"><button class="<?= $res['status'] === $k ? 'btn btn-small' : 'btn-ghost' ?>"<?= $res['status'] === $k ? ' disabled' : '' ?>><?= e($label) ?></button></form>
             <?php endforeach; ?>
           </p>
@@ -168,7 +170,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
             </form>
           </div>
         <?php elseif ($res['status'] === 'draft'): ?>
-          <div class="notice">The resolution is still being drafted<?= $canEdit ? '' : ' by the main submitter' ?>. Amendments can be submitted once the chairs open the debate.</div>
+          <div class="notice">The resolution is still being drafted<?= $canEdit ? '' : (res_has_submitters($cm) ? ' by the main submitter' : ' by the chairs') ?>. Amendments can be submitted once the chairs open the debate.</div>
         <?php endif; ?>
         <div class="res-panel">
           <h2>Your amendments</h2>

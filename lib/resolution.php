@@ -171,7 +171,7 @@ function res_can_edit(array $ctx, array $res): bool
     if (res_is_chair($ctx)) {
         return true;
     }
-    return $res['status'] === 'draft' && $ctx['reg'] && $res['main_submitter'] === $ctx['reg']['id'];
+    return $res['status'] === 'draft' && $ctx['reg'] && $res['main_submitter'] === $ctx['reg']['id'] && res_has_submitters($ctx['committee']);
 }
 
 /* ---------- Clauses ---------- */
@@ -485,7 +485,7 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
             break;
         case 'status':
             if (in_array($p('status'), ['draft', 'debate', 'closed'], true)) {
-                if ($p('status') === 'debate' && $res['status'] !== 'debate' && $res['main_submitter'] !== '') {
+                if ($p('status') === 'debate' && $res['status'] !== 'debate' && $res['main_submitter'] !== '' && res_has_submitters(res_committee_of($res))) {
                     // The main submitter presents the draft resolution first.
                     res_speaker_push($res, res_author_label(['author' => $res['main_submitter']]));
                 }
@@ -652,6 +652,40 @@ function res_author_label(array $am): string
     return trim((string) ($r['assigned_country'] ?? '')) ?: 'Delegation (no country allocated)';
 }
 
+function res_committee_of(array $res): array
+{
+    foreach (c('committees', []) as $cm) {
+        if ($cm['slug'] === ($res['committee'] ?? '')) {
+            return $cm;
+        }
+    }
+    return ['name' => '', 'abbr' => ''];
+}
+
+/** Committees like the Security Council have no main/co-submitters or signatories. */
+function res_has_submitters(array $committee): bool
+{
+    $f = (string) ($committee['res_format'] ?? '');
+    if (str_starts_with($f, 'Nur')) {
+        return false;
+    }
+    if (str_starts_with($f, 'Mit')) {
+        return true;
+    }
+    return !preg_match('/^(UN)?SC$/i', trim((string) ($committee['abbr'] ?? ''))) && stripos((string) $committee['name'], 'security council') === false;
+}
+
+/**
+ * Fingerprint of everything on the editor page outside the live regions
+ * (forms, buttons, settings). When it changes the page reloads itself.
+ */
+function res_layout_key(array $ctx, array $res): string
+{
+    $clauses = array_map(fn ($c) => [$c['id'], $c['type'], $c['level'], $c['text']], clauses_sorted($res['clauses']));
+    return substr(md5(json_encode([$res['status'], res_can_edit($ctx, $res), $res['current'], $clauses, $res['topic'],
+        $res['main_submitter'], $res['co_submitters'], $res['signatories'] ?? ''])), 0, 12);
+}
+
 /** Adds a delegation to the end of the speakers list unless it is already on it. */
 function res_speaker_push(array &$res, string $label): void
 {
@@ -798,9 +832,11 @@ function res_document_html(array $res, array $committee, array $mine = []): stri
     $h .= '<dl class="res-head">';
     $h .= '<div><dt>FORUM:</dt><dd>' . e($forum) . '</dd></div>';
     $h .= '<div><dt>TOPIC:</dt><dd>' . e($res['topic']) . '</dd></div>';
-    $h .= '<div><dt>MAIN SUBMITTER:</dt><dd>' . e($members[$res['main_submitter']] ?? '') . '</dd></div>';
-    $h .= '<div><dt>CO-SUBMITTER:</dt><dd>' . e($res['co_submitters']) . '</dd></div>';
-    $h .= '<div><dt>SIGNATORIES:</dt><dd>' . e($res['signatories'] ?? '') . '</dd></div>';
+    if (res_has_submitters($committee)) {
+        $h .= '<div><dt>MAIN SUBMITTER:</dt><dd>' . e($members[$res['main_submitter']] ?? '') . '</dd></div>';
+        $h .= '<div><dt>CO-SUBMITTER:</dt><dd>' . e($res['co_submitters']) . '</dd></div>';
+        $h .= '<div><dt>SIGNATORIES:</dt><dd>' . e($res['signatories'] ?? '') . '</dd></div>';
+    }
     $h .= '</dl>';
     $h .= '<p class="res-committee">' . e(mb_strtoupper($committee['name'])) . ',</p>';
     if (!$clauses && !$adds) {
@@ -910,7 +946,7 @@ function resolution_route(): void
         if ($since === (int) $res['rev']) {
             exit(json_encode(['rev' => $res['rev']]));
         }
-        exit(json_encode(['rev' => $res['rev'], 'regions' => res_regions($ctx, $res, ($_GET['screen'] ?? '') !== '' ? 'screen' : 'page')]));
+        exit(json_encode(['rev' => $res['rev'], 'layout' => res_layout_key($ctx, $res), 'regions' => res_regions($ctx, $res, ($_GET['screen'] ?? '') !== '' ? 'screen' : 'page')]));
     }
     if ($view === 'screen') {
         if (!res_is_chair($ctx) && !res_is_viewer($ctx)) {

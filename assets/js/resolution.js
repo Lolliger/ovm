@@ -4,28 +4,63 @@
   if (!root) return;
   var stateUrl = root.getAttribute('data-res-state');
   var rev = parseInt(root.getAttribute('data-rev'), 10) || 0;
+  var layout = root.getAttribute('data-layout') || '';
   var stale = document.querySelector('.res-stale');
   var busy = false;
+  var reloadPending = false;
 
-  function busyIn(el) {
+  // Someone is typing here (focused text field or a form with unsaved input).
+  function typingIn(el) {
     var a = document.activeElement;
-    return (a && a !== document.body && el.contains(a)) || el.querySelector('details[open] textarea, form.dirty');
+    var field = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'hidden' && a.type !== 'submit';
+    return (field && el.contains(a)) || !!el.querySelector('form.dirty');
   }
 
+  // Replace a region but keep <details> open that the user had opened.
+  function replace(el, html) {
+    var open = [];
+    el.querySelectorAll('details[open]').forEach(function (d) { open.push(d.className); });
+    el.innerHTML = html;
+    el.querySelectorAll('details').forEach(function (d) { if (open.indexOf(d.className) !== -1) d.open = true; });
+  }
+
+  function reloadWhenIdle() {
+    if (typingIn(document.body)) {
+      if (stale) stale.hidden = false;
+      return; // checked again on the next poll
+    }
+    var y = window.scrollY;
+    try { sessionStorage.setItem('res-scroll', location.href + '|' + y); } catch (e) {}
+    location.reload();
+  }
+  try {
+    var saved = (sessionStorage.getItem('res-scroll') || '').split('|');
+    if (saved[0] === location.href) window.scrollTo(0, parseInt(saved[1], 10) || 0);
+    sessionStorage.removeItem('res-scroll');
+  } catch (e) {}
+
   function poll() {
+    if (reloadPending) { reloadWhenIdle(); return; }
     if (busy || document.hidden) return;
     busy = true;
     fetch(stateUrl + '&rev=' + rev, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         if (!data || !data.regions) return;
-        rev = data.rev;
+        var skipped = false;
         Object.keys(data.regions).forEach(function (key) {
           document.querySelectorAll('[data-region="' + key + '"]').forEach(function (el) {
-            if (!busyIn(el)) el.innerHTML = data.regions[key];
+            if (typingIn(el)) skipped = true; else replace(el, data.regions[key]);
           });
         });
-        if (stale && document.querySelector('.res-editor')) stale.hidden = false;
+        // Keep asking for the regions until the skipped one could be updated too.
+        if (!skipped) rev = data.rev;
+        // Status, clauses, settings … changed: forms and buttons outside the
+        // live regions are out of date, so reload the page (not while typing).
+        if (data.layout && layout && data.layout !== layout) {
+          reloadPending = true;
+          reloadWhenIdle();
+        }
       })
       .catch(function () {})
       .then(function () { busy = false; });

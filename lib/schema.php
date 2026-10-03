@@ -128,6 +128,7 @@ function schema(): array
                 ['key' => 'abbr', 'label' => 'Abkürzung', 'type' => 'text'],
                 ['key' => 'level', 'label' => 'Niveau', 'type' => 'select', 'options' => ['Beginner', 'Intermediate', 'Advanced']],
                 ['key' => 'topics', 'label' => 'Themen (eins pro Zeile)', 'type' => 'lines'],
+                ['key' => 'res_format', 'label' => 'Kopf der Resolution', 'type' => 'select', 'options' => ['Automatisch', 'Mit Main Submitter, Co-Submitter, Signatories', 'Nur Forum und Topic'], 'help' => 'Automatisch = Security Council nur Forum und Topic, alle anderen mit Submittern.'],
                 ['key' => 'summary', 'label' => 'Kurzbeschreibung', 'type' => 'textarea'],
                 ['key' => 'description', 'label' => 'Ausführliche Beschreibung', 'type' => 'markdown'],
                 ['key' => 'chairs', 'label' => 'Vorsitz', 'type' => 'text'],
