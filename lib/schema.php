@@ -107,6 +107,8 @@ function schema(): array
             'type' => 'object',
             'fields' => [
                 ['key' => 'portal_url', 'label' => 'Adresse des Teilnehmer-Bereichs', 'type' => 'url', 'help' => 'z. B. https://conference.omun.eu – die Subdomain muss bei Strato auf DENSELBEN Ordner zeigen wie die Hauptseite (und SSL haben). Login ist immer unter /login auf der Hauptseite. Leer lassen = Teilnehmer-Bereich unter /portal auf der Hauptseite.'],
+                ['key' => 'mail_from', 'label' => 'Absender-Adresse der E-Mails', 'type' => 'email', 'help' => 'z. B. noreply@omun.eu oder info@omun.eu. Am besten eine Adresse, für die es bei Strato ein echtes Postfach gibt. Leer = noreply@ + Domain.'],
+                ['key' => 'mail_from_name', 'label' => 'Absender-Name', 'type' => 'text', 'help' => 'z. B. „OMUN Team“. Leer = Kurzname der Website.'],
                 ['key' => 'confirm_email', 'label' => 'Bestätigungs-Mail mit Zugangsdaten nach der Anmeldung senden', 'type' => 'bool'],
                 ['key' => 'confirm_subject', 'label' => 'Betreff der Bestätigungs-Mail', 'type' => 'text'],
                 ['key' => 'confirm_text', 'label' => 'Text der Bestätigungs-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {first_name}, {last_name}, {conference}, {portal} (Adresse des Teilnehmer-Bereichs), {username} (E-Mail-Adresse), {password} (erzeugtes Passwort), {email} (Kontakt-E-Mail). Fehlt {password} im Text, werden die Zugangsdaten automatisch angehängt. Die Formular-Angaben stehen immer unten.'],

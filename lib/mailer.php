@@ -15,6 +15,13 @@ function mail_domain(): string
     return preg_replace('/^www\./', '', $host);
 }
 
+/** Sender address from the admin, otherwise noreply@<domain>. */
+function mail_from_address(): string
+{
+    $a = trim((string) c('portal.mail_from'));
+    return filter_var($a, FILTER_VALIDATE_EMAIL) && !preg_match('/[\r\n\s]/', $a) ? $a : 'noreply@' . mail_domain();
+}
+
 /**
  * Sends a plain-text e-mail. Returns false if sending failed.
  * With the local test server (php -S) nothing is sent: the mail is written
@@ -25,9 +32,10 @@ function send_mail(string $to, string $subject, string $body, ?string $replyTo =
     if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to)) {
         return false;
     }
-    $from = c('site.name', 'OMUN');
+    $fromName = trim((string) c('portal.mail_from_name')) ?: c('site.name', 'OMUN');
+    $fromAddress = mail_from_address();
     $headers = [
-        'From: =?UTF-8?B?' . base64_encode($from) . '?= <noreply@' . mail_domain() . '>',
+        'From: =?UTF-8?B?' . base64_encode($fromName) . '?= <' . $fromAddress . '>',
         'Content-Type: text/plain; charset=UTF-8',
         'Content-Transfer-Encoding: 8bit',
     ];
@@ -47,5 +55,6 @@ function send_mail(string $to, string $subject, string $body, ?string $replyTo =
     if (!function_exists('mail')) {
         return false;
     }
-    return @mail($to, $encodedSubject, $body, implode("\r\n", $headers));
+    // "-f" sets the envelope sender, so the mail server does not replace it with a default address.
+    return @mail($to, $encodedSubject, $body, implode("\r\n", $headers), '-f' . $fromAddress);
 }

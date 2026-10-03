@@ -36,3 +36,31 @@
     });
   }
 })();
+
+// Team: open a person as a pop-up, the rest of the page is blurred behind it.
+(function () {
+  var dialog = document.querySelector('.person-dialog');
+  if (!dialog || typeof dialog.showModal !== 'function') return;
+  var body = dialog.querySelector('.person-dialog-body');
+  var lastFocus = null;
+  document.querySelectorAll('.person').forEach(function (person) {
+    var tpl = person.querySelector('.person-detail');
+    var open = function () {
+      lastFocus = document.activeElement;
+      body.innerHTML = '';
+      body.appendChild(tpl.content.cloneNode(true));
+      dialog.showModal();
+      document.documentElement.classList.add('dialog-open');
+    };
+    person.querySelector('.person-open').addEventListener('click', open);
+    person.querySelector('figcaption').addEventListener('click', open);
+  });
+  var close = function () { dialog.close(); };
+  dialog.querySelector('.person-close').addEventListener('click', close);
+  // Click on the blurred background closes it.
+  dialog.addEventListener('click', function (e) { if (e.target === dialog) close(); });
+  dialog.addEventListener('close', function () {
+    document.documentElement.classList.remove('dialog-open');
+    if (lastFocus) lastFocus.focus();
+  });
+})();

@@ -79,6 +79,9 @@ Login-Link (30 Minuten gültig). Im Admin gibt es pro Anmeldung „Neue Zugangsd
 Passwörter werden nur als Hash gespeichert (`data/accounts.json`), Papers geschützt in `data/papers/`;
 beides wird mit der Anmeldung gelöscht.
 
+Absender-Adresse und -Name der Mails sind im Admin unter *Teilnehmer-Bereich* einstellbar (Standard
+`noreply@omun.eu`; am besten eine Adresse mit echtem Strato-Postfach).
+
 Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt.
 
 ## Resolution Editor (conference.omun.eu/resolution)
