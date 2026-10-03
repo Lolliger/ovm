@@ -839,3 +839,16 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .person-card-text p:last-child { margin-bottom: 0; line-height: 1.7; }
 @media (prefers-reduced-motion: reduce) { .person-dialog[open], .person-dialog[open]::backdrop { animation: none; } }
 @media (max-width: 639px) { .person-card img, .person-card .person-initials { min-height: 0; max-height: 42vh; aspect-ratio: 4 / 3; } }
+
+/* Registration: role-dependent fields and chair notice */
+.form [hidden] { display: none !important; }
+.notice-dialog {
+  border: 0; border-radius: 1rem; background: var(--surface); color: var(--text);
+  width: min(30rem, calc(100vw - 2rem)); padding: clamp(1.5rem, 4vw, 2.25rem);
+  box-shadow: 0 30px 80px rgba(8, 14, 24, 0.35);
+}
+.notice-dialog::backdrop { background: rgba(10, 18, 32, 0.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.notice-dialog[open] { animation: person-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.notice-dialog h2 { font-size: 1.6rem; margin-bottom: 0.75rem; }
+.notice-dialog form { margin-top: 1.25rem; }
+@media (prefers-reduced-motion: reduce) { .notice-dialog[open] { animation: none; } }

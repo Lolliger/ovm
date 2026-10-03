@@ -82,6 +82,17 @@ beides wird mit der Anmeldung gelöscht.
 Absender-Adresse und -Name der Mails sind im Admin unter *Teilnehmer-Bereich* einstellbar (Standard
 `noreply@omun.eu`; am besten eine Adresse mit echtem Strato-Postfach).
 
+### Chairs, Conference Manager und Laptop-Konto
+
+- **Chair:** Wer im Anmeldeformular „Chair“ wählt, sieht ein Hinweis-Popup (Text unter *Anmeldung* einstellbar) und ein
+  kurzes Formular (ohne Schule, Klasse, Erfahrung und Wünsche, nur Gremium). Zugangsdaten kommen sofort per Mail;
+  Chair-Rechte für das gewählte Gremium gibt es erst, wenn die Anmeldung im Admin unter *Anmeldungen →
+  Warten auf Bestätigung* bestätigt wurde.
+- **Conference Manager:** gleiches kurzes Formular ohne Gremium. Nach der Bestätigung können sie alle Resolutionen
+  und Beamer-Ansichten sehen, aber nichts ändern.
+- **Laptop-Konto:** Login mit Benutzername `laptops` (Start-Passwort wurde dem Team mitgeteilt). Sieht alle Gremien
+  inkl. Beamer-Ansicht, ändert nichts. Passwort im Admin unter *Resolutionen* ändern (liegt in `data/staff-accounts.json`).
+
 Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt.
 
 ## Resolution Editor (conference.omun.eu/resolution)

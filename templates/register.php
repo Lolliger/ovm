@@ -5,6 +5,7 @@ require __DIR__ . '/_pagehead.php';
 $v = $result['values'] ?? [];
 $val = fn ($k) => e($v[$k] ?? '');
 $committees = c('committees', []);
+$kind = registration_kind($v['role'] ?? '');
 $select = function (string $name, array $options, bool $required = false) use ($v) {
     $html = '<select id="f-' . $name . '" name="' . $name . '"' . ($required ? ' required' : '') . '><option value="">– please choose –</option>';
     foreach ($options as $o) {
@@ -39,20 +40,30 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
 
       <fieldset>
         <legend>About you</legend>
-        <div class="field"><label for="f-role">Participation as *</label><?= $select('role', c('registration.roles', []), true) ?></div>
+        <div class="field"><label for="f-role">Participation as *</label>
+          <select id="f-role" name="role" required data-role-select>
+            <option value="">– please choose –</option>
+            <?php foreach (registration_roles() as $o): ?><option data-kind="<?= e(registration_kind($o)) ?>"<?= ($v['role'] ?? '') === $o ? ' selected' : '' ?>><?= e($o) ?></option><?php endforeach; ?>
+          </select></div>
         <div class="row">
           <div class="field"><label for="f-first_name">First name *</label><input id="f-first_name" name="first_name" required autocomplete="given-name" value="<?= $val('first_name') ?>"></div>
           <div class="field"><label for="f-last_name">Last name *</label><input id="f-last_name" name="last_name" required autocomplete="family-name" value="<?= $val('last_name') ?>"></div>
         </div>
         <div class="field"><label for="f-email">E-mail *</label><input id="f-email" type="email" name="email" required autocomplete="email" value="<?= $val('email') ?>"></div>
-        <div class="row">
+        <?php if ($committeeNames): ?>
+        <div class="field" data-kinds="chair"<?= $kind === 'chair' ? '' : ' hidden' ?>><label for="f-chair_committee">Committee *</label>
+          <select id="f-chair_committee" name="chair_committee"><option value="">– please choose –</option>
+            <?php foreach ($committeeNames as $o): ?><option<?= $kind === 'chair' && ($v['committee_1'] ?? '') === $o ? ' selected' : '' ?>><?= e($o) ?></option><?php endforeach; ?>
+          </select></div>
+        <?php endif; ?>
+        <div class="row" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>>
           <div class="field"><label for="f-school">School *</label><input id="f-school" name="school" required value="<?= $val('school') ?>"></div>
           <div class="field field-small"><label for="f-grade">Grade *</label><input id="f-grade" name="grade" required inputmode="numeric" value="<?= $val('grade') ?>"></div>
         </div>
-        <div class="field"><label for="f-experience">MUN experience</label><?= $select('experience', ['This is my first conference', '1–2 conferences', '3 or more conferences']) ?></div>
+        <div class="field" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>><label for="f-experience">MUN experience</label><?= $select('experience', ['This is my first conference', '1–2 conferences', '3 or more conferences']) ?></div>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>>
         <legend>Preferences</legend>
         <?php if ($committeeNames): ?>
         <div class="row">
@@ -70,6 +81,13 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
 
       <button class="btn" type="submit">Send registration</button>
     </form>
+    <?php if (c('registration.chair_notice')): ?>
+    <dialog class="notice-dialog" id="chair-notice" aria-labelledby="chair-notice-title">
+      <h2 id="chair-notice-title">Registering as a chair</h2>
+      <div class="prose"><?= md(c('registration.chair_notice')) ?></div>
+      <form method="dialog"><button class="btn">OK, got it</button></form>
+    </dialog>
+    <?php endif; ?>
     <?php endif; ?>
   </div>
 </section>

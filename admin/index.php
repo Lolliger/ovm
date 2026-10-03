@@ -237,12 +237,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $r['assigned_committee'] = trim(mb_substr((string) ($_POST['assigned_committee'] ?? ''), 0, 150));
                             $r['admin_note'] = trim(mb_substr((string) ($_POST['admin_note'] ?? ''), 0, 2000));
                             $r['is_chair'] = !empty($_POST['is_chair']);
+                            $r['is_manager'] = !empty($_POST['is_manager']);
+                            if ($r['is_chair'] || $r['is_manager']) {
+                                unset($r['role_pending']);
+                            }
                         }
                     }
                     return $regs;
                 });
                 flash('Anmeldung aktualisiert.');
                 redirect(admin_url(['s' => 'registrations', 'open' => $id]) . '#reg-' . rawurlencode($id));
+
+            case 'reg_confirm_role':
+                $id = (string) ($_POST['id'] ?? '');
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($id) {
+                    foreach ($regs as &$r) {
+                        if (($r['id'] ?? '') === $id && !empty($r['role_pending'])) {
+                            unset($r['role_pending']);
+                            $r['status'] = 'confirmed';
+                            if (($r['kind'] ?? '') === 'manager') {
+                                $r['is_manager'] = true;
+                            } else {
+                                $r['is_chair'] = true;
+                            }
+                        }
+                    }
+                    return $regs;
+                });
+                flash('Bestätigt. Die Rechte gelten ab dem nächsten Seitenaufruf der Person.');
+                redirect(admin_url(['s' => 'registrations']));
+
+            case 'staff_password':
+                $pw = (string) ($_POST['password'] ?? '');
+                if (!check_password((string) ($_POST['current'] ?? ''))) {
+                    flash('Das Admin-Passwort ist falsch.', 'error');
+                } elseif (mb_strlen($pw) < 10) {
+                    flash('Das neue Passwort muss mindestens 10 Zeichen lang sein.', 'error');
+                } else {
+                    set_staff_password('laptops', $pw);
+                    flash('Passwort des Laptop-Kontos geändert. Bereits angemeldete Laptops bleiben angemeldet, bis sie sich abmelden.');
+                }
+                redirect(admin_url(['s' => 'resolutions']));
 
             case 'reg_sendcreds':
                 $email = '';
@@ -425,11 +460,12 @@ if ($s === 'registrations_csv') {
     fwrite($out, "\xEF\xBB\xBF"); // BOM, so Excel shows umlauts correctly
     $fields = registration_fields();
     $statuses = registration_statuses();
-    fputcsv($out, array_merge(['Datum', 'Status', 'Land (zugeteilt)', 'Gremium (zugeteilt)', 'Position Paper'], array_column($fields, 0), ['Notiz']), ';');
+    fputcsv($out, array_merge(['Datum', 'Status', 'Rechte', 'Land (zugeteilt)', 'Gremium (zugeteilt)', 'Position Paper'], array_column($fields, 0), ['Notiz']), ';');
     foreach ($regs as $r) {
         $row = [
             date('d.m.Y H:i', strtotime($r['created'])),
             $statuses[$r['status'] ?? 'received'][1] ?? '',
+            !empty($r['role_pending']) ? 'Bestätigung offen' : implode(', ', array_filter([!empty($r['is_chair']) ? 'Chair' : '', !empty($r['is_manager']) ? 'Conference Manager' : ''])),
             $r['assigned_country'] ?? '',
             $r['assigned_committee'] ?? '',
             !empty($r['paper']) ? 'ja (' . date('d.m.Y', strtotime($r['paper']['uploaded'])) . ')' : 'nein',
@@ -736,6 +772,22 @@ function view_registrations(): void
       <p class="empty">Noch keine Anmeldungen.</p>
       <?php return; ?>
     <?php endif; ?>
+    <?php $pending = array_filter($regs, fn ($r) => !empty($r['role_pending'])); ?>
+    <?php if ($pending): ?>
+      <div class="pending-box">
+        <h2>Warten auf Bestätigung (<?= count($pending) ?>)</h2>
+        <p class="help">Chairs bekommen nach der Bestätigung Chair-Rechte für ihr gewähltes Gremium, Conference Manager können alle Resolutionen ansehen (nicht bearbeiten). Zugangsdaten haben sie schon per Mail bekommen. Nicht bestätigen = Anmeldung löschen oder auf „Abgesagt“ setzen.</p>
+        <ul>
+          <?php foreach ($pending as $r): ?>
+            <li>
+              <span><strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong> · <?= e(($r['kind'] ?? '') === 'manager' ? 'Conference Manager' : 'Chair' . (($r['assigned_committee'] ?? '') !== '' ? ' – ' . $r['assigned_committee'] : '')) ?> · <?= e($r['email']) ?></span>
+              <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="reg_confirm_role"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn">Bestätigen</button></form>
+              <a class="btn-ghost" href="<?= e(admin_url(['s' => 'registrations', 'open' => $r['id']])) ?>#reg-<?= e($r['id']) ?>">Details</a>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
     <div class="summary">
       <div><h3>Nach Teilnahmeart</h3><ul><?php foreach ($byRole as $k => $n): ?><li><span><?= e((string) $k) ?></span><strong><?= $n ?></strong></li><?php endforeach; ?></ul></div>
       <div><h3>Status</h3><ul><?php foreach ($byStatus as $k => $n): ?><li><span><?= e((string) $k) ?></span><strong><?= $n ?></strong></li><?php endforeach; ?>
@@ -748,8 +800,8 @@ function view_registrations(): void
         <?php $st = $r['status'] ?? 'received'; ?>
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
-            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
-            <span><?= e($r['school']) ?> · <?= e($r['role']) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e($r['assigned_committee']) . ')' : '' ?></span>
+            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
+            <span><?= e(implode(' · ', array_filter([$r['school'] ?? '', $r['role'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e($r['assigned_committee']) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
           </summary>
           <dl>
@@ -763,6 +815,7 @@ function view_registrations(): void
             <label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label>
             <label>Gremium (zugeteilt)<input name="assigned_committee" list="committee-options" value="<?= e($r['assigned_committee'] ?? '') ?>"></label>
             <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
+            <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern)</label>
             <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
             <button class="btn">Speichern</button>
           </form>
@@ -997,7 +1050,8 @@ function view_resolutions(): void
     ?>
     <div class="page-title"><h1>Resolutionen</h1></div>
     <p class="help">Pro Gremium gibt es eine Resolution. Chairs legt ihr unter <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">Anmeldungen</a> fest (Häkchen „Chair“ + zugeteiltes Gremium).
-      Als Admin habt ihr in jedem Gremium Chair-Rechte und könnt die Beamer-Ansicht öffnen.</p>
+      Als Admin habt ihr in jedem Gremium Chair-Rechte und könnt die Beamer-Ansicht öffnen.
+      Conference Manager und das Laptop-Konto sehen alle Gremien inkl. Beamer-Ansicht, können aber nichts ändern.</p>
     <?php if (!c('committees', [])): ?><p class="empty">Noch keine Gremien angelegt.</p><?php endif; ?>
     <ul class="item-list">
       <?php foreach (c('committees', []) as $cm): ?>
@@ -1017,5 +1071,16 @@ function view_resolutions(): void
         </li>
       <?php endforeach; ?>
     </ul>
+    <form method="post" class="panel staff-box" autocomplete="off">
+      <?= csrf_field() ?><input type="hidden" name="a" value="staff_password">
+      <h2>Laptop-Konto (Beamer)</h2>
+      <p class="help">Festes Konto für die Konferenz-Laptops: Login unter <strong><?= e(site_origin() . url('login')) ?></strong> mit Benutzername <strong>laptops</strong>.
+        Es sieht alle Gremien und die Beamer-Ansicht, kann aber nichts ändern. <?= isset(read_json(STAFF_FILE)['laptops']) ? 'Passwort zuletzt geändert am ' . e(date('d.m.Y', strtotime(read_json(STAFF_FILE)['laptops']['changed'] ?? 'now'))) . '.' : 'Es gilt noch das Start-Passwort.' ?></p>
+      <div class="row-fields">
+        <label>Neues Passwort für „laptops“ (mind. 10 Zeichen)<input type="text" name="password" minlength="10" required autocomplete="off"></label>
+        <label>Dein Admin-Passwort zur Bestätigung<input type="password" name="current" required autocomplete="current-password"></label>
+      </div>
+      <button class="btn">Passwort ändern</button>
+    </form>
     <?php
 }

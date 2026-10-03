@@ -12,6 +12,9 @@ const PORTAL_IDLE = 2 * 3600;       // logged out after 2 h without activity
 const PAPER_EXT = ['pdf', 'doc', 'docx', 'odt'];
 const PAPER_MAX_BYTES = 10 * 1024 * 1024;
 const ACCOUNTS_FILE = DATA_DIR . '/accounts.json';
+const STAFF_FILE = DATA_DIR . '/staff-accounts.json';
+/** Built-in view-only account for the beamer laptops (password changeable in the admin). */
+const STAFF_DEFAULTS = ['laptops' => ['hash' => '$2y$12$A4G0AZf0Ht1rdvB.W5Vty.N/.uWCWVCwbxqI8SsSD7IssIWJ3nY1m', 'label' => 'Laptop (beamer)']];
 
 /** Registration status: key => [English label for the portal, German label for the admin]. */
 function registration_statuses(): array
@@ -116,9 +119,31 @@ function set_account_password(string $email, string $password): void
     });
 }
 
+/* ---------- Staff accounts (fixed usernames, not tied to a registration) ---------- */
+
+function staff_accounts(): array
+{
+    return read_json(STAFF_FILE) + STAFF_DEFAULTS;
+}
+
+function is_staff_account(?string $name): bool
+{
+    return $name !== null && isset(staff_accounts()[normalize_email($name)]);
+}
+
+function set_staff_password(string $name, string $password): void
+{
+    $name = normalize_email($name);
+    update_json(STAFF_FILE, function (array $accounts) use ($name, $password) {
+        $accounts[$name] = ['hash' => password_hash($password, PASSWORD_DEFAULT), 'label' => (staff_accounts()[$name]['label'] ?? $name), 'changed' => date('c')];
+        return $accounts;
+    });
+}
+
 function verify_account(string $email, string $password): bool
 {
-    $hash = read_json(ACCOUNTS_FILE)[normalize_email($email)]['hash'] ?? null;
+    $name = normalize_email($email);
+    $hash = (staff_accounts()[$name] ?? read_json(ACCOUNTS_FILE)[$name] ?? [])['hash'] ?? null;
     if (!$hash) {
         // Same amount of work as a real check, so the response time does not
         // reveal whether an address is registered.
@@ -502,7 +527,7 @@ function login_route(?string $sub): void
             redirect_to(portal_home());
         } else {
             usleep(300000);
-            $error = 'E-mail address or password is wrong.';
+            $error = 'Username or password is wrong.';
         }
     }
     render('portal-login', ['title' => 'Delegate login', 'error' => $error, 'address' => $address]);
@@ -567,10 +592,13 @@ function portal_route(?string $sub): void
             $message = 'Thank you! Your position paper has been uploaded.';
         }
     }
+    $staff = is_staff_account($email);
     if ($post && ($_POST['a'] ?? '') === 'password') {
         $new = (string) ($_POST['new_password'] ?? '');
         if (!csrf_check()) {
             $error = 'Your session expired. Please try again.';
+        } elseif ($staff) {
+            $error = 'The password of this account can only be changed in the admin area.';
         } elseif (mb_strlen($new) < 10) {
             $error = 'The new password must be at least 10 characters long.';
         } elseif ($new !== ($_POST['new_password2'] ?? '')) {
@@ -580,7 +608,7 @@ function portal_route(?string $sub): void
             $message = 'Your password has been changed.';
         }
     }
-    render('portal', ['title' => 'Your registration', 'email' => $email, 'regs' => registrations_for($email), 'message' => $message, 'error' => $error]);
+    render('portal', ['title' => $staff ? 'Conference area' : 'Your registration', 'email' => $email, 'staff' => $staff, 'regs' => $staff ? [] : registrations_for($email), 'message' => $message, 'error' => $error]);
 }
 
 /** Requests on the portal subdomain: only the delegate area, everything else goes to the main site. */

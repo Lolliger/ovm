@@ -64,3 +64,35 @@
     if (lastFocus) lastFocus.focus();
   });
 })();
+
+/* Registration form: chairs and conference managers get a shorter form */
+(function () {
+  var select = document.querySelector('[data-role-select]');
+  if (!select) return;
+  var form = select.form;
+  var notice = document.getElementById('chair-notice');
+  var kindOf = function () {
+    var o = select.options[select.selectedIndex];
+    return (o && o.getAttribute('data-kind')) || 'delegate';
+  };
+  var apply = function () {
+    var kind = kindOf();
+    form.querySelectorAll('[data-kinds]').forEach(function (el) {
+      var show = el.getAttribute('data-kinds').split(' ').indexOf(kind) !== -1;
+      el.hidden = !show;
+      el.querySelectorAll('input, select, textarea').forEach(function (f) { f.disabled = !show; });
+    });
+    return kind;
+  };
+  apply();
+  select.addEventListener('change', function () {
+    if (apply() === 'chair' && notice && typeof notice.showModal === 'function') {
+      notice.showModal();
+      document.documentElement.classList.add('dialog-open');
+    }
+  });
+  if (notice) {
+    notice.addEventListener('click', function (e) { if (e.target === notice) notice.close(); });
+    notice.addEventListener('close', function () { document.documentElement.classList.remove('dialog-open'); });
+  }
+})();

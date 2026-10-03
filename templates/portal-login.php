@@ -9,7 +9,7 @@ require __DIR__ . '/_pagehead.php';
     <form class="form" method="post" action="<?= e(url('login')) ?>">
       <?php if ($error): ?><div class="notice notice-error" role="alert"><?= e($error) ?></div><?php endif; ?>
       <?= csrf_field() ?>
-      <div class="field"><label for="p-email">E-mail (username)</label><input id="p-email" type="email" name="email" required autocomplete="username" value="<?= e($address) ?>"<?= $address === '' ? ' autofocus' : '' ?>></div>
+      <div class="field"><label for="p-email">E-mail or username</label><input id="p-email" type="text" name="email" required autocomplete="username" autocapitalize="none" spellcheck="false" value="<?= e($address) ?>"<?= $address === '' ? ' autofocus' : '' ?>></div>
       <div class="field"><label for="p-password">Password</label><input id="p-password" type="password" name="password" required autocomplete="current-password"<?= $address !== '' ? ' autofocus' : '' ?>></div>
       <button class="btn" type="submit">Log in</button>
     </form>

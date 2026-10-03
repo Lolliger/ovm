@@ -149,10 +149,12 @@
     "intro": "Fill in the form to register for OMUN. School delegations: please register every delegate individually and give the same school name. You will receive your country and committee allocation by e-mail after the deadline.",
     "roles": [
       "Delegate",
-      "Chair (application)",
+      "Chair",
+      "Conference Manager",
       "Press team",
       "Admin staff"
     ],
+    "chair_notice": "All chairs have already been selected. This registration is only used to record your details for the conference.",
     "closed_message": "Registration is currently closed. Follow us on Instagram to find out when it opens.",
     "success_message": "Thank you! We have received your registration and will be in touch by e-mail.",
     "notify_email": "",

@@ -23,6 +23,35 @@ function registration_fields(): array
 }
 
 /**
+ * What a "Participation as" option means: 'chair' and 'manager' (conference
+ * manager) get the short form and need to be confirmed in the admin.
+ */
+function registration_kind(string $role): string
+{
+    if (preg_match('/chair/i', $role)) {
+        return 'chair';
+    }
+    return preg_match('/manag/i', $role) ? 'manager' : 'delegate';
+}
+
+/** Options of "Participation as"; Chair and Conference Manager are always offered. */
+function registration_roles(): array
+{
+    $roles = array_values(array_filter(array_map('trim', (array) c('registration.roles', []))));
+    $kinds = array_map('registration_kind', $roles);
+    if (!in_array('chair', $kinds, true)) {
+        $roles[] = 'Chair';
+    }
+    if (!in_array('manager', $kinds, true)) {
+        $roles[] = 'Conference Manager';
+    }
+    return $roles;
+}
+
+/** Fields only delegates fill in (hidden for chairs and conference managers). */
+const DELEGATE_ONLY_FIELDS = ['school', 'grade', 'experience', 'committee_1', 'committee_2', 'country_wishes', 'diet', 'message'];
+
+/**
  * Handles a POST to /register.
  * Returns ['ok' => bool, 'errors' => [...], 'values' => [...]] or null for GET.
  */
@@ -36,6 +65,16 @@ function handle_registration(): ?array
         $values[$key] = trim(mb_substr((string) ($_POST[$key] ?? ''), 0, 2000));
     }
     $errors = [];
+    $kind = registration_kind($values['role']);
+    $chairCommittee = trim((string) ($_POST['chair_committee'] ?? ''));
+    if ($kind !== 'delegate') {
+        foreach (DELEGATE_ONLY_FIELDS as $key) {
+            $values[$key] = '';
+        }
+        if ($kind === 'chair') {
+            $values['committee_1'] = committee_by_label($chairCommittee) ? $chairCommittee : '';
+        }
+    }
 
     if (!c('registration.open')) {
         $errors[] = 'Registration is closed.';
@@ -46,9 +85,15 @@ function handle_registration(): ?array
         return ['ok' => true, 'errors' => [], 'values' => []];
     }
     foreach (registration_fields() as $key => [$label, $required]) {
-        if ($required && $values[$key] === '') {
+        if ($required && $values[$key] === '' && !($kind !== 'delegate' && in_array($key, DELEGATE_ONLY_FIELDS, true))) {
             $errors[] = "Please fill in “{$label}”.";
         }
+    }
+    if ($values['role'] !== '' && !in_array($values['role'], registration_roles(), true)) {
+        $errors[] = 'Please choose how you want to participate.';
+    }
+    if ($kind === 'chair' && $values['committee_1'] === '' && c('committees')) {
+        $errors[] = 'Please choose your committee.';
     }
     if ($values['email'] !== '' && !filter_var($values['email'], FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid e-mail address.';
@@ -65,6 +110,15 @@ function handle_registration(): ?array
 
     $values['email'] = normalize_email($values['email']);
     $entry = ['id' => bin2hex(random_bytes(6)), 'created' => date('c'), 'status' => 'received'] + $values;
+    if ($kind !== 'delegate') {
+        // Rights (chair of the chosen committee / view all committees) only
+        // apply once the registration is confirmed in the admin.
+        $entry['kind'] = $kind;
+        $entry['role_pending'] = true;
+        if ($kind === 'chair') {
+            $entry['assigned_committee'] = $values['committee_1'];
+        }
+    }
     append_json(REGISTRATIONS_FILE, $entry);
     notify_registration($entry);
     send_confirmation($entry);
@@ -80,9 +134,12 @@ function notify_registration(array $entry): void
     }
     $lines = [];
     foreach (registration_fields() as $key => [$label]) {
-        $lines[] = str_pad($label . ':', 26) . ($entry[$key] ?? '');
+        if (($entry[$key] ?? '') !== '') {
+            $lines[] = str_pad($label . ':', 26) . $entry[$key];
+        }
     }
-    $body = 'New registration on ' . mail_domain() . "\n\n" . implode("\n", $lines)
+    $pending = !empty($entry['role_pending']) ? "\n\nPlease confirm this " . ($entry['kind'] === 'chair' ? 'chair' : 'conference manager') . ' registration in the admin area.' : '';
+    $body = 'New registration on ' . mail_domain() . "\n\n" . implode("\n", $lines) . $pending
         . "\n\nAll registrations: " . site_origin() . url('admin/?s=registrations') . "\n";
     send_mail($to, c('site.name') . ' registration: ' . $entry['first_name'] . ' ' . $entry['last_name'], $body, $entry['email']);
 }

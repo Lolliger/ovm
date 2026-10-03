@@ -15,6 +15,7 @@ declare(strict_types=1);
  * - closed: read-only.
  *
  * Chairs = registrations with "is_chair" for that committee; admins act as chairs.
+ * Viewers = confirmed conference managers and the laptop account (all committees, read only).
  * Data: data/resolutions/<committee-slug>.json
  */
 
@@ -82,7 +83,7 @@ function committee_members(array $committee): array
 {
     return array_values(array_filter(read_json(REGISTRATIONS_FILE), function ($r) use ($committee) {
         $cm = committee_by_label((string) ($r['assigned_committee'] ?? ''));
-        return $cm && $cm['slug'] === $committee['slug'] && ($r['status'] ?? '') !== 'cancelled';
+        return $cm && $cm['slug'] === $committee['slug'] && ($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending']);
     }));
 }
 
@@ -104,20 +105,32 @@ function res_context(?string $slug): ?array
 {
     $isAdmin = is_logged_in();
     $email = portal_email();
+    $rank = ['viewer' => 0, 'delegate' => 1, 'chair' => 2, 'admin' => 3];
     $options = []; // slug => [committee, role, reg]
-    if ($isAdmin) {
-        foreach (c('committees', []) as $cm) {
-            $options[$cm['slug']] = [$cm, 'admin', null];
+    $offer = function (array $cm, string $role, ?array $reg) use (&$options, $rank) {
+        $have = $options[$cm['slug']] ?? null;
+        if (!$have || $rank[$role] > $rank[$have[1]]) {
+            $options[$cm['slug']] = [$cm, $role, $reg];
+        }
+    };
+    foreach (c('committees', []) as $cm) {
+        if ($isAdmin) {
+            $offer($cm, 'admin', null);
+        } elseif (is_staff_account($email)) {
+            $offer($cm, 'viewer', null);
         }
     }
     foreach ($email ? registrations_for($email) : [] as $r) {
-        $cm = committee_by_label((string) ($r['assigned_committee'] ?? ''));
-        if (!$cm || ($r['status'] ?? '') === 'cancelled') {
-            continue;
+        if (($r['status'] ?? '') === 'cancelled' || !empty($r['role_pending'])) {
+            continue; // chairs / conference managers only once confirmed in the admin
         }
-        $role = !empty($r['is_chair']) ? 'chair' : 'delegate';
-        if (!isset($options[$cm['slug']]) || $options[$cm['slug']][1] === 'delegate') {
-            $options[$cm['slug']] = [$cm, $isAdmin ? 'admin' : $role, $r];
+        if (!empty($r['is_manager'])) {
+            foreach (c('committees', []) as $cm) {
+                $offer($cm, 'viewer', $r);
+            }
+        }
+        if ($cm = committee_by_label((string) ($r['assigned_committee'] ?? ''))) {
+            $offer($cm, !empty($r['is_chair']) ? 'chair' : 'delegate', $r);
         }
     }
     if (!$options) {
@@ -125,13 +138,24 @@ function res_context(?string $slug): ?array
     }
     $pick = $slug !== null && isset($options[$slug]) ? $options[$slug] : reset($options);
     [$cm, $role, $reg] = $pick;
+    $label = match ($role) {
+        'viewer' => $reg ? 'Conference manager (view only)' : (staff_accounts()[$email]['label'] ?? 'Laptop') . ' (view only)',
+        'admin' => 'Chair',
+        default => $reg ? reg_label($reg) : 'Chair',
+    };
     return [
         'committee' => $cm,
         'role' => $role,
-        'reg' => $reg,
-        'label' => $reg ? reg_label($reg) : 'Chair',
+        'reg' => $role === 'viewer' ? null : $reg,
+        'label' => $label,
         'committees' => array_map(fn ($o) => $o[0]['name'], $options),
     ];
+}
+
+/** Conference managers and the laptop account: see everything, change nothing. */
+function res_is_viewer(array $ctx): bool
+{
+    return $ctx['role'] === 'viewer';
 }
 
 function res_is_chair(array $ctx): bool
@@ -309,6 +333,9 @@ function close_children(array &$res, string $parentId, string $status): void
 
 function res_handle_post(array $ctx): void
 {
+    if (res_is_viewer($ctx)) {
+        throw new RuntimeException('This account can only view the resolutions.');
+    }
     $a = (string) ($_POST['a'] ?? '');
     $chair = res_is_chair($ctx);
     $cm = $ctx['committee'];
@@ -811,7 +838,7 @@ function resolution_route(): void
         exit(json_encode(['rev' => $res['rev'], 'regions' => res_regions($ctx, $res, ($_GET['screen'] ?? '') !== '' ? 'screen' : 'page')]));
     }
     if ($view === 'screen') {
-        if (!res_is_chair($ctx)) {
+        if (!res_is_chair($ctx) && !res_is_viewer($ctx)) {
             redirect_to($self);
         }
         require __DIR__ . '/../templates/resolution-screen.php';

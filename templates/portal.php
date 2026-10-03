@@ -1,6 +1,6 @@
 <?php
 $kicker = e(c('conference.edition')) . ' · Delegate area';
-$heading = 'Your registration';
+$heading = $staff ? 'Conference area' : 'Your registration';
 require __DIR__ . '/_pagehead.php';
 $statuses = registration_statuses();
 ?>
@@ -16,9 +16,12 @@ $statuses = registration_statuses();
       <a class="portal-res" href="<?= e(portal_link('resolution')) ?>">
         <span class="kicker">Resolution editor</span>
         <strong><?= e($resCtx['committee']['name']) ?></strong>
-        <span><?= res_is_chair($resCtx) ? 'Chair view: document, amendments, speakers list and beamer view →' : 'Read the draft resolution and submit amendments →' ?></span>
+        <span><?= res_is_chair($resCtx) ? 'Chair view: document, amendments, speakers list and beamer view →' : ($resCtx['role'] === 'viewer' ? 'View all committees (read only) and open the beamer view →' : 'Read the draft resolution and submit amendments →') ?></span>
       </a>
     <?php endif; ?>
+    <?php if ($staff): ?>
+      <p class="muted">This is a shared view-only account for the conference laptops. Its password is managed in the admin area.</p>
+    <?php else: ?>
     <?php if (c('portal.intro')): ?><div class="prose"><?= md(c('portal.intro')) ?></div><?php endif; ?>
 
     <?php if (!$regs): ?>
@@ -29,6 +32,7 @@ $statuses = registration_statuses();
       <?php
       $status = $r['status'] ?? 'received';
       $committee = committee_by_label((string) ($r['assigned_committee'] ?? ''));
+      $delegate = ($r['kind'] ?? 'delegate') === 'delegate';
       ?>
       <article class="portal-card">
         <header>
@@ -37,20 +41,21 @@ $statuses = registration_statuses();
         </header>
 
         <dl class="facts">
-          <div><dt>Participation as</dt><dd><?= e($r['role']) ?></dd></div>
-          <div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div>
-          <div><dt>Committee</dt><dd>
+          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?></dd></div>
+          <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>
+          <?php if (($r['kind'] ?? '') !== 'manager'): ?><div><dt>Committee</dt><dd>
             <?php if ($committee): ?>
               <a href="<?= e(main_origin() . url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
               <?php if (!empty($committee['study_guide'])): ?> · <a href="<?= e(media($committee['study_guide'])) ?>" download>Study guide ↓</a><?php endif; ?>
             <?php else: ?>
               <?= e(($r['assigned_committee'] ?? '') ?: 'Not allocated yet') ?>
             <?php endif; ?>
-          </dd></div>
-          <div><dt>School</dt><dd><?= e($r['school']) ?>, grade <?= e($r['grade']) ?></dd></div>
+          </dd></div><?php endif; ?>
+          <?php if (($r['school'] ?? '') !== ''): ?><div><dt>School</dt><dd><?= e($r['school']) ?>, grade <?= e($r['grade']) ?></dd></div><?php endif; ?>
           <div><dt>Registered on</dt><dd><?= e(format_date($r['created'])) ?></dd></div>
         </dl>
 
+        <?php if ($delegate): ?>
         <div class="paper">
           <h3>Position paper</h3>
           <?php if (!empty($r['paper'])): ?>
@@ -75,6 +80,7 @@ $statuses = registration_statuses();
             <p class="muted"><?= c('portal.papers_open') ? 'The deadline for position papers has passed.' : 'Uploading position papers is not open yet.' ?></p>
           <?php endif; ?>
         </div>
+        <?php endif; ?>
       </article>
     <?php endforeach; ?>
 
@@ -90,6 +96,7 @@ $statuses = registration_statuses();
       </form>
     </details>
 
+    <?php endif; ?>
     <p class="muted">Something wrong with your details? Write to <a href="mailto:<?= e(c('site.email')) ?>"><?= e(c('site.email')) ?></a>.</p>
   </div>
 </section>

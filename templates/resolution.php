@@ -2,6 +2,7 @@
 /** @var array $ctx @var array $res @var string $self @var ?array $flash */
 $cm = $ctx['committee'];
 $chair = res_is_chair($ctx);
+$viewer = res_is_viewer($ctx);
 $canEdit = res_can_edit($ctx, $res);
 $clauses = clauses_sorted($res['clauses']);
 $nums = clause_numbers($clauses);
@@ -36,7 +37,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
       <?php endif; ?>
       <span class="muted">You are: <strong><?= e($chair ? ($ctx['role'] === 'admin' ? 'Admin (chair rights)' : 'Chair') : $ctx['label']) ?></strong></span>
       <a href="<?= e($self) ?>&amp;view=print" target="_blank">Print / PDF</a>
-      <?php if ($chair): ?><a class="btn btn-small" href="<?= e($self) ?>&amp;view=screen" target="_blank">Open beamer view ↗</a><?php endif; ?>
+      <?php if ($chair || $viewer): ?><a class="btn btn-small" href="<?= e($self) ?>&amp;view=screen" target="_blank">Open beamer view ↗</a><?php endif; ?>
     </p>
   </div>
 </section>
@@ -49,7 +50,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
     <div class="res-layout">
       <div class="res-main">
         <div class="res-paper" data-region="doc"><?= $regions['doc'] ?></div>
-        <?php if (!$chair && $res['status'] === 'debate'): ?><p class="muted small">Highlighted boxes are your own amendments – only you and the chairs can see them.</p><?php endif; ?>
+        <?php if (!$chair && !$viewer && $res['status'] === 'debate'): ?><p class="muted small">Highlighted boxes are your own amendments – only you and the chairs can see them.</p><?php endif; ?>
 
         <?php if ($canEdit): ?>
           <details class="res-panel res-editor" id="editor"<?= isset($_GET['edit']) || $res['status'] === 'draft' ? ' open' : '' ?>>
@@ -90,7 +91,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
         <div class="res-panel res-floor">
           <h2>On the floor</h2>
           <div data-region="floor"><?= $regions['floor'] ?: '<p class="muted">No amendment is being debated right now.</p>' ?></div>
-          <?php if ($res['status'] === 'debate' && $cur && empty($cur['parent']) && $cur['kind'] !== 'strike'): ?>
+          <?php if (!$viewer && $res['status'] === 'debate' && $cur && empty($cur['parent']) && $cur['kind'] !== 'strike'): ?>
             <details class="amend-2nd">
               <summary>Amend this amendment (2nd degree)</summary>
               <form method="post" class="form">
@@ -149,6 +150,8 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
           </p>
         </div>
       </div>
+    <?php elseif ($viewer): ?>
+      <p class="muted small">View only: this account can follow every committee and open the beamer view, but cannot change anything.</p>
     <?php else: ?>
       <div class="res-delegate">
         <?php if ($res['status'] === 'debate'): ?>
