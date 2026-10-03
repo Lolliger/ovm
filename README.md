@@ -41,6 +41,20 @@ ersetzt die Programmdateien selbst; `data/` und `uploads/` (Inhalte, Passwort, A
 werden nie verändert. Vorher wird die laufende Version als Zip in `data/code-backups/` gesichert
 (letzte 5, im Admin herunterladbar – zum Zurückspringen einfach wieder als Update einspielen).
 
+#### Update-Zip erstellen (für Entwickler)
+
+Die Zip enthält einfach den **kompletten Projektordner, wie er im Git-Repository liegt** – ohne `data/` und
+`uploads/` (die werden beim Einspielen ohnehin übersprungen und nie überschrieben).
+
+1. Änderungen committen und in `VERSION` eine neue Versionsnummer eintragen (z. B. `2026.10.04.1`) – die zeigt der
+   Admin vor und nach dem Update an.
+2. Im Repository: `git archive --format=zip -o omun-update.zip HEAD`
+   (oder alle Dateien von Hand zippen; die Dateien dürfen direkt in der Zip liegen oder in **einem** Unterordner).
+3. Pflicht in der Zip: `index.php` und `lib/bootstrap.php`. Auch die versteckten `.htaccess`-Dateien mitnehmen.
+
+Das Update ersetzt nur Dateien, die in der Zip sind, und **löscht keine alten**. Wurde eine Datei entfernt oder
+umbenannt, muss sie per Strato-Dateimanager gelöscht werden (oder sie bleibt einfach ungenutzt liegen).
+
 **Niemals den ganzen Webspace-Ordner löschen** – sonst sind Inhalte, Passwort und Anmeldungen weg.
 Falls der Admin nicht erreichbar ist: per Dateimanager alle Dateien **außer** `data/` und `uploads/`
 ersetzen.
