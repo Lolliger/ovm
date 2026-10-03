@@ -393,7 +393,8 @@ function res_handle_post(array $ctx): void
                     throw new RuntimeException('Amendments can only be submitted during the debate.');
                 }
                 $parent = $p('parent') !== '' ? amendment_by_id($res, $p('parent')) : null;
-                if ($p('parent') !== '' && (!$parent || $res['current'] !== $parent['id'] || !empty($parent['parent']))) {
+                $debated = res_debated_amendment($res);
+                if ($p('parent') !== '' && (!$parent || !$debated || $debated['id'] !== $parent['id'])) {
                     throw new RuntimeException('You can only amend the amendment that is currently on the floor.');
                 }
                 $kind = $parent ? 'modify' : (in_array($p('kind'), ['add', 'modify', 'strike'], true) ? $p('kind') : 'modify');
@@ -431,7 +432,7 @@ function res_handle_post(array $ctx): void
                     'level' => max(0, min(2, (int) $p('level'))),
                     'text' => $text,
                     'author' => $me['id'] ?? 'chair',
-                    'author_label' => $chair && !$me ? 'Chair' : $ctx['label'],
+                    'author_label' => $chair ? 'Chair' : $ctx['label'],
                     'status' => 'pending',
                     'created' => date('c'),
                 ];
@@ -484,6 +485,10 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
             break;
         case 'status':
             if (in_array($p('status'), ['draft', 'debate', 'closed'], true)) {
+                if ($p('status') === 'debate' && $res['status'] !== 'debate' && $res['main_submitter'] !== '') {
+                    // The main submitter presents the draft resolution first.
+                    res_speaker_push($res, res_author_label(['author' => $res['main_submitter']]));
+                }
                 $res['status'] = $p('status');
                 if ($res['status'] !== 'debate') {
                     $res['current'] = null;
@@ -507,6 +512,7 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
             }
             set_amendment($res, $am['id'], ['status' => 'floor']);
             $res['current'] = $am['id'];
+            res_speaker_push($res, res_author_label($am));
             break;
         case 'clear_floor':
             if ($cur = amendment_by_id($res, $res['current'])) {
@@ -627,14 +633,74 @@ function clause_html(array $cl, array $nums, bool $struck = false): string
 }
 
 /** Describes what an amendment does, with the original wording where useful. */
+/**
+ * Who an amendment is shown as: always the delegation's country, never the
+ * person's name ("Chair" for chairs/admins). Looked up live, so a country
+ * allocated later shows up too.
+ */
+function res_author_label(array $am): string
+{
+    static $regs = null;
+    $regs ??= array_column(read_json(REGISTRATIONS_FILE), null, 'id');
+    $r = $regs[$am['author'] ?? ''] ?? null;
+    if (!$r) {
+        return ($am['author'] ?? '') === 'chair' || ($am['author_label'] ?? '') === 'Chair' ? 'Chair' : 'Delegation';
+    }
+    if (!empty($r['is_chair'])) {
+        return 'Chair';
+    }
+    return trim((string) ($r['assigned_country'] ?? '')) ?: 'Delegation (no country allocated)';
+}
+
+/** Adds a delegation to the end of the speakers list unless it is already on it. */
+function res_speaker_push(array &$res, string $label): void
+{
+    if ($label === '' || $label === 'Chair' || str_starts_with($label, 'Delegation')) {
+        return;
+    }
+    foreach ($res['speakers'] as $sp) {
+        if (strcasecmp($sp['label'], $label) === 0) {
+            return;
+        }
+    }
+    $res['speakers'][] = ['id' => res_id(), 'label' => $label];
+}
+
+/** The 1st-degree amendment being debated (also while a 2nd-degree one on it is on the floor). */
+function res_debated_amendment(array $res): ?array
+{
+    $cur = amendment_by_id($res, $res['current']);
+    if (!$cur) {
+        return null;
+    }
+    return !empty($cur['parent']) ? amendment_by_id($res, $cur['parent']) : $cur;
+}
+
+/** "On the floor" panel of the editor page incl. the 2nd-degree form for everyone who may amend. */
+function res_floor_panel_html(array $ctx, array $res): string
+{
+    $floor = res_floor_html($res);
+    if ($floor === '') {
+        return '<p class="muted">No amendment is being debated right now.</p>';
+    }
+    $base = res_debated_amendment($res);
+    if (res_is_viewer($ctx) || $res['status'] !== 'debate' || !$base || $base['kind'] === 'strike') {
+        return $floor;
+    }
+    return $floor . '<details class="amend-2nd"><summary>Amend this amendment (2nd degree)</summary>'
+        . '<form method="post" class="form">' . csrf_field() . '<input type="hidden" name="a" value="amend"><input type="hidden" name="parent" value="' . e($base['id']) . '">'
+        . '<label class="field"><span>Your new wording for this amendment</span><textarea name="text" rows="4" required>' . e($base['text']) . '</textarea></label>'
+        . '<button class="btn btn-small">Submit to the chairs</button></form></details>';
+}
+
 function amendment_html(array $res, array $am, bool $big = false): string
 {
     $nums = clause_numbers(clauses_sorted($res['clauses']));
     $parent = !empty($am['parent']) ? amendment_by_id($res, $am['parent']) : null;
     $base = $parent ?: $am;
     $html = '<div class="amend' . ($big ? ' amend-big' : '') . '">';
-    $html .= '<p class="amend-by">' . ($parent ? 'Amendment to the amendment' : 'Amendment') . ' submitted by <strong>' . e($am['author_label']) . '</strong>'
-        . ($parent ? ' · original by ' . e($parent['author_label']) : '') . '</p>';
+    $html .= '<p class="amend-by">' . ($parent ? 'Amendment to the amendment' : 'Amendment') . ' submitted by <strong>' . e(res_author_label($am)) . '</strong>'
+        . ($parent ? ' · original by ' . e(res_author_label($parent)) : '') . '</p>';
 
     $open = in_array($am['status'], ['pending', 'floor'], true);
     $orig = null;
@@ -876,7 +942,7 @@ function res_regions(array $ctx, array $res, string $mode): array
     }
     $regions = [
         'doc' => res_document_html($res, $cm, res_is_chair($ctx) ? [] : $mine),
-        'floor' => res_floor_html($res),
+        'floor' => res_floor_panel_html($ctx, $res),
         'speakers' => res_speakers_html($res),
         'status' => e(status_label($res['status'])),
         'mine' => res_my_amendments_html($res, $myId),

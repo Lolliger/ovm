@@ -90,17 +90,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
       <aside class="res-side">
         <div class="res-panel res-floor">
           <h2>On the floor</h2>
-          <div data-region="floor"><?= $regions['floor'] ?: '<p class="muted">No amendment is being debated right now.</p>' ?></div>
-          <?php if (!$viewer && $res['status'] === 'debate' && $cur && empty($cur['parent']) && $cur['kind'] !== 'strike'): ?>
-            <details class="amend-2nd">
-              <summary>Amend this amendment (2nd degree)</summary>
-              <form method="post" class="form">
-                <?= $hidden('amend') ?><input type="hidden" name="parent" value="<?= e($cur['id']) ?>">
-                <label class="field"><span>Your new wording for this amendment</span><textarea name="text" rows="4" required><?= e($cur['text']) ?></textarea></label>
-                <button class="btn btn-small">Submit to the chairs</button>
-              </form>
-            </details>
-          <?php endif; ?>
+          <div data-region="floor"><?= $regions['floor'] ?></div>
         </div>
 
         <div class="res-panel" data-region="speakers"><?= $regions['speakers'] ?></div>
