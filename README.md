@@ -109,6 +109,13 @@ Resolution; **Chairs** werden pro Anmeldung mit dem Häkchen „Chair“ festgel
    abgelehnt → zurück zum ursprünglichen Amendment.
 3. **Closed:** schreibgeschützt.
 
+Ist eine Resolution fertig, speichern die Chairs sie mit **„Save & start new resolution“** (Ergebnis: Adopted /
+Not adopted / Withdrawn / Closed) und beginnen eine neue; die Speakers List bleibt. Fertige Resolutionen stehen unter
+„Previous resolutions“ (Ansicht/PDF) und im Admin unter *Resolutionen* (`data/resolutions/<gremium>--<id>.json`).
+
+Land und Gremium aller Teilnehmenden lassen sich im Admin unter **Zuteilung** in einer Tabelle ändern (auch nach der
+Bestätigung). Zuteilungen werden über die Gremien-Adresse gespeichert und bleiben beim Umbenennen eines Gremiums erhalten.
+
 Beamer-Ansicht (`?view=screen`, nur Chairs/Admins): aktuelles Amendment bzw. Dokument links, Speakers List
 rechts, aktualisiert sich alle 2 Sekunden. Druck/PDF über `?view=print`. Daten: `data/resolutions/<gremium>.json`.
 

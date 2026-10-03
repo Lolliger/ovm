@@ -248,6 +248,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Anmeldung aktualisiert.');
                 redirect(admin_url(['s' => 'registrations', 'open' => $id]) . '#reg-' . rawurlencode($id));
 
+            case 'alloc_save':
+                $countries = (array) ($_POST['country'] ?? []);
+                $committees = (array) ($_POST['committee'] ?? []);
+                $chairs = (array) ($_POST['chair'] ?? []);
+                $changed = 0;
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($countries, $committees, $chairs, &$changed) {
+                    foreach ($regs as &$r) {
+                        if (!array_key_exists($r['id'], $countries)) {
+                            continue;
+                        }
+                        $before = [$r['assigned_country'] ?? '', $r['assigned_committee'] ?? '', !empty($r['is_chair'])];
+                        $r['assigned_country'] = trim(mb_substr((string) $countries[$r['id']], 0, 100));
+                        $r['assigned_committee'] = trim(mb_substr((string) ($committees[$r['id']] ?? ''), 0, 150));
+                        $r['is_chair'] = !empty($chairs[$r['id']]);
+                        if ($r['is_chair']) {
+                            unset($r['role_pending']);
+                        }
+                        $changed += $before !== [$r['assigned_country'], $r['assigned_committee'], $r['is_chair']] ? 1 : 0;
+                    }
+                    return $regs;
+                });
+                flash($changed . ' Zuteilung' . ($changed === 1 ? '' : 'en') . ' geändert.');
+                redirect(admin_url(['s' => 'allocation']));
+
             case 'reg_confirm_role':
                 $id = (string) ($_POST['id'] ?? '');
                 update_json(REGISTRATIONS_FILE, function (array $regs) use ($id) {
@@ -467,7 +491,7 @@ if ($s === 'registrations_csv') {
             $statuses[$r['status'] ?? 'received'][1] ?? '',
             !empty($r['role_pending']) ? 'Bestätigung offen' : implode(', ', array_filter([!empty($r['is_chair']) ? 'Chair' : '', !empty($r['is_manager']) ? 'Conference Manager' : ''])),
             $r['assigned_country'] ?? '',
-            $r['assigned_committee'] ?? '',
+            committee_display((string) ($r['assigned_committee'] ?? '')),
             !empty($r['paper']) ? 'ja (' . date('d.m.Y', strtotime($r['paper']['uploaded'])) . ')' : 'nein',
         ];
         foreach ($fields as $k => $_) {
@@ -542,7 +566,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -558,6 +582,7 @@ function admin_page(string $s, array $schema): void
   <nav class="sidebar">
     <a href="<?= e(admin_url()) ?>"<?= $s === '' ? ' class="active"' : '' ?>>Übersicht</a>
     <a href="<?= e(admin_url(['s' => 'registrations'])) ?>"<?= $s === 'registrations' ? ' class="active"' : '' ?>>Anmeldungen <span class="count"><?= $regCount ?></span></a>
+    <a href="<?= e(admin_url(['s' => 'allocation'])) ?>"<?= $s === 'allocation' ? ' class="active"' : '' ?>>Zuteilung</a>
     <a href="<?= e(admin_url(['s' => 'resolutions'])) ?>"<?= $s === 'resolutions' ? ' class="active"' : '' ?>>Resolutionen</a>
     <p class="nav-label">Inhalte</p>
     <?php foreach ($schema as $key => $def): ?>
@@ -585,6 +610,8 @@ function admin_page(string $s, array $schema): void
         }
     } elseif ($s === 'registrations') {
         view_registrations();
+    } elseif ($s === 'allocation') {
+        view_allocation();
     } elseif ($s === 'media') {
         view_media();
     } elseif ($s === 'settings') {
@@ -743,12 +770,58 @@ function view_item(string $s, array $def, string $id): void
     <?php
 }
 
+/** Dropdown of all committees (value = slug), keeping an assignment whose committee no longer exists. */
+function committee_select(string $name, string $current): string
+{
+    $sel = committee_by_label($current);
+    $h = '<select name="' . e($name) . '"><option value="">– noch keins –</option>';
+    foreach (c('committees', []) as $cm) {
+        $h .= '<option value="' . e($cm['slug']) . '"' . ($sel && $sel['slug'] === $cm['slug'] ? ' selected' : '') . '>' . e(committee_display($cm['slug'])) . '</option>';
+    }
+    if ($current !== '' && !$sel) {
+        $h .= '<option value="' . e($current) . '" selected>' . e($current) . ' (gibt es nicht mehr)</option>';
+    }
+    return $h . '</select>';
+}
+
+function view_allocation(): void
+{
+    $regs = read_json(REGISTRATIONS_FILE);
+    usort($regs, fn ($a, $b) => [committee_display((string) ($a['assigned_committee'] ?? '')) ?: 'zzz', $a['last_name']] <=> [committee_display((string) ($b['assigned_committee'] ?? '')) ?: 'zzz', $b['last_name']]);
+    ?>
+    <div class="page-title"><h1>Zuteilung</h1></div>
+    <p class="help">Land und Gremium für alle auf einmal ändern – auch nach der Bestätigung. Die Änderung gilt sofort (Teilnehmer-Bereich und Resolution Editor).
+      Die Liste der Gremien selbst (Namen, Abkürzungen, neue Gremien) bearbeitet ihr unter <a href="<?= e(admin_url(['s' => 'committees'])) ?>">Gremien</a>; Zuteilungen bleiben beim Umbenennen erhalten.</p>
+    <?php if (!$regs): ?><p class="empty">Noch keine Anmeldungen.</p><?php return; endif; ?>
+    <input type="search" class="filter" placeholder="Suchen (Name, Land, Gremium …)" data-filter=".alloc-table tbody tr">
+    <form method="post" class="alloc-form">
+      <?= csrf_field() ?><input type="hidden" name="a" value="alloc_save">
+      <div class="table-wrap"><table class="alloc-table">
+        <thead><tr><th>Name</th><th>Teilnahme</th><th>Wünsche</th><th>Land</th><th>Gremium</th><th>Chair</th></tr></thead>
+        <tbody>
+        <?php foreach ($regs as $r): $id = e($r['id']); ?>
+          <tr<?= ($r['status'] ?? '') === 'cancelled' ? ' class="cancelled"' : '' ?>>
+            <td><strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong><?= ($r['status'] ?? '') === 'cancelled' ? ' <small>(abgesagt)</small>' : '' ?></td>
+            <td><?= e($r['role'] ?? '') ?><?= !empty($r['role_pending']) ? ' <small>(Bestätigung offen)</small>' : '' ?></td>
+            <td><small><?= e(implode(' / ', array_filter([$r['committee_1'] ?? '', $r['committee_2'] ?? '', $r['country_wishes'] ?? '']))) ?></small></td>
+            <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" aria-label="Land"></td>
+            <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
+            <td><input type="checkbox" name="chair[<?= $id ?>]" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?> aria-label="Chair"></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table></div>
+      <div class="save-bar"><button class="btn">Alle Zuteilungen speichern</button></div>
+    </form>
+    <?php
+}
+
 function view_registrations(): void
 {
     $regs = array_reverse(read_json(REGISTRATIONS_FILE));
     $fields = registration_fields();
     $byRole = array_count_values(array_map(fn ($r) => $r['role'] ?: '–', $regs));
-    $byCommittee = array_count_values(array_map(fn ($r) => $r['committee_1'] ?: '–', $regs));
+    $byCommittee = array_count_values(array_map(fn ($r) => ($r['committee_1'] ?? '') ?: '–', $regs));
     arsort($byCommittee);
     $statuses = registration_statuses();
     $byStatus = array_count_values(array_map(fn ($r) => $statuses[$r['status'] ?? 'received'][1] ?? '–', $regs));
@@ -780,7 +853,7 @@ function view_registrations(): void
         <ul>
           <?php foreach ($pending as $r): ?>
             <li>
-              <span><strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong> · <?= e(($r['kind'] ?? '') === 'manager' ? 'Conference Manager' : 'Chair' . (($r['assigned_committee'] ?? '') !== '' ? ' – ' . $r['assigned_committee'] : '')) ?> · <?= e($r['email']) ?></span>
+              <span><strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong> · <?= e(($r['kind'] ?? '') === 'manager' ? 'Conference Manager' : 'Chair' . (($r['assigned_committee'] ?? '') !== '' ? ' – ' . committee_display($r['assigned_committee']) : '')) ?> · <?= e($r['email']) ?></span>
               <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="reg_confirm_role"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn">Bestätigen</button></form>
               <a class="btn-ghost" href="<?= e(admin_url(['s' => 'registrations', 'open' => $r['id']])) ?>#reg-<?= e($r['id']) ?>">Details</a>
             </li>
@@ -801,7 +874,7 @@ function view_registrations(): void
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
             <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
-            <span><?= e(implode(' · ', array_filter([$r['school'] ?? '', $r['role'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e($r['assigned_committee']) . ')' : '' ?></span>
+            <span><?= e(implode(' · ', array_filter([$r['school'] ?? '', $r['role'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
           </summary>
           <dl>
@@ -813,7 +886,7 @@ function view_registrations(): void
             <?= csrf_field() ?><input type="hidden" name="a" value="reg_update"><input type="hidden" name="id" value="<?= e($r['id']) ?>">
             <label>Status<select name="status"><?php foreach ($statuses as $key => [, $label]): ?><option value="<?= e($key) ?>"<?= $st === $key ? ' selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></label>
             <label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label>
-            <label>Gremium (zugeteilt)<input name="assigned_committee" list="committee-options" value="<?= e($r['assigned_committee'] ?? '') ?>"></label>
+            <label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label>
             <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
             <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern)</label>
             <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
@@ -1049,7 +1122,7 @@ function view_resolutions(): void
     $base = split_portal() ? portal_home() : site_origin() . url('portal/');
     ?>
     <div class="page-title"><h1>Resolutionen</h1></div>
-    <p class="help">Pro Gremium gibt es eine Resolution. Chairs legt ihr unter <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">Anmeldungen</a> fest (Häkchen „Chair“ + zugeteiltes Gremium).
+    <p class="help">Pro Gremium wird immer an einer Resolution gearbeitet; ist sie fertig, speichern die Chairs sie mit „Save &amp; start new resolution“ ab und beginnen eine neue. Chairs legt ihr unter <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">Anmeldungen</a> fest (Häkchen „Chair“ + zugeteiltes Gremium).
       Als Admin habt ihr in jedem Gremium Chair-Rechte und könnt die Beamer-Ansicht öffnen.
       Conference Manager und das Laptop-Konto sehen alle Gremien inkl. Beamer-Ansicht, können aber nichts ändern.</p>
     <?php if (!c('committees', [])): ?><p class="empty">Noch keine Gremien angelegt.</p><?php endif; ?>
@@ -1061,10 +1134,12 @@ function view_resolutions(): void
         $chairs = array_filter($members, fn ($m) => !empty($m['is_chair']));
         $open = count(array_filter($res['amendments'], fn ($a) => in_array($a['status'], ['pending', 'floor'], true)));
         $link = $base . 'resolution?c=' . rawurlencode($cm['slug']);
+        $done = res_archive_list($cm['slug']);
         ?>
         <li>
           <span class="item-title"><?= e(($cm['abbr'] ?? '') ? $cm['abbr'] . ' – ' : '') ?><?= e($cm['name']) ?>
-            <small><?= e(status_label($res['status'])) ?> · <?= count($res['clauses']) ?> Klauseln · <?= $open ?> offene Amendments · <?= count($members) - count($chairs) ?> Delegierte · <?= count($chairs) ?> Chairs</small></span>
+            <small><?= e(status_label($res['status'])) ?> · <?= count($res['clauses']) ?> Klauseln · <?= $open ?> offene Amendments · <?= count($members) - count($chairs) ?> Delegierte · <?= count($chairs) ?> Chairs<?= $done ? ' · ' . count($done) . ' fertige Resolution' . (count($done) === 1 ? '' : 'en') : '' ?></small>
+            <?php foreach ($done as $old): ?><small><a href="<?= e($link) ?>&amp;view=print&amp;res=<?= e($old['id']) ?>" target="_blank">Resolution <?= (int) ($old['number'] ?? 1) ?>: <?= e($old['topic'] ?: 'ohne Thema') ?> (<?= e($old['outcome'] ?? '') ?>)</a></small><?php endforeach; ?></span>
           <a class="btn-ghost" href="<?= e($link) ?>" target="_blank">Öffnen</a>
           <a class="btn-ghost" href="<?= e($link) ?>&amp;view=screen" target="_blank">Beamer</a>
           <a class="btn-ghost" href="<?= e($link) ?>&amp;view=print" target="_blank">PDF</a>

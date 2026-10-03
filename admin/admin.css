@@ -246,3 +246,13 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .staff-box .help { margin: 0; }
 .staff-box .row-fields { display: flex; flex-wrap: wrap; gap: 0.75rem; width: 100%; }
 .staff-box label { flex: 1 1 16rem; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.875rem; }
+
+/* Allocation table */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.alloc-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.alloc-table th { text-align: left; font-weight: 600; color: var(--muted); padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.alloc-table td { padding: 0.45rem 0.75rem; border-top: 1px solid var(--line); vertical-align: middle; }
+.alloc-table input:not([type=checkbox]), .alloc-table select { min-width: 9rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; }
+.alloc-table small { color: var(--muted); }
+.alloc-table tr.cancelled td { opacity: 0.55; }
+.alloc-form .save-bar { margin: 0.75rem 0 0; border: 1px solid var(--line); border-radius: 0.75rem; }

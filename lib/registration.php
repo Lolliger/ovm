@@ -116,7 +116,7 @@ function handle_registration(): ?array
         $entry['kind'] = $kind;
         $entry['role_pending'] = true;
         if ($kind === 'chair') {
-            $entry['assigned_committee'] = $values['committee_1'];
+            $entry['assigned_committee'] = committee_by_label($values['committee_1'])['slug'] ?? $values['committee_1'];
         }
     }
     append_json(REGISTRATIONS_FILE, $entry);

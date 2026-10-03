@@ -13,7 +13,7 @@
   <p class="print-actions"><button class="btn" onclick="window.print()">Print / save as PDF</button></p>
   <article class="res-paper print-paper">
     <?= res_document_html($res, $ctx['committee']) ?>
-    <p class="print-meta">Status: <?= e(status_label($res['status'])) ?> · Printed <?= e(date('j F Y, H:i')) ?></p>
+    <p class="print-meta">Resolution <?= (int) ($res['number'] ?? 1) ?> · <?= !empty($res['outcome']) ? e($res['outcome']) . ' · ' . e(date('j F Y', strtotime($res['archived']))) : 'Status: ' . e(status_label($res['status'])) ?> · Printed <?= e(date('j F Y, H:i')) ?></p>
   </article>
 </body>
 </html>

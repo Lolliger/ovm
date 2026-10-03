@@ -360,13 +360,23 @@ function send_paper(array $reg): never
 /** Committee entry matching an allocation (by abbreviation or name). */
 function committee_by_label(string $label): ?array
 {
+    $label = trim($label);
     foreach (c('committees', []) as $cm) {
-        if ($label !== '' && (strcasecmp($label, $cm['abbr'] ?? '') === 0 || strcasecmp($label, $cm['name']) === 0
+        // Assignments are stored by slug (stays the same when a committee is renamed);
+        // older ones by name or "ABBR – Name".
+        if ($label !== '' && ($label === ($cm['slug'] ?? null) || strcasecmp($label, $cm['abbr'] ?? '') === 0 || strcasecmp($label, $cm['name']) === 0
             || strcasecmp($label, trim(($cm['abbr'] ?? '') . ' – ' . $cm['name'], ' –')) === 0)) {
             return $cm;
         }
     }
     return null;
+}
+
+/** Display name of an assigned committee ("SC – Security Council"), or the stored text if it no longer exists. */
+function committee_display(string $value): string
+{
+    $cm = committee_by_label($value);
+    return $cm ? trim(($cm['abbr'] ?? '') . ' – ' . $cm['name'], ' –') : $value;
 }
 
 /* ---------- Where the portal lives ---------- */

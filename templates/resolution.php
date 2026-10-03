@@ -10,6 +10,7 @@ $regions = res_regions($ctx, $res, 'page');
 $members = committee_members($cm);
 $cur = amendment_by_id($res, $res['current']);
 $myId = $ctx['reg']['id'] ?? '';
+$archive = res_archive_list($cm['slug']);
 $excerpt = fn (string $t) => mb_strimwidth($t, 0, 60, '…');
 $clauseOptions = '';
 foreach ($clauses as $cl) {
@@ -26,7 +27,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
   <div class="container">
     <p class="kicker"><a href="<?= e(portal_link()) ?>">Delegate area</a> / <?= e($cm['name']) ?></p>
     <div class="res-title">
-      <h1>Resolution</h1>
+      <h1>Resolution<?= $archive ? ' ' . (int) ($res['number'] ?? count($archive) + 1) : '' ?></h1>
       <span class="tag res-status" data-region="status"><?= $regions['status'] ?></span>
     </div>
     <p class="res-links">
@@ -141,6 +142,12 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
               <form method="post"><?= $hidden('status', 'settings') ?><input type="hidden" name="status" value="<?= $k ?>"><button class="<?= $res['status'] === $k ? 'btn btn-small' : 'btn-ghost' ?>"<?= $res['status'] === $k ? ' disabled' : '' ?>><?= e($label) ?></button></form>
             <?php endforeach; ?>
           </p>
+          <form method="post" class="res-new" data-confirm="Save this resolution as finished and start a new, empty one? The finished resolution stays available under “Previous resolutions”.">
+            <?= $hidden('res_new') ?>
+            <strong>Resolution finished?</strong>
+            <label>Result <select name="outcome"><?php foreach (RES_OUTCOMES as $o): ?><option><?= e($o) ?></option><?php endforeach; ?></select></label>
+            <button class="btn btn-small">Save &amp; start new resolution</button>
+          </form>
         </div>
       </div>
     <?php elseif ($viewer): ?>
@@ -176,6 +183,19 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
           <h2>Your amendments</h2>
           <div data-region="mine"><?= $regions['mine'] ?></div>
         </div>
+      </div>
+    <?php endif; ?>
+    <?php if ($archive): ?>
+      <div class="res-panel res-archive">
+        <h2>Previous resolutions</h2>
+        <ul>
+          <?php foreach (array_reverse($archive) as $old): ?>
+            <li><span class="tag"><?= e($old['outcome'] ?? 'Closed') ?></span>
+              <strong>Resolution <?= (int) ($old['number'] ?? 1) ?></strong> · <?= e($old['topic'] ?: 'No topic') ?>
+              <span class="muted"><?= e(date('j M Y, H:i', strtotime($old['archived']))) ?></span>
+              <a href="<?= e($self) ?>&amp;view=print&amp;res=<?= e($old['id']) ?>" target="_blank">View / PDF</a></li>
+          <?php endforeach; ?>
+        </ul>
       </div>
     <?php endif; ?>
   </div>

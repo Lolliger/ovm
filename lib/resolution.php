@@ -67,6 +67,62 @@ function res_update(array $committee, callable $fn): array
     });
 }
 
+/* ---------- Finished resolutions (several per committee) ---------- */
+
+const RES_OUTCOMES = ['Adopted', 'Not adopted', 'Withdrawn', 'Closed'];
+
+function res_archive_file(string $slug, string $id): string
+{
+    return RES_DIR . '/' . slugify($slug) . '--' . preg_replace('/[^a-z0-9]/', '', $id) . '.json';
+}
+
+/** Finished resolutions of a committee, oldest first. */
+function res_archive_list(string $slug): array
+{
+    $list = [];
+    foreach (glob(RES_DIR . '/' . slugify($slug) . '--*.json') ?: [] as $f) {
+        if ($r = read_json($f)) {
+            $list[] = $r;
+        }
+    }
+    usort($list, fn ($a, $b) => [$a['number'] ?? 0, $a['archived'] ?? ''] <=> [$b['number'] ?? 0, $b['archived'] ?? '']);
+    return $list;
+}
+
+function res_archive_load(string $slug, string $id): ?array
+{
+    return $id !== '' && is_file(res_archive_file($slug, $id)) ? read_json(res_archive_file($slug, $id)) : null;
+}
+
+/** Saves the current resolution as finished and returns a fresh one (speakers list is kept). */
+function res_archive_and_start_new(array $res, string $outcome): array
+{
+    $cm = res_committee_of($res);
+    $done = $res;
+    $done['id'] = res_id();
+    $done['number'] = (int) ($res['number'] ?? 1);
+    $done['status'] = 'closed';
+    $done['current'] = null;
+    $done['outcome'] = $outcome;
+    $done['archived'] = date('c');
+    $done['amendments'] = array_map(fn ($a) => in_array($a['status'], ['pending', 'floor'], true) ? array_merge($a, ['status' => 'obsolete']) : $a, $res['amendments']);
+    write_json(res_archive_file($res['committee'], $done['id']), $done);
+
+    $used = array_map(fn ($r) => $r['topic'] ?? '', array_merge(res_archive_list($res['committee']), [$res]));
+    $fresh = res_default($cm + ['slug' => $res['committee']]);
+    $fresh['topic'] = '';
+    foreach ($cm['topics'] ?? [] as $t) {
+        if (!in_array($t, $used, true)) {
+            $fresh['topic'] = $t;
+            break;
+        }
+    }
+    $fresh['number'] = $done['number'] + 1;
+    $fresh['speakers'] = $res['speakers'];
+    $fresh['rev'] = $res['rev'];
+    return $fresh;
+}
+
 function res_id(): string
 {
     return bin2hex(random_bytes(5));
@@ -458,6 +514,7 @@ function res_handle_post(array $ctx): void
             case 'speaker_next':
             case 'speaker_remove':
             case 'speaker_clear':
+            case 'res_new':
                 if (!$chair) {
                     throw new RuntimeException('Only the chairs can do this.');
                 }
@@ -583,6 +640,14 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
         case 'speaker_clear':
             $res['speakers'] = [];
             break;
+        case 'res_new':
+            if (!$res['clauses']) {
+                throw new RuntimeException('This resolution is still empty – there is nothing to save yet.');
+            }
+            $outcome = in_array($p('outcome'), RES_OUTCOMES, true) ? $p('outcome') : 'Closed';
+            $res = res_archive_and_start_new($res, $outcome);
+            $flash = 'Resolution saved as "' . $outcome . '". A new, empty resolution has been started.';
+            break;
     }
     return res_normalize_floor($res);
 }
@@ -682,7 +747,7 @@ function res_has_submitters(array $committee): bool
 function res_layout_key(array $ctx, array $res): string
 {
     $clauses = array_map(fn ($c) => [$c['id'], $c['type'], $c['level'], $c['text']], clauses_sorted($res['clauses']));
-    return substr(md5(json_encode([$res['status'], res_can_edit($ctx, $res), $res['current'], $clauses, $res['topic'],
+    return substr(md5(json_encode([$res['number'] ?? 1, $res['status'], res_can_edit($ctx, $res), $res['current'], $clauses, $res['topic'],
         $res['main_submitter'], $res['co_submitters'], $res['signatories'] ?? ''])), 0, 12);
 }
 
@@ -956,6 +1021,13 @@ function resolution_route(): void
         exit;
     }
     if ($view === 'print') {
+        if (isset($_GET['res'])) {
+            $res = res_archive_load($cm['slug'], (string) $_GET['res']);
+            if (!$res) {
+                not_found();
+                return;
+            }
+        }
         require __DIR__ . '/../templates/resolution-print.php';
         exit;
     }

@@ -48,7 +48,7 @@ $statuses = registration_statuses();
               <a href="<?= e(main_origin() . url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
               <?php if (!empty($committee['study_guide'])): ?> · <a href="<?= e(media($committee['study_guide'])) ?>" download>Study guide ↓</a><?php endif; ?>
             <?php else: ?>
-              <?= e(($r['assigned_committee'] ?? '') ?: 'Not allocated yet') ?>
+              <?= e(committee_display((string) ($r['assigned_committee'] ?? '')) ?: 'Not allocated yet') ?>
             <?php endif; ?>
           </dd></div><?php endif; ?>
           <?php if (($r['school'] ?? '') !== ''): ?><div><dt>School</dt><dd><?= e($r['school']) ?>, grade <?= e($r['grade']) ?></dd></div><?php endif; ?>
