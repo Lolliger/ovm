@@ -161,7 +161,7 @@
     "retention_days": "90"
   },
   "portal": {
-    "portal_url": "https://conference.omun.eu",
+    "portal_url": "",
     "mail_from": "noreply@omun.eu",
     "mail_from_name": "OMUN",
     "confirm_email": true,

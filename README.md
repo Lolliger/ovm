@@ -67,7 +67,8 @@ danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach au
 Login unter **omun.eu/login** (Button „Login“ im Header), danach geht es auf **conference.omun.eu**.
 Die Adresse ist im Admin unter *Teilnehmer-Bereich* einstellbar. Voraussetzung bei Strato: die Subdomain
 `conference.omun.eu` anlegen, auf **denselben Ordner** wie omun.eu zeigen lassen und SSL aktivieren –
-nur so teilen sich beide Daten und Login. Feld leer lassen = alles unter omun.eu/portal.
+nur so teilen sich beide Daten und Login. Feld leer lassen = alles unter omun.eu/portal (Standard, solange Strato
+für die Subdomain kein SSL-Zertifikat ausliefert; `http://conference.omun.eu` leitet dann auf omun.eu/portal weiter).
 
 Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit **Zugangsdaten**:
 Benutzername = ihre E-Mail-Adresse, Passwort = automatisch erzeugt (z. B. `Kavo-Rimu-Teza-Lopa-47`), die Mail verlinkt auf omun.eu/login.
