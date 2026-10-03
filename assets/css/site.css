@@ -812,7 +812,9 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .person-open:hover img, .person-open:hover .person-initials { transform: scale(1.04); }
 .person-open:focus-visible { outline: 2px solid var(--un); outline-offset: 3px; }
 .person figcaption { cursor: pointer; }
-.person-bio { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.person figcaption .person-more { display: flex; width: fit-content; gap: 0.3rem; margin-top: 0.35rem; color: var(--link); font-size: 0.85rem; font-weight: 600; }
+.person-more span { color: inherit; font-size: inherit; transition: transform 0.2s; }
+.person:hover .person-more span { transform: translateX(3px); }
 .dialog-open { overflow: hidden; }
 .person-dialog {
   border: 0; padding: 0; border-radius: 1rem; background: var(--surface); color: var(--text);

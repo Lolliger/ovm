@@ -24,7 +24,7 @@ $initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => 
           <figcaption>
             <strong><?= e($m['name']) ?></strong>
             <span><?= e($m['role'] ?? '') ?></span>
-            <?php if (!empty($m['bio'])): ?><p class="person-bio"><?= e($m['bio']) ?></p><?php endif; ?>
+            <?php if (!empty($m['bio'])): ?><span class="person-more">Read bio <span aria-hidden="true">→</span></span><?php endif; ?>
           </figcaption>
           <template class="person-detail">
             <div class="person-card">
