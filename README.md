@@ -62,13 +62,10 @@ Erreichbar nur über `omun.eu/admin` (nirgends verlinkt). Dort lässt sich bearb
 Passwort vergessen oder alle 2FA-Geräte verloren? Per SFTP die Datei `data/auth.json` löschen und
 danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach aus und muss neu eingerichtet werden).
 
-## Teilnehmer-Bereich (conference.omun.eu)
+## Teilnehmer-Bereich (omun.eu/portal)
 
-Login unter **omun.eu/login** (Button „Login“ im Header), danach geht es auf **conference.omun.eu**.
-Die Adresse ist im Admin unter *Teilnehmer-Bereich* einstellbar. Voraussetzung bei Strato: die Subdomain
-`conference.omun.eu` anlegen, auf **denselben Ordner** wie omun.eu zeigen lassen und SSL aktivieren –
-nur so teilen sich beide Daten und Login. Feld leer lassen = alles unter omun.eu/portal (Standard, solange Strato
-für die Subdomain kein SSL-Zertifikat ausliefert; `http://conference.omun.eu` leitet dann auf omun.eu/portal weiter).
+Login unter **omun.eu/login** (Button „Login“ im Header), danach geht es auf **omun.eu/portal**.
+(Eine eigene Subdomain wird nicht verwendet, weil Strato im aktuellen Paket dafür kein SSL-Zertifikat ausliefert.)
 
 Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit **Zugangsdaten**:
 Benutzername = ihre E-Mail-Adresse, Passwort = automatisch erzeugt (z. B. `Kavo-Rimu-Teza-Lopa-47`), die Mail verlinkt auf omun.eu/login.
@@ -96,7 +93,7 @@ Absender-Adresse und -Name der Mails sind im Admin unter *Teilnehmer-Bereich* ei
 
 Beim lokalen Testen werden keine Mails verschickt, sondern in `data/mail-outbox/` abgelegt.
 
-## Resolution Editor (conference.omun.eu/resolution)
+## Resolution Editor (omun.eu/portal/resolution)
 
 Pro Gremium eine Resolution. Wer im Admin einem Gremium zugeteilt ist, sieht im Teilnehmer-Bereich dessen
 Resolution; **Chairs** werden pro Anmeldung mit dem Häkchen „Chair“ festgelegt, Admins haben überall Chair-Rechte

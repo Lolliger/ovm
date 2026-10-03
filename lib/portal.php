@@ -392,11 +392,9 @@ function strip_port(string $host): string
 /** "conference.omun.eu" (with ":port" if the setting has one), or null. */
 function portal_host_setting(): ?string
 {
-    $u = parse_url(trim((string) c('portal.portal_url')));
-    if (empty($u['host'])) {
-        return null;
-    }
-    return strtolower($u['host']) . (isset($u['port']) ? ':' . $u['port'] : '');
+    // The portal always runs under /portal on the main domain (Strato does not
+    // serve SSL for the conference subdomain). An old "portal_url" is ignored.
+    return null;
 }
 
 /** The shared parent domain, e.g. "omun.eu". */
@@ -450,7 +448,10 @@ function login_url(): string
 /** Cookie domain so that omun.eu/login and conference.omun.eu share the session. */
 function session_cookie_domain(): string
 {
-    return split_portal() ? (string) portal_base_domain() : '';
+    // Same cookie domain as when the portal still ran on conference.omun.eu,
+    // so existing login cookies are replaced instead of duplicated.
+    $host = preg_replace('/^www\./', '', strip_port(request_host()));
+    return str_contains($host, '.') && !filter_var($host, FILTER_VALIDATE_IP) ? $host : '';
 }
 
 function redirect_to(string $location): never
