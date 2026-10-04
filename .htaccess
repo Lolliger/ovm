@@ -21,7 +21,7 @@ DirectoryIndex index.php
   # Interne Ordner sperren
   RewriteRule ^(data|lib|templates)(/|$) - [F,L]
   RewriteRule (^|/)\.(?!well-known/) - [F,L]
-  RewriteRule ^(README\.md|ARCHITECTURE\.md|\.gitignore|start-windows\.bat|start-mac\.command)$ - [F,L]
+  RewriteRule ^(README\.md|ARCHITECTURE\.md|UPDATES\.md|\.gitignore|start-windows\.bat|start-mac\.command)$ - [F,L]
 
   # Alles andere, was keine echte Datei/kein Ordner ist, an index.php
   RewriteCond %{REQUEST_FILENAME} !-f
