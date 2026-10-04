@@ -43,7 +43,7 @@ $statuses = registration_statuses();
         <dl class="facts">
           <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?></dd></div>
           <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>
-          <?php if (($r['kind'] ?? '') !== 'manager'): ?><div><dt>Committee</dt><dd>
+          <?php if (!in_array($r['kind'] ?? '', ['manager', 'staff'], true) || $committee): ?><div><dt>Committee</dt><dd>
             <?php if ($committee): ?>
               <a href="<?= e(main_origin() . url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
               <?php if (!empty($committee['study_guide'])): ?> · <a href="<?= e(media($committee['study_guide'])) ?>" download>Study guide ↓</a><?php endif; ?>

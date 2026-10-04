@@ -22,30 +22,44 @@ function registration_fields(): array
     ];
 }
 
-/**
- * What a "Participation as" option means: 'chair' and 'manager' (conference
- * manager) get the short form and need to be confirmed in the admin.
- */
+/** Options of "Participation as": [['name', 'kind' => delegate|chair|manager|staff, 'popup'], …] (set in the admin). */
+function registration_role_defs(): array
+{
+    $defs = [];
+    foreach ((array) c('registration.role_options', []) as $o) {
+        $name = trim((string) ($o['name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        $kind = array_search((string) ($o['kind'] ?? ''), ROLE_KINDS, true);
+        $defs[] = ['name' => $name, 'kind' => $kind === false ? 'delegate' : $kind, 'popup' => trim((string) ($o['popup'] ?? ''))];
+    }
+    return $defs;
+}
+
+function registration_roles(): array
+{
+    return array_column(registration_role_defs(), 'name');
+}
+
+/** delegate | chair | manager | staff – for an option name (older registrations: guessed from the name). */
 function registration_kind(string $role): string
 {
+    foreach (registration_role_defs() as $d) {
+        if (strcasecmp($d['name'], trim($role)) === 0) {
+            return $d['kind'];
+        }
+    }
     if (preg_match('/chair/i', $role)) {
         return 'chair';
     }
     return preg_match('/manag/i', $role) ? 'manager' : 'delegate';
 }
 
-/** Options of "Participation as"; Chair and Conference Manager are always offered. */
-function registration_roles(): array
+/** Chairs and conference managers get their rights only after confirmation in the admin. */
+function kind_needs_confirmation(string $kind): bool
 {
-    $roles = array_values(array_filter(array_map('trim', (array) c('registration.roles', []))));
-    $kinds = array_map('registration_kind', $roles);
-    if (!in_array('chair', $kinds, true)) {
-        $roles[] = 'Chair';
-    }
-    if (!in_array('manager', $kinds, true)) {
-        $roles[] = 'Conference Manager';
-    }
-    return $roles;
+    return in_array($kind, ['chair', 'manager'], true);
 }
 
 /** Fields only delegates fill in (hidden for chairs and conference managers). */
@@ -111,9 +125,11 @@ function handle_registration(): ?array
     $values['email'] = normalize_email($values['email']);
     $entry = ['id' => bin2hex(random_bytes(6)), 'created' => date('c'), 'status' => 'received'] + $values;
     if ($kind !== 'delegate') {
+        $entry['kind'] = $kind;
+    }
+    if (kind_needs_confirmation($kind)) {
         // Rights (chair of the chosen committee / view all committees) only
         // apply once the registration is confirmed in the admin.
-        $entry['kind'] = $kind;
         $entry['role_pending'] = true;
         if ($kind === 'chair') {
             $entry['assigned_committee'] = committee_by_label($values['committee_1'])['slug'] ?? $values['committee_1'];

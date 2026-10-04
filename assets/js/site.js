@@ -70,7 +70,6 @@
   var select = document.querySelector('[data-role-select]');
   if (!select) return;
   var form = select.form;
-  var notice = document.getElementById('chair-notice');
   var kindOf = function () {
     var o = select.options[select.selectedIndex];
     return (o && o.getAttribute('data-kind')) || 'delegate';
@@ -86,13 +85,16 @@
   };
   apply();
   select.addEventListener('change', function () {
-    if (apply() === 'chair' && notice && typeof notice.showModal === 'function') {
-      notice.showModal();
+    apply();
+    var o = select.options[select.selectedIndex];
+    var popup = o && o.getAttribute('data-popup') && document.getElementById(o.getAttribute('data-popup'));
+    if (popup && typeof popup.showModal === 'function') {
+      popup.showModal();
       document.documentElement.classList.add('dialog-open');
     }
   });
-  if (notice) {
-    notice.addEventListener('click', function (e) { if (e.target === notice) notice.close(); });
-    notice.addEventListener('close', function () { document.documentElement.classList.remove('dialog-open'); });
-  }
+  document.querySelectorAll('.notice-dialog').forEach(function (d) {
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    d.addEventListener('close', function () { document.documentElement.classList.remove('dialog-open'); });
+  });
 })();

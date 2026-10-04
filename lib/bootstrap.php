@@ -110,6 +110,41 @@ function append_json(string $file, array $entry): void
 }
 
 /** Loads the site content; on first run it is seeded from lib/defaults.json. */
+/** What a "Participation as" option means; value = label shown in the admin. */
+const ROLE_KINDS = [
+    'delegate' => 'Delegierte/r',
+    'chair' => 'Chair (nach Bestätigung)',
+    'manager' => 'Conference Manager (nach Bestätigung)',
+    'staff' => 'Ohne Rechte (nur Kontaktdaten)',
+];
+
+/** Older sites stored the options as plain lines ("roles"); turn them into the new list once. */
+function migrate_role_options(array $c): array
+{
+    $reg = $c['registration'] ?? null;
+    if (!is_array($reg) || isset($reg['role_options']) || !isset($reg['roles'])) {
+        return $c;
+    }
+    $opts = [];
+    $have = [];
+    foreach ((array) $reg['roles'] as $name) {
+        $name = trim((string) $name);
+        if ($name === '') {
+            continue;
+        }
+        $kind = preg_match('/chair/i', $name) ? 'chair' : (preg_match('/manag/i', $name) ? 'manager' : 'delegate');
+        $have[$kind] = true;
+        $opts[] = ['name' => $name, 'kind' => ROLE_KINDS[$kind], 'popup' => $kind === 'chair'
+            ? (string) ($reg['chair_notice'] ?? 'All chairs have already been selected. This registration is only used to record your details for the conference.') : ''];
+    }
+    if (empty($have['manager'])) {
+        $opts[] = ['name' => 'Conference Manager', 'kind' => ROLE_KINDS['manager'],
+            'popup' => 'All conference managers have already been selected. This registration is only used to record your details for the conference.'];
+    }
+    $c['registration']['role_options'] = $opts;
+    return $c;
+}
+
 function content(): array
 {
     static $c = null;
@@ -118,7 +153,7 @@ function content(): array
             $defaults = read_json(__DIR__ . '/defaults.json');
             write_json(CONTENT_FILE, $defaults);
         }
-        $c = read_json(CONTENT_FILE);
+        $c = migrate_role_options(read_json(CONTENT_FILE));
         // Fill in keys that were added to the schema later.
         $defaults ??= read_json(__DIR__ . '/defaults.json');
         foreach ($defaults as $k => $v) {

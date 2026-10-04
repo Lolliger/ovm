@@ -43,7 +43,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
         <div class="field"><label for="f-role">Participation as *</label>
           <select id="f-role" name="role" required data-role-select>
             <option value="">– please choose –</option>
-            <?php foreach (registration_roles() as $o): ?><option data-kind="<?= e(registration_kind($o)) ?>"<?= ($v['role'] ?? '') === $o ? ' selected' : '' ?>><?= e($o) ?></option><?php endforeach; ?>
+            <?php foreach (registration_role_defs() as $i => $d): ?><option data-kind="<?= e($d['kind']) ?>"<?= $d['popup'] !== '' ? ' data-popup="role-popup-' . $i . '"' : '' ?><?= ($v['role'] ?? '') === $d['name'] ? ' selected' : '' ?>><?= e($d['name']) ?></option><?php endforeach; ?>
           </select></div>
         <div class="row">
           <div class="field"><label for="f-first_name">First name *</label><input id="f-first_name" name="first_name" required autocomplete="given-name" value="<?= $val('first_name') ?>"></div>
@@ -81,13 +81,13 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
 
       <button class="btn" type="submit">Send registration</button>
     </form>
-    <?php if (c('registration.chair_notice')): ?>
-    <dialog class="notice-dialog" id="chair-notice" aria-labelledby="chair-notice-title">
-      <h2 id="chair-notice-title">Registering as a chair</h2>
-      <div class="prose"><?= md(c('registration.chair_notice')) ?></div>
+    <?php foreach (registration_role_defs() as $i => $d): if ($d['popup'] === '') continue; ?>
+    <dialog class="notice-dialog" id="role-popup-<?= $i ?>" aria-labelledby="role-popup-<?= $i ?>-title">
+      <h2 id="role-popup-<?= $i ?>-title">Registering as <?= e($d['name']) ?></h2>
+      <div class="prose"><?= md($d['popup']) ?></div>
       <form method="dialog"><button class="btn">OK, got it</button></form>
     </dialog>
-    <?php endif; ?>
+    <?php endforeach; ?>
     <?php endif; ?>
   </div>
 </section>
