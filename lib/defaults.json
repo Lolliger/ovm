@@ -189,7 +189,14 @@
     "intro": "Here you can see the status of your registration and your allocation, and upload your position paper.",
     "papers_open": true,
     "paper_deadline": "2027-02-28",
-    "paper_info": "Upload your position paper as a PDF (preferred) or Word document, max. 10 MB. You can replace it until the deadline."
+    "paper_info": "Upload your position paper as a PDF (preferred) or Word document, max. 10 MB. You can replace it until the deadline.",
+    "certificates_open": false,
+    "cert_title": "Certificate of Participation",
+    "cert_text": "has participated as {participation} at {conference}, held at the Oskar-von-Miller-Gymnasium in Munich from {dates}.",
+    "cert_signers": [
+      "Name | Secretary-General",
+      "Name | Head of School"
+    ]
   },
   "committees": [
     {

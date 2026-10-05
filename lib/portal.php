@@ -566,6 +566,17 @@ function portal_route(?string $sub): void
         resolution_route();
         return;
     }
+    if ($sub === 'certificate') {
+        foreach ($email ? registrations_for($email) : [] as $reg) {
+            if ($reg['id'] === ($_GET['id'] ?? '') && certificate_available($reg)) {
+                send_certificate($reg);
+            }
+        }
+        if (!$email) {
+            redirect_to(login_url());
+        }
+        not_found();
+    }
     if ($sub === 'paper') {
         foreach ($email ? registrations_for($email) : [] as $reg) {
             if ($reg['id'] === ($_GET['id'] ?? '')) {
@@ -636,5 +647,111 @@ function portal_host_route(array $parts): void
     }
     $query = ($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '';
     header('Location: ' . main_origin() . url(implode('/', array_map('rawurlencode', $parts))) . $query, true, 301);
+    exit;
+}
+
+/* ---------- Personal schedule ---------- */
+
+/**
+ * The conference schedule for one participant: grouped by day, with the room of
+ * their committee filled in for committee sessions and the current/next item marked.
+ * Days are dated in the order they appear, starting at the conference start date.
+ */
+function portal_schedule(?array $reg): array
+{
+    $committee = $reg ? committee_by_label((string) ($reg['assigned_committee'] ?? '')) : null;
+    $start = c('conference.date_start') ? strtotime(c('conference.date_start')) : null;
+    $days = [];
+    foreach (c('conference.schedule', []) as $item) {
+        $day = trim((string) ($item['day'] ?? '')) ?: '–';
+        if (!isset($days[$day])) {
+            $days[$day] = ['name' => $day, 'date' => $start ? date('Y-m-d', strtotime('+' . count($days) . ' days', $start)) : null, 'items' => []];
+        }
+        $isSession = preg_match('/committee|session/i', ($item['title'] ?? '') . ' ' . ($item['location'] ?? ''));
+        $where = (string) ($item['location'] ?? '');
+        $mine = false;
+        if ($isSession && $committee) {
+            $where = trim(($committee['room'] ?? '') !== '' ? $committee['room'] . ' · ' . $committee['name'] : $committee['name']);
+            $mine = true;
+        }
+        $from = $to = null;
+        if (preg_match('/(\d{1,2})[:.](\d{2})\s*(?:[–-]\s*(\d{1,2})[:.](\d{2}))?/u', (string) ($item['time'] ?? ''), $m) && $days[$day]['date']) {
+            $from = strtotime($days[$day]['date'] . sprintf(' %02d:%02d', $m[1], $m[2]));
+            $to = isset($m[3]) && $m[3] !== '' ? strtotime($days[$day]['date'] . sprintf(' %02d:%02d', $m[3], $m[4])) : $from + 3600;
+        }
+        $days[$day]['items'][] = ['time' => $item['time'] ?? '', 'title' => $item['title'] ?? '', 'where' => $where, 'mine' => $mine, 'from' => $from, 'to' => $to, 'state' => ''];
+    }
+    // Mark what is happening now, or else the next item.
+    $now = time();
+    $next = null;
+    foreach ($days as $k => $d) {
+        foreach ($d['items'] as $i => $it) {
+            if ($it['from'] && $it['from'] <= $now && $now < $it['to']) {
+                $days[$k]['items'][$i]['state'] = 'now';
+                $next = false;
+            } elseif ($it['from'] && $it['from'] > $now && $next === null) {
+                $next = [$k, $i];
+            }
+        }
+    }
+    if ($next) {
+        $days[$next[0]]['items'][$next[1]]['state'] = 'next';
+    }
+    return array_values($days);
+}
+
+/* ---------- Certificates ---------- */
+
+function certificate_available(array $reg): bool
+{
+    return (bool) c('portal.certificates_open') && ($reg['status'] ?? '') === 'confirmed';
+}
+
+/** Text pieces for a participant's certificate. */
+function certificate_vars(array $reg): array
+{
+    $cm = committee_by_label((string) ($reg['assigned_committee'] ?? ''));
+    $country = trim((string) ($reg['assigned_country'] ?? ''));
+    $kind = $reg['kind'] ?? 'delegate';
+    $cmName = $cm ? 'the ' . preg_replace('/^the\s+/i', '', $cm['name']) : '';
+    if (!empty($reg['is_chair']) && $cm) {
+        $part = 'Chair of ' . $cmName;
+    } elseif (!empty($reg['is_manager']) || $kind === 'manager') {
+        $part = 'Conference Manager';
+    } elseif ($kind === 'delegate' && $country !== '') {
+        $part = 'Delegate of ' . $country . ($cm ? ' in ' . $cmName : '');
+    } else {
+        $part = trim((string) ($reg['role'] ?? 'participant')) . ($cm ? ' in ' . $cmName : '');
+    }
+    $vars = [
+        'participation' => $part,
+        'conference' => c('conference.edition') ?: c('site.name'),
+        'dates' => date_range(c('conference.date_start'), c('conference.date_end')),
+        'country' => $country,
+        'committee' => $cm['name'] ?? '',
+        'role' => (string) ($reg['role'] ?? ''),
+    ];
+    $signers = [];
+    foreach ((array) c('portal.cert_signers', []) as $line) {
+        $bits = array_map('trim', explode('|', (string) $line, 2));
+        if ($bits[0] !== '') {
+            $signers[] = ['name' => $bits[0], 'title' => $bits[1] ?? ''];
+        }
+    }
+    return [
+        'name' => trim($reg['first_name'] . ' ' . $reg['last_name']),
+        'title' => c('portal.cert_title') ?: 'Certificate of Participation',
+        'text' => fill_placeholders((string) c('portal.cert_text'), $vars),
+        'signers' => $signers,
+        'conference' => $vars['conference'],
+    ];
+}
+
+function send_certificate(array $reg): never
+{
+    header('X-Robots-Tag: noindex');
+    header('Cache-Control: private, no-store');
+    $cert = certificate_vars($reg);
+    require __DIR__ . '/../templates/certificate.php';
     exit;
 }

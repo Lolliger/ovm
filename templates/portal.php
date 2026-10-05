@@ -19,6 +19,32 @@ $statuses = registration_statuses();
         <span><?= res_is_chair($resCtx) ? 'Chair view: document, amendments, speakers list and beamer view →' : ($resCtx['role'] === 'viewer' ? 'View all committees (read only) and open the beamer view →' : 'Read the draft resolution and submit amendments →') ?></span>
       </a>
     <?php endif; ?>
+    <?php
+    $schedReg = null;
+    foreach ($regs as $r) {
+        if (($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending'])) {
+            $schedReg = $schedReg && committee_by_label((string) ($schedReg['assigned_committee'] ?? '')) ? $schedReg : $r;
+        }
+    }
+    $schedule = !$staff && c('conference.schedule') ? portal_schedule($schedReg) : [];
+    ?>
+    <?php if ($schedule): ?>
+      <details class="portal-card schedule"<?= array_filter($schedule, fn ($d) => $d['date'] && $d['date'] >= date('Y-m-d', strtotime('-1 day'))) ? ' open' : '' ?>>
+        <summary><h2>Your schedule</h2><span class="muted"><?= e(date_range(c('conference.date_start'), c('conference.date_end'))) ?></span></summary>
+        <?php foreach ($schedule as $day): ?>
+          <h3 class="sched-day"><?= e($day['name']) ?><?php if ($day['date']): ?> <span><?= e(date('j F', strtotime($day['date']))) ?></span><?php endif; ?></h3>
+          <ol class="sched">
+            <?php foreach ($day['items'] as $it): ?>
+              <li class="<?= $it['mine'] ? 'mine ' : '' ?><?= e($it['state']) ?>">
+                <span class="sched-time"><?= e($it['time']) ?></span>
+                <span class="sched-what"><strong><?= e($it['title']) ?></strong><?php if ($it['where'] !== ''): ?><span><?= e($it['where']) ?></span><?php endif; ?></span>
+                <?php if ($it['state'] === 'now'): ?><span class="tag">now</span><?php elseif ($it['state'] === 'next'): ?><span class="tag">next</span><?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endforeach; ?>
+      </details>
+    <?php endif; ?>
     <?php if ($staff): ?>
       <p class="muted">This is a shared view-only account for the conference laptops. Its password is managed in the admin area.</p>
     <?php else: ?>
@@ -40,6 +66,10 @@ $statuses = registration_statuses();
           <span class="tag status-<?= e($status) ?>"><?= e($statuses[$status][0] ?? $status) ?></span>
         </header>
 
+        <?php if (certificate_available($r)): ?>
+          <a class="portal-cert" href="<?= e(portal_link('certificate') . '?id=' . rawurlencode($r['id'])) ?>" target="_blank">
+            <span><strong>Your certificate is ready</strong>Certificate of participation – download as PDF</span><span aria-hidden="true">↓</span></a>
+        <?php endif; ?>
         <dl class="facts">
           <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?></dd></div>
           <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>

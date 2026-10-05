@@ -467,6 +467,15 @@ if ($s === 'history_download') {
     exit;
 }
 
+if ($s === 'certificate') {
+    foreach (read_json(REGISTRATIONS_FILE) as $r) {
+        if (($r['id'] ?? '') === ($_GET['id'] ?? '')) {
+            send_certificate($r);
+        }
+    }
+    http_response_code(404);
+    exit('Not found');
+}
 if ($s === 'paper') {
     foreach (read_json(REGISTRATIONS_FILE) as $r) {
         if (($r['id'] ?? '') === ($_GET['id'] ?? '')) {
@@ -987,6 +996,7 @@ function view_registrations(): void
             <?php if (!empty($r['paper'])): ?>
               <a class="btn-ghost" href="<?= e(admin_url(['s' => 'paper', 'id' => $r['id']])) ?>">Position Paper herunterladen (<?= e(human_size((int) $r['paper']['size'])) ?>, <?= e(date('d.m.Y', strtotime($r['paper']['uploaded']))) ?>)</a>
             <?php endif; ?>
+            <a class="btn-ghost" href="<?= e(admin_url(['s' => 'certificate', 'id' => $r['id']])) ?>" target="_blank">Zertifikat (Vorschau)</a>
             <form method="post" data-confirm="Neues Passwort erzeugen und an <?= e($r['email']) ?> schicken? Das bisherige Passwort gilt dann nicht mehr."><?= csrf_field() ?><input type="hidden" name="a" value="reg_sendcreds"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost">Neue Zugangsdaten senden</button></form>
             <form method="post" data-confirm="Anmeldung wirklich löschen? Ein hochgeladenes Position Paper wird mitgelöscht."><?= csrf_field() ?><input type="hidden" name="a" value="reg_delete"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost danger">Anmeldung löschen</button></form>
           </div>

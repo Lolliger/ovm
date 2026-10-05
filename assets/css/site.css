@@ -933,3 +933,25 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .screen-side .quorum strong { font-size: 2em; }
 .screen-side .quorum span { font-size: 0.8em; }
 .res-tab[hidden] { display: none !important; }
+
+/* Portal: personal schedule & certificate */
+.schedule summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; cursor: pointer; list-style: none; }
+.schedule summary::-webkit-details-marker { display: none; }
+.schedule summary::after { content: "▾"; color: var(--muted); }
+.schedule[open] summary::after { content: "▴"; }
+.sched-day { font-size: 1.1rem; margin: 0.5rem 0 0; }
+.sched-day span { font-family: var(--sans); font-size: 0.85rem; font-weight: 500; color: var(--muted); margin-left: 0.35rem; }
+.sched { list-style: none; margin: 0; padding: 0; }
+.sched li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto; gap: 0.75rem; align-items: baseline; padding: 0.55rem 0.75rem; border-radius: var(--radius); }
+.sched li + li { border-top: 1px solid var(--line); }
+.sched-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+.sched-what strong { font-weight: 600; }
+.sched-what span { display: block; color: var(--muted); font-size: 0.9rem; }
+.sched li.mine .sched-what span { color: var(--link); font-weight: 600; }
+.sched li.now { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-color: transparent; }
+.sched li.next { background: var(--surface-2); }
+@media (max-width: 560px) { .sched li { grid-template-columns: 1fr auto; } .sched-time { grid-column: 1 / -1; } }
+.portal-cert { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.1rem; border-radius: var(--radius); border: 1px solid #c9a24d; background: #fbf6ea; color: #5c4510; text-decoration: none; }
+.portal-cert strong { display: block; }
+.portal-cert span:last-child { font-size: 1.4rem; }
+.portal-cert:hover { background: #f6ecd2; }

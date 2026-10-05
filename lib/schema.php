@@ -119,6 +119,10 @@ function schema(): array
                 ['key' => 'papers_open', 'label' => 'Position Papers können hochgeladen werden', 'type' => 'bool'],
                 ['key' => 'paper_deadline', 'label' => 'Abgabefrist Position Papers', 'type' => 'date', 'help' => 'Nach diesem Tag ist kein Upload mehr möglich. Leer = keine Frist.'],
                 ['key' => 'paper_info', 'label' => 'Hinweis zum Position Paper', 'type' => 'markdown'],
+                ['key' => 'certificates_open', 'label' => 'Teilnahmezertifikate im Teilnehmer-Bereich freigeben', 'type' => 'bool', 'help' => 'Erst nach der Konferenz einschalten. Bekommen nur Anmeldungen mit Status „Bestätigt“. Vorschau für jede Anmeldung unter Anmeldungen.'],
+                ['key' => 'cert_title', 'label' => 'Zertifikat: Überschrift', 'type' => 'text'],
+                ['key' => 'cert_text', 'label' => 'Zertifikat: Text unter dem Namen', 'type' => 'textarea', 'help' => 'Platzhalter: {participation} (z. B. „Delegate of Brazil in the Security Council“ bzw. „Chair of the Security Council“), {conference}, {dates}, {country}, {committee}, {role}.'],
+                ['key' => 'cert_signers', 'label' => 'Zertifikat: Unterschriften (eine pro Zeile, „Name | Funktion“)', 'type' => 'lines'],
             ],
         ],
         'committees' => [
@@ -135,6 +139,7 @@ function schema(): array
                 ['key' => 'summary', 'label' => 'Kurzbeschreibung', 'type' => 'textarea'],
                 ['key' => 'description', 'label' => 'Ausführliche Beschreibung', 'type' => 'markdown'],
                 ['key' => 'chairs', 'label' => 'Vorsitz', 'type' => 'text'],
+                ['key' => 'room', 'label' => 'Raum', 'type' => 'text', 'help' => 'z. B. „Raum 204“. Erscheint im persönlichen Zeitplan der Teilnehmenden bei allen Programmpunkten mit „Committee“ im Titel oder Ort.'],
                 ['key' => 'image', 'label' => 'Bild', 'type' => 'image'],
                 ['key' => 'study_guide', 'label' => 'Study Guide (PDF)', 'type' => 'file'],
             ],

@@ -88,6 +88,14 @@ Zuteilung (Land, Gremium inkl. Study Guide), können ihr Position Paper hochlade
 bis zur Frist ersetzbar) und ihr Passwort ändern. „Passwort vergessen?“ schickt einen einmaligen
 Login-Link (30 Minuten gültig). Im Admin gibt es pro Anmeldung „Neue Zugangsdaten senden“.
 
+**Persönlicher Zeitplan:** Im Teilnehmer-Bereich steht der Zeitplan aus *Konferenz* mit Datum (Tag 1 = Konferenzbeginn),
+markiert „now“/„next“; bei Programmpunkten mit „Committee“/„Session“ im Titel oder Ort steht der Raum des eigenen
+Gremiums (*Gremien → Raum*).
+
+**Zertifikate:** Unter *Teilnehmer-Bereich* „Teilnahmezertifikate freigeben“ einschalten (Text, Überschrift und
+Unterschriften dort einstellbar). Bestätigte Teilnehmende laden ihr Zertifikat dann als PDF herunter (A4 quer, über den
+Druckdialog). Vorschau je Anmeldung im Admin unter *Anmeldungen*.
+
 Passwörter werden nur als Hash gespeichert (`data/accounts.json`), Papers geschützt in `data/papers/`;
 beides wird mit der Anmeldung gelöscht.
 
@@ -131,6 +139,9 @@ Not adopted / Withdrawn / Closed) und beginnen eine neue; die Speakers List blei
 
 Land und Gremium aller Teilnehmenden lassen sich im Admin unter **Zuteilung** in einer Tabelle ändern (auch nach der
 Bestätigung). Zuteilungen werden über die Gremien-Adresse gespeichert und bleiben beim Umbenennen eines Gremiums erhalten.
+
+Chairs arbeiten in Tabs: **Live** (Floor, Amendments, Speakers List, optionaler Speaker-Timer), **Document**,
+**Roll call** (Present / Present & voting / Absent, daraus einfache und Zweidrittelmehrheit) und **Settings**.
 
 Beamer-Ansicht (`?view=screen`, nur Chairs/Admins): aktuelles Amendment bzw. Dokument links, Speakers List
 rechts, aktualisiert sich alle 2 Sekunden. Druck/PDF über `?view=print`. Daten: `data/resolutions/<gremium>.json`.
