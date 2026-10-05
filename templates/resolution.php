@@ -36,7 +36,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
           <?php foreach ($ctx['committees'] as $slug => $name): ?><option value="<?= e($slug) ?>"<?= $slug === $cm['slug'] ? ' selected' : '' ?>><?= e($name) ?></option><?php endforeach; ?>
         </select>
       <?php endif; ?>
-      <span class="muted">You are: <strong><?= e($chair ? ($ctx['role'] === 'admin' ? 'Admin (chair rights)' : 'Chair') : $ctx['label']) ?></strong></span>
+      <span class="muted">You are: <strong><?= e($chair ? ($ctx['role'] === 'admin' ? 'Admin (chair rights in all committees)' : 'Chair') : $ctx['label']) ?></strong></span>
       <a href="<?= e($self) ?>&amp;view=print" target="_blank">Print / PDF</a>
       <?php if ($chair || $viewer): ?><a class="btn btn-small" href="<?= e($self) ?>&amp;view=screen" target="_blank">Open beamer view ↗</a><?php endif; ?>
     </p>

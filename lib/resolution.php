@@ -187,6 +187,12 @@ function res_context(?string $slug): ?array
         if (($r['status'] ?? '') === 'cancelled' || !empty($r['role_pending'])) {
             continue; // chairs / conference managers only once confirmed in the admin
         }
+        if (!empty($r['is_admin'])) {
+            // Conference admin: chair rights in every committee, no allocation needed.
+            foreach (c('committees', []) as $cm) {
+                $offer($cm, 'admin', $r);
+            }
+        }
         if (!empty($r['is_manager'])) {
             foreach (c('committees', []) as $cm) {
                 $offer($cm, 'viewer', $r);
@@ -770,7 +776,7 @@ function res_author_label(array $am): string
     if (!$r) {
         return ($am['author'] ?? '') === 'chair' || ($am['author_label'] ?? '') === 'Chair' ? 'Chair' : 'Delegation';
     }
-    if (!empty($r['is_chair'])) {
+    if (!empty($r['is_chair']) || !empty($r['is_admin'])) {
         return 'Chair';
     }
     return trim((string) ($r['assigned_country'] ?? '')) ?: 'Delegation (no country allocated)';

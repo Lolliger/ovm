@@ -58,7 +58,7 @@ $statuses = registration_statuses();
       <?php
       $status = $r['status'] ?? 'received';
       $committee = committee_by_label((string) ($r['assigned_committee'] ?? ''));
-      $delegate = ($r['kind'] ?? 'delegate') === 'delegate';
+      $delegate = ($r['kind'] ?? 'delegate') === 'delegate' && empty($r['is_admin']);
       ?>
       <article class="portal-card">
         <header>
@@ -71,7 +71,7 @@ $statuses = registration_statuses();
             <span><strong>Your certificate is ready</strong>Certificate of participation – download as PDF</span><span aria-hidden="true">↓</span></a>
         <?php endif; ?>
         <dl class="facts">
-          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?></dd></div>
+          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?><?= !empty($r['is_admin']) ? ' · <strong>Admin</strong> (chair rights in all committees)' : '' ?></dd></div>
           <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>
           <?php if (!in_array($r['kind'] ?? '', ['manager', 'staff'], true) || $committee): ?><div><dt>Committee</dt><dd>
             <?php if ($committee): ?>

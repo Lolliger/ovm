@@ -239,7 +239,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $r['admin_note'] = trim(mb_substr((string) ($_POST['admin_note'] ?? ''), 0, 2000));
                             $r['is_chair'] = !empty($_POST['is_chair']);
                             $r['is_manager'] = !empty($_POST['is_manager']);
-                            if ($r['is_chair'] || $r['is_manager']) {
+                            $r['is_admin'] = !empty($_POST['is_admin']);
+                            if ($r['is_chair'] || $r['is_manager'] || $r['is_admin']) {
                                 unset($r['role_pending']);
                             }
                         }
@@ -253,20 +254,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $countries = (array) ($_POST['country'] ?? []);
                 $committees = (array) ($_POST['committee'] ?? []);
                 $chairs = (array) ($_POST['chair'] ?? []);
+                $admins = (array) ($_POST['admin'] ?? []);
                 $changed = 0;
-                update_json(REGISTRATIONS_FILE, function (array $regs) use ($countries, $committees, $chairs, &$changed) {
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($countries, $committees, $chairs, $admins, &$changed) {
                     foreach ($regs as &$r) {
                         if (!array_key_exists($r['id'], $countries)) {
                             continue;
                         }
-                        $before = [$r['assigned_country'] ?? '', $r['assigned_committee'] ?? '', !empty($r['is_chair'])];
+                        $before = [$r['assigned_country'] ?? '', $r['assigned_committee'] ?? '', !empty($r['is_chair']), !empty($r['is_admin'])];
                         $r['assigned_country'] = trim(mb_substr((string) $countries[$r['id']], 0, 100));
                         $r['assigned_committee'] = trim(mb_substr((string) ($committees[$r['id']] ?? ''), 0, 150));
                         $r['is_chair'] = !empty($chairs[$r['id']]);
-                        if ($r['is_chair']) {
+                        $r['is_admin'] = !empty($admins[$r['id']]);
+                        if ($r['is_chair'] || $r['is_admin']) {
                             unset($r['role_pending']);
                         }
-                        $changed += $before !== [$r['assigned_country'], $r['assigned_committee'], $r['is_chair']] ? 1 : 0;
+                        $changed += $before !== [$r['assigned_country'], $r['assigned_committee'], $r['is_chair'], $r['is_admin']] ? 1 : 0;
                     }
                     return $regs;
                 });
@@ -499,7 +502,7 @@ if ($s === 'registrations_csv') {
         $row = [
             date('d.m.Y H:i', strtotime($r['created'])),
             $statuses[$r['status'] ?? 'received'][1] ?? '',
-            !empty($r['role_pending']) ? 'Bestätigung offen' : implode(', ', array_filter([!empty($r['is_chair']) ? 'Chair' : '', !empty($r['is_manager']) ? 'Conference Manager' : ''])),
+            !empty($r['role_pending']) ? 'Bestätigung offen' : implode(', ', array_filter([!empty($r['is_chair']) ? 'Chair' : '', !empty($r['is_manager']) ? 'Conference Manager' : '', !empty($r['is_admin']) ? 'Admin' : ''])),
             $r['assigned_country'] ?? '',
             committee_display((string) ($r['assigned_committee'] ?? '')),
             !empty($r['paper']) ? 'ja (' . date('d.m.Y', strtotime($r['paper']['uploaded'])) . ')' : 'nein',
@@ -897,7 +900,7 @@ function view_allocation(): void
     <form method="post" class="alloc-form">
       <?= csrf_field() ?><input type="hidden" name="a" value="alloc_save">
       <div class="table-wrap"><table class="alloc-table">
-        <thead><tr><th>Name</th><th>Teilnahme</th><th>Wünsche</th><th>Land</th><th>Gremium</th><th>Chair</th></tr></thead>
+        <thead><tr><th>Name</th><th>Teilnahme</th><th>Wünsche</th><th>Land</th><th>Gremium</th><th>Chair</th><th>Admin</th></tr></thead>
         <tbody>
         <?php foreach ($regs as $r): $id = e($r['id']); ?>
           <tr<?= ($r['status'] ?? '') === 'cancelled' ? ' class="cancelled"' : '' ?>>
@@ -907,6 +910,7 @@ function view_allocation(): void
             <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" aria-label="Land"></td>
             <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
             <td><input type="checkbox" name="chair[<?= $id ?>]" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?> aria-label="Chair"></td>
+            <td><input type="checkbox" name="admin[<?= $id ?>]" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?> aria-label="Admin (Chair-Rechte in allen Gremien)"></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -973,7 +977,7 @@ function view_registrations(): void
         <?php $st = $r['status'] ?? 'received'; ?>
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
-            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
+            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['is_admin']) ? ' <span class="st st-paper">Admin</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
             <span><?= e(implode(' · ', array_filter([$r['school'] ?? '', $r['role'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
           </summary>
@@ -989,6 +993,7 @@ function view_registrations(): void
             <label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label>
             <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
             <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern)</label>
+            <label class="check-inline"><input type="checkbox" name="is_admin" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?>> Admin (Chair-Rechte in allen Gremien, ohne Land/Gremium – kein Zugang zu diesem Admin-Bereich)</label>
             <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
             <button class="btn">Speichern</button>
           </form>
@@ -1225,7 +1230,7 @@ function view_resolutions(): void
     <div class="page-title"><h1>Resolutionen</h1></div>
     <p class="help">Pro Gremium wird immer an einer Resolution gearbeitet; ist sie fertig, speichern die Chairs sie mit „Save &amp; start new resolution“ ab und beginnen eine neue. Chairs legt ihr unter <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">Anmeldungen</a> fest (Häkchen „Chair“ + zugeteiltes Gremium).
       Als Admin habt ihr in jedem Gremium Chair-Rechte und könnt die Beamer-Ansicht öffnen.
-      Conference Manager und das Laptop-Konto sehen alle Gremien inkl. Beamer-Ansicht, können aber nichts ändern.</p>
+      Teilnehmende mit dem Häkchen „Admin“ (unter Anmeldungen bzw. Zuteilung) haben Chair-Rechte in allen Gremien. Conference Manager und das Laptop-Konto sehen alle Gremien inkl. Beamer-Ansicht, können aber nichts ändern.</p>
     <?php if (!c('committees', [])): ?><p class="empty">Noch keine Gremien angelegt.</p><?php endif; ?>
     <ul class="item-list">
       <?php foreach (c('committees', []) as $cm): ?>

@@ -110,6 +110,7 @@ Absender-Adresse und -Name der Mails sind im Admin unter *Teilnehmer-Bereich* ei
   kurzes Formular (ohne Schule, Klasse, Erfahrung und Wünsche, nur Gremium). Zugangsdaten kommen sofort per Mail;
   Chair-Rechte für das gewählte Gremium gibt es erst, wenn die Anmeldung im Admin unter *Anmeldungen →
   Warten auf Bestätigung* bestätigt wurde.
+- **Admin (Häkchen bei der Anmeldung oder unter *Zuteilung*):** Chair-Rechte in allen Gremien, ohne Land/Gremium (kein Zugang zum Admin-Bereich).
 - **Conference Manager:** gleiches kurzes Formular ohne Gremium. Nach der Bestätigung können sie alle Resolutionen
   und Beamer-Ansichten sehen, aber nichts ändern.
 - **Laptop-Konto:** Login mit Benutzername `laptops` (Start-Passwort wurde dem Team mitgeteilt). Sieht alle Gremien
