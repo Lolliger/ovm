@@ -32,7 +32,8 @@ function registration_role_defs(): array
             continue;
         }
         $kind = array_search((string) ($o['kind'] ?? ''), ROLE_KINDS, true);
-        $defs[] = ['name' => $name, 'kind' => $kind === false ? 'delegate' : $kind, 'popup' => trim((string) ($o['popup'] ?? ''))];
+        $defs[] = ['name' => $name, 'kind' => $kind === false ? 'delegate' : $kind, 'popup' => trim((string) ($o['popup'] ?? '')),
+            'open' => !array_key_exists('open', $o) || !empty($o['open'])];
     }
     return $defs;
 }
@@ -40,6 +41,18 @@ function registration_role_defs(): array
 function registration_roles(): array
 {
     return array_column(registration_role_defs(), 'name');
+}
+
+/** Options people can currently register as (switched on in the admin). */
+function registration_open_role_defs(): array
+{
+    return array_values(array_filter(registration_role_defs(), fn ($d) => $d['open']));
+}
+
+/** Registration is possible: switched on overall and at least one option open. */
+function registration_is_open(): bool
+{
+    return c('registration.open') && registration_open_role_defs();
 }
 
 /** delegate | chair | manager | staff – for an option name (older registrations: guessed from the name). */
@@ -90,8 +103,11 @@ function handle_registration(): ?array
         }
     }
 
-    if (!c('registration.open')) {
+    if (!registration_is_open()) {
         $errors[] = 'Registration is closed.';
+    } elseif ($values['role'] !== '' && !in_array($values['role'], array_column(registration_open_role_defs(), 'name'), true)
+        && in_array($values['role'], registration_roles(), true)) {
+        $errors[] = 'Registration as “' . $values['role'] . '” is currently closed.';
     }
     // Honeypot (hidden field bots like to fill in) and a minimum fill-in time.
     $started = (int) ($_POST['t'] ?? 0);

@@ -108,7 +108,7 @@ Absender-Adresse und -Name der Mails sind im Admin unter *Teilnehmer-Bereich* ei
 
 ### Chairs, Conference Manager und Laptop-Konto
 
-- **Teilnahmearten:** unter *Anmeldung → Teilnahmearten* frei anlegen, jeweils mit Rechten (Delegierte/r, Chair,
+- **Teilnahmearten:** unter *Anmeldung → Teilnahmearten* frei anlegen, je mit Schalter „Anmeldung offen“, Rechten (Delegierte/r, Chair,
   Conference Manager, Ohne Rechte) und optionalem Popup-Text beim Auswählen.
 - **Chair:** Wer im Anmeldeformular „Chair“ wählt, sieht ein Hinweis-Popup und ein
   kurzes Formular (ohne Schule, Klasse, Erfahrung und Wünsche, nur Gremium). Zugangsdaten kommen sofort per Mail;

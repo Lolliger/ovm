@@ -151,26 +151,31 @@
       {
         "name": "Delegate",
         "kind": "Delegierte/r",
+        "open": true,
         "popup": ""
       },
       {
         "name": "Chair",
         "kind": "Chair (nach Bestätigung)",
+        "open": true,
         "popup": "All chairs have already been selected. This registration is only used to record your details for the conference."
       },
       {
         "name": "Conference Manager",
         "kind": "Conference Manager (nach Bestätigung)",
+        "open": true,
         "popup": "All conference managers have already been selected. This registration is only used to record your details for the conference."
       },
       {
         "name": "Press team",
         "kind": "Delegierte/r",
+        "open": true,
         "popup": ""
       },
       {
         "name": "Admin staff",
         "kind": "Delegierte/r",
+        "open": true,
         "popup": ""
       }
     ],

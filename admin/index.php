@@ -678,7 +678,7 @@ function view_dashboard(array $schema, int $regCount): void
       <a class="tile" href="<?= e(admin_url(['s' => 'registrations'])) ?>"><strong><?= $regCount ?></strong><span>Anmeldungen</span></a>
       <?php $week = stats_summary(7); ?>
       <a class="tile" href="<?= e(admin_url(['s' => 'stats'])) ?>"><strong><?= number_format($week['visitors'], 0, ',', '.') ?></strong><span>Besucher (7 Tage)</span></a>
-      <a class="tile" href="<?= e(admin_url(['s' => 'registration'])) ?>"><strong><?= c('registration.open') ? 'offen' : 'zu' ?></strong><span>Anmeldung</span></a>
+      <a class="tile" href="<?= e(admin_url(['s' => 'registration'])) ?>"><strong><?= !registration_is_open() ? 'zu' : (count(registration_open_role_defs()) < count(registration_role_defs()) ? 'teilweise' : 'offen') ?></strong><span>Anmeldung</span></a>
       <a class="tile" href="<?= e(admin_url(['s' => 'conference'])) ?>"><strong><?= e(format_date(c('conference.date_start'), 'd.m.Y')) ?: '–' ?></strong><span>Konferenzbeginn</span></a>
       <a class="tile" href="<?= e(admin_url(['s' => 'media'])) ?>"><strong><?= count(media_files()) ?></strong><span>Dateien</span></a>
     </div>

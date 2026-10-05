@@ -95,9 +95,10 @@ function schema(): array
                 ['key' => 'open', 'label' => 'Anmeldung ist geöffnet', 'type' => 'bool'],
                 ['key' => 'deadline', 'label' => 'Anmeldeschluss', 'type' => 'date'],
                 ['key' => 'intro', 'label' => 'Text über dem Formular', 'type' => 'markdown', 'help' => $md],
-                ['key' => 'role_options', 'label' => 'Teilnahmearten („Participation as“)', 'type' => 'repeater', 'help' => 'Pro Zeile eine Auswahlmöglichkeit im Formular, mit Popup-Text, der beim Auswählen erscheint (leer = kein Popup). Rechte: Delegierte/r = volles Formular (Schule, Klasse, Wünsche), Land und Gremium teilt ihr zu. Chair = kurzes Formular + Gremium wählen; nach Bestätigung unter Anmeldungen Chair-Rechte für dieses Gremium. Conference Manager = kurzes Formular; nach Bestätigung alle Resolutionen und Beamer ansehen, nichts ändern. Ohne Rechte = kurzes Formular, nur Kontaktdaten (z. B. Presse, Helfer).', 'fields' => [
+                ['key' => 'role_options', 'label' => 'Teilnahmearten („Participation as“)', 'type' => 'repeater', 'help' => 'Pro Zeile eine Auswahlmöglichkeit im Formular. „Anmeldung offen“ ausschalten = diese Möglichkeit verschwindet aus dem Formular (z. B. Delegierte schon voll, Chairs noch offen). Popup-Text, der beim Auswählen erscheint (leer = kein Popup). Rechte: Delegierte/r = volles Formular (Schule, Klasse, Wünsche), Land und Gremium teilt ihr zu. Chair = kurzes Formular + Gremium wählen; nach Bestätigung unter Anmeldungen Chair-Rechte für dieses Gremium. Conference Manager = kurzes Formular; nach Bestätigung alle Resolutionen und Beamer ansehen, nichts ändern. Ohne Rechte = kurzes Formular, nur Kontaktdaten (z. B. Presse, Helfer).', 'fields' => [
                     ['key' => 'name', 'label' => 'Name im Formular', 'type' => 'text'],
                     ['key' => 'kind', 'label' => 'Rechte', 'type' => 'select', 'options' => array_values(ROLE_KINDS)],
+                    ['key' => 'open', 'label' => 'Anmeldung offen', 'type' => 'bool', 'default' => true],
                     ['key' => 'popup', 'label' => 'Popup-Text (leer = kein Popup)', 'type' => 'textarea'],
                 ]],
                 ['key' => 'closed_message', 'label' => 'Text, wenn die Anmeldung geschlossen ist', 'type' => 'markdown'],

@@ -20,7 +20,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
     <div class="prose">
       <?php if ($result && $result['ok']): ?>
         <div class="notice notice-ok" role="status"><?= md(c('registration.success_message')) ?></div>
-      <?php elseif (!c('registration.open')): ?>
+      <?php elseif (!registration_is_open()): ?>
         <div class="notice"><?= md(c('registration.closed_message')) ?></div>
       <?php else: ?>
         <?= md(c('registration.intro')) ?>
@@ -30,7 +30,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
       <?php endif; ?>
     </div>
 
-    <?php if (c('registration.open') && !($result && $result['ok'])): ?>
+    <?php if (registration_is_open() && !($result && $result['ok'])): ?>
     <form class="form" method="post" action="<?= e(url('register')) ?>" novalidate>
       <?php if (!empty($result['errors'])): ?>
         <div class="notice notice-error" role="alert"><ul><?php foreach ($result['errors'] as $err): ?><li><?= e($err) ?></li><?php endforeach; ?></ul></div>
@@ -43,7 +43,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
         <div class="field"><label for="f-role">Participation as *</label>
           <select id="f-role" name="role" required data-role-select>
             <option value="">– please choose –</option>
-            <?php foreach (registration_role_defs() as $i => $d): ?><option data-kind="<?= e($d['kind']) ?>"<?= $d['popup'] !== '' ? ' data-popup="role-popup-' . $i . '"' : '' ?><?= ($v['role'] ?? '') === $d['name'] ? ' selected' : '' ?>><?= e($d['name']) ?></option><?php endforeach; ?>
+            <?php foreach (registration_role_defs() as $i => $d): if (!$d['open']) continue; ?><option data-kind="<?= e($d['kind']) ?>"<?= $d['popup'] !== '' ? ' data-popup="role-popup-' . $i . '"' : '' ?><?= ($v['role'] ?? '') === $d['name'] ? ' selected' : '' ?>><?= e($d['name']) ?></option><?php endforeach; ?>
           </select></div>
         <div class="row">
           <div class="field"><label for="f-first_name">First name *</label><input id="f-first_name" name="first_name" required autocomplete="given-name" value="<?= $val('first_name') ?>"></div>

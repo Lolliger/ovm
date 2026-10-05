@@ -234,6 +234,9 @@ function human_size(int $bytes): string
 /** Renders one field. $name is the POST name, $up the key used for uploads. */
 function field_html(array $f, $value, string $name, string $up, string $id): string
 {
+    if (($value === '' || $value === null) && array_key_exists('default', $f)) {
+        $value = $f['default']; // e.g. new rows in a list, or rows saved before the field existed
+    }
     $label = '<label for="' . e($id) . '">' . e($f['label']) . '</label>';
     $help = !empty($f['help']) ? '<p class="help">' . e($f['help']) . '</p>' : '';
     $v = is_string($value) ? $value : '';
