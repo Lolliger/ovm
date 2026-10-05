@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/lib/registration.php';
 require dirname(__DIR__) . '/lib/totp.php';
 require dirname(__DIR__) . '/lib/updater.php';
 require dirname(__DIR__) . '/lib/resolution.php';
+require dirname(__DIR__) . '/lib/stats.php';
 
 header('X-Frame-Options: DENY');
 header('Cache-Control: no-store');
@@ -566,7 +567,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung', 'stats' => 'Besucher'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -582,6 +583,7 @@ function admin_page(string $s, array $schema): void
   <nav class="sidebar">
     <a href="<?= e(admin_url()) ?>"<?= $s === '' ? ' class="active"' : '' ?>>Übersicht</a>
     <a href="<?= e(admin_url(['s' => 'registrations'])) ?>"<?= $s === 'registrations' ? ' class="active"' : '' ?>>Anmeldungen <span class="count"><?= $regCount ?></span></a>
+    <a href="<?= e(admin_url(['s' => 'stats'])) ?>"<?= $s === 'stats' ? ' class="active"' : '' ?>>Besucher</a>
     <a href="<?= e(admin_url(['s' => 'allocation'])) ?>"<?= $s === 'allocation' ? ' class="active"' : '' ?>>Zuteilung</a>
     <a href="<?= e(admin_url(['s' => 'resolutions'])) ?>"<?= $s === 'resolutions' ? ' class="active"' : '' ?>>Resolutionen</a>
     <p class="nav-label">Inhalte</p>
@@ -610,6 +612,8 @@ function admin_page(string $s, array $schema): void
         }
     } elseif ($s === 'registrations') {
         view_registrations();
+    } elseif ($s === 'stats') {
+        view_stats();
     } elseif ($s === 'allocation') {
         view_allocation();
     } elseif ($s === 'media') {
@@ -653,6 +657,8 @@ function view_dashboard(array $schema, int $regCount): void
     <?php endif; ?>
     <div class="tiles">
       <a class="tile" href="<?= e(admin_url(['s' => 'registrations'])) ?>"><strong><?= $regCount ?></strong><span>Anmeldungen</span></a>
+      <?php $week = stats_summary(7); ?>
+      <a class="tile" href="<?= e(admin_url(['s' => 'stats'])) ?>"><strong><?= number_format($week['visitors'], 0, ',', '.') ?></strong><span>Besucher (7 Tage)</span></a>
       <a class="tile" href="<?= e(admin_url(['s' => 'registration'])) ?>"><strong><?= c('registration.open') ? 'offen' : 'zu' ?></strong><span>Anmeldung</span></a>
       <a class="tile" href="<?= e(admin_url(['s' => 'conference'])) ?>"><strong><?= e(format_date(c('conference.date_start'), 'd.m.Y')) ?: '–' ?></strong><span>Konferenzbeginn</span></a>
       <a class="tile" href="<?= e(admin_url(['s' => 'media'])) ?>"><strong><?= count(media_files()) ?></strong><span>Dateien</span></a>
@@ -782,6 +788,91 @@ function committee_select(string $name, string $current): string
         $h .= '<option value="' . e($current) . '" selected>' . e($current) . ' (gibt es nicht mehr)</option>';
     }
     return $h . '</select>';
+}
+
+function view_stats(): void
+{
+    $ranges = [7 => '7 Tage', 30 => '30 Tage', 90 => '90 Tage', 365 => '12 Monate'];
+    $days = array_key_exists((int) ($_GET['days'] ?? 30), $ranges) ? (int) ($_GET['days'] ?? 30) : 30;
+    $st = stats_summary($days);
+    $n = fn (int $x) => number_format($x, 0, ',', '.');
+    $wd = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+    // Bars: one per day, for a year one per week.
+    $buckets = [];
+    foreach ($st['days'] as $date => $d) {
+        $ts = strtotime($date);
+        $key = $days > 90 ? date('o-W', $ts) : $date;
+        if (!isset($buckets[$key])) {
+            $buckets[$key] = ['label' => $days > 90 ? 'Woche ab ' . date('d.m.', $ts) : $wd[(int) date('w', $ts)] . ' ' . date('d.m.', $ts), 'short' => date('d.m.', $ts), 'v' => 0, 'u' => 0];
+        }
+        $buckets[$key]['v'] += $d['v'];
+        $buckets[$key]['u'] += $d['u'];
+    }
+    $buckets = array_values($buckets);
+    $max = max(1, ...array_column($buckets, 'v'));
+    $step = $max <= 5 ? 1 : (int) (10 ** floor(log10($max)) * ($max / 10 ** floor(log10($max)) > 5 ? 2 : 1));
+    $top = (int) (ceil($max / $step) * $step);
+    $labelEvery = max(1, (int) ceil(count($buckets) / 8));
+    $pageNames = ['/' => 'Startseite'];
+    ?>
+    <div class="page-title"><h1>Besucher</h1>
+      <nav class="range-tabs" aria-label="Zeitraum"><?php foreach ($ranges as $k => $label): ?><a href="<?= e(admin_url(['s' => 'stats', 'days' => $k])) ?>"<?= $k === $days ? ' class="active" aria-current="page"' : '' ?>><?= e($label) ?></a><?php endforeach; ?></nav>
+    </div>
+    <p class="help">Gezählt werden Aufrufe der öffentlichen Seiten, ohne Cookies und ohne gespeicherte IP-Adressen. Admins, Suchmaschinen und Bots zählen nicht mit.
+      „Besucher“ = verschiedene Personen pro Tag (über mehrere Tage zusammengezählt, wer an zwei Tagen kommt, zählt zweimal).</p>
+
+    <div class="tiles">
+      <div class="tile"><strong><?= $n($st['visitors']) ?></strong><span>Besucher</span></div>
+      <div class="tile"><strong><?= $n($st['views']) ?></strong><span>Seitenaufrufe</span></div>
+      <div class="tile"><strong><?= $st['visitors'] ? number_format($st['views'] / $st['visitors'], 1, ',', '.') : '–' ?></strong><span>Seiten pro Besuch</span></div>
+      <div class="tile"><strong><?= $st['views'] ? round($st['mobile'] / $st['views'] * 100) . ' %' : '–' ?></strong><span>vom Handy</span></div>
+    </div>
+
+    <section class="panel stats-chart">
+      <h2>Seitenaufrufe <?= $days > 90 ? 'pro Woche' : 'pro Tag' ?></h2>
+      <?php if (!$st['views']): ?>
+        <p class="empty">In diesem Zeitraum noch keine Aufrufe gezählt.</p>
+      <?php else: ?>
+      <div class="chart" role="img" aria-label="Seitenaufrufe <?= $days > 90 ? 'pro Woche' : 'pro Tag' ?>, höchster Wert <?= $max ?>">
+        <div class="chart-grid" aria-hidden="true">
+          <?php foreach ([1, 0.5, 0] as $f): ?><span style="bottom: <?= $f * 100 ?>%"><em><?= $n((int) round($top * $f)) ?></em></span><?php endforeach; ?>
+        </div>
+        <div class="chart-bars">
+          <?php foreach ($buckets as $i => $b): ?>
+            <div class="chart-col" tabindex="0" data-tip="<?= e($b['label'] . ': ' . $n($b['v']) . ' Aufrufe · ' . $n($b['u']) . ' Besucher') ?>">
+              <span class="chart-bar" style="height: <?= round($b['v'] / $top * 100, 2) ?>%"></span>
+              <?php if ($i % $labelEvery === 0): ?><span class="chart-x"><?= e($b['short']) ?></span><?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <details class="chart-table"><summary>Als Tabelle anzeigen</summary>
+        <table><thead><tr><th><?= $days > 90 ? 'Woche' : 'Tag' ?></th><th>Aufrufe</th><th>Besucher</th></tr></thead><tbody>
+          <?php foreach (array_reverse($buckets) as $b): ?><tr><td><?= e($b['label']) ?></td><td><?= $n($b['v']) ?></td><td><?= $n($b['u']) ?></td></tr><?php endforeach; ?>
+        </tbody></table>
+      </details>
+      <?php endif; ?>
+    </section>
+
+    <div class="stats-lists">
+      <section class="panel">
+        <h2>Meistbesuchte Seiten</h2>
+        <?php if (!$st['pages']): ?><p class="empty">–</p><?php else: ?>
+        <ol class="rank"><?php $pmax = max($st['pages']); foreach (array_slice($st['pages'], 0, 12, true) as $path => $cnt): ?>
+          <li><span class="rank-bar" style="width: <?= round($cnt / $pmax * 100) ?>%"></span><a href="<?= e(url(ltrim((string) $path, '/'))) ?>" target="_blank"><?= e($pageNames[$path] ?? $path) ?></a><strong><?= $n($cnt) ?></strong></li>
+        <?php endforeach; ?></ol><?php endif; ?>
+      </section>
+      <section class="panel">
+        <h2>Woher die Besucher kommen</h2>
+        <?php if (!$st['refs']): ?><p class="empty">Bisher nur direkte Aufrufe (Adresse eingetippt, Lesezeichen, Apps).</p><?php else: ?>
+        <ol class="rank"><?php $rmax = max($st['refs']); foreach (array_slice($st['refs'], 0, 12, true) as $host => $cnt): ?>
+          <li><span class="rank-bar" style="width: <?= round($cnt / $rmax * 100) ?>%"></span><span><?= e((string) $host) ?></span><strong><?= $n($cnt) ?></strong></li>
+        <?php endforeach; ?></ol>
+        <p class="help">Aufrufe ohne Herkunft (Adresse eingetippt, Lesezeichen, manche Apps) sind hier nicht aufgeführt.</p><?php endif; ?>
+      </section>
+    </div>
+    <?php
 }
 
 function view_allocation(): void

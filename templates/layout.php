@@ -99,6 +99,11 @@ function conference_start_iso(): string
 
 function render(string $template, array $vars = []): void
 {
+    // Visitor statistics: public pages only (not the delegate area, login or error pages).
+    if (in_array($template, ['home', 'conference', 'committees', 'committee', 'team', 'news', 'article', 'gallery', 'faq',
+        'downloads', 'sponsors', 'archive', 'register', 'legal', 'page'], true) && http_response_code() === 200) {
+        stats_track();
+    }
     extract($vars);
     $nav = $vars['nav'] ?? '';
     $siteName = c('site.name', 'OMUN');

@@ -135,6 +135,14 @@ Bestätigung). Zuteilungen werden über die Gremien-Adresse gespeichert und blei
 Beamer-Ansicht (`?view=screen`, nur Chairs/Admins): aktuelles Amendment bzw. Dokument links, Speakers List
 rechts, aktualisiert sich alle 2 Sekunden. Druck/PDF über `?view=print`. Daten: `data/resolutions/<gremium>.json`.
 
+## Besucherstatistik
+
+Admin → **Besucher**: Seitenaufrufe, Besucher pro Tag, meistbesuchte Seiten, Herkunft und Handy-Anteil (7 Tage bis
+12 Monate). Gezählt wird auf dem Server, **ohne Cookies und ohne Speicherung von IP-Adressen**: Besucher werden nur
+innerhalb eines Tages über einen Hash aus IP, Browser und einem täglich neuen Zufallswert wiedererkannt, danach wird
+alles verworfen. Admins und Bots zählen nicht mit. Daten in `data/stats/`, nach 13 Monaten automatisch gelöscht.
+Einen kurzen Absatz dazu in die Datenschutzerklärung aufnehmen.
+
 ## Sicherheit
 
 - **Login:** Passwort nur als bcrypt-Hash gespeichert; max. 8 Versuche pro 15 Minuten und IP-Adresse

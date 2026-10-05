@@ -19,6 +19,7 @@ require __DIR__ . '/lib/bootstrap.php';
 require __DIR__ . '/templates/layout.php';
 require __DIR__ . '/lib/registration.php';
 require __DIR__ . '/lib/resolution.php';
+require __DIR__ . '/lib/stats.php';
 
 purge_registrations_daily();
 
