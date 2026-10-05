@@ -870,3 +870,66 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .res-archive li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem; padding: 0.6rem 0; border-top: 1px solid var(--line); }
 .res-archive li:first-child { border-top: 0; }
 .res-archive a { margin-left: auto; }
+
+/* Chair view: tabs */
+.res-tabs { display: flex; gap: 0.25rem; overflow-x: auto; margin: 0 0 1.25rem; border-bottom: 1px solid var(--line); }
+.res-tabs button {
+  appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  padding: 0.7rem 1rem; font: 600 0.95rem/1 var(--sans); color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.res-tabs button:hover { color: var(--text); }
+.res-tabs button.active { color: var(--link); border-bottom-color: var(--link); }
+.tab-count:not(:empty) { display: inline-block; min-width: 1.35rem; padding: 0.15rem 0.4rem; margin-left: 0.3rem; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.75rem; text-align: center; }
+.res-live { display: grid; gap: 1.25rem; align-items: start; }
+@media (min-width: 960px) { .res-live { grid-template-columns: minmax(0, 1fr) 22rem; } }
+.res-live-main { display: flex; flex-direction: column; gap: 1.25rem; }
+.res-floor .amend { font-size: 1.05rem; }
+.res-doc-tab { display: grid; gap: 1.25rem; max-width: 56rem; }
+#tab-settings { display: grid; gap: 1.25rem; max-width: 46rem; }
+#tab-settings .res-archive { margin-top: 0; }
+
+/* Speaker timer */
+.timer-panel summary { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; cursor: pointer; list-style: none; }
+.timer-panel summary::-webkit-details-marker { display: none; }
+.timer-panel summary h2 { margin: 0; }
+.timer-panel[open] summary { margin-bottom: 0.85rem; }
+.timer { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0.25rem 0.75rem; padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--surface-2); margin-bottom: 0.75rem; }
+.timer-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.timer-time { font-family: var(--sans); font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.timer-bar { grid-column: 1 / -1; height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.timer-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.25s linear; }
+.timer.low .timer-time { color: #b54708; }
+.timer.low .timer-bar span { background: #f79009; }
+.timer.over .timer-time { color: #b42318; }
+.timer-actions, .timer-set { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; font-size: 0.9rem; }
+.timer-actions form, .timer-set { margin: 0; }
+.timer-set input { width: 4.2rem; padding: 0.35rem 0.5rem; }
+.res-side > .timer, .res-side [data-region="timer"]:empty, .res-side [data-region="quorum"]:empty { margin: 0; }
+
+/* Roll call & majorities */
+.quorum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center; }
+.quorum div { background: var(--surface-2); border-radius: var(--radius); padding: 0.6rem 0.25rem; }
+.quorum strong { display: block; font-size: 1.6rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.quorum span { font-size: 0.72rem; color: var(--muted); }
+.quorum-note { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+.res-side > [data-region="quorum"]:not(:empty) { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; }
+#roll [data-region="quorum"] { margin: 0.5rem 0 1rem; max-width: 26rem; }
+.roll { width: 100%; border-collapse: collapse; }
+.roll th { text-align: left; font-weight: 600; padding: 0.45rem 0.5rem 0.45rem 0; }
+.roll td { padding: 0.35rem 0; text-align: right; }
+.roll tr + tr { border-top: 1px solid var(--line); }
+.roll form { display: inline-block; margin: 0 0 0 0.3rem; }
+.roll-btn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: 0.35rem 0.75rem; font: 500 0.85rem/1 var(--sans); cursor: pointer; }
+.roll-btn:hover { border-color: var(--link); }
+.roll-p .roll-btn.on, .roll-pv .roll-btn.on { background: #067647; border-color: #067647; color: #fff; }
+.roll-a .roll-btn.on { background: #b42318; border-color: #b42318; color: #fff; }
+.roll-open th::after { content: "–"; color: var(--muted); font-weight: 400; margin-left: 0.4rem; }
+@media (max-width: 640px) { .roll tr { display: grid; } .roll td { text-align: left; } .roll form { margin: 0.2rem 0.3rem 0 0; } }
+
+/* Beamer: timer & majorities */
+.screen-side { display: flex; flex-direction: column; gap: 1.5vw; }
+.screen-side .timer { margin: 0; }
+.screen-side .timer-time { font-size: 3.2em; }
+.screen-side .quorum strong { font-size: 2em; }
+.screen-side .quorum span { font-size: 0.8em; }
+.res-tab[hidden] { display: none !important; }

@@ -22,7 +22,11 @@ $regions = res_regions($ctx, $res, 'screen');
   </header>
   <main class="screen-grid">
     <section class="screen-main" data-region="screen-main"><?= $regions['screen-main'] ?></section>
-    <aside class="screen-side" data-region="speakers"><?= $regions['speakers'] ?></aside>
+    <aside class="screen-side">
+      <div data-region="timer"><?= $regions['timer'] ?></div>
+      <div data-region="speakers"><?= $regions['speakers'] ?></div>
+      <div data-region="quorum"><?= $regions['quorum'] ?></div>
+    </aside>
   </main>
   <button class="screen-fs" type="button" onclick="document.documentElement.requestFullscreen && document.documentElement.requestFullscreen()">Full screen</button>
   <script src="<?= e(url('assets/js/resolution.js')) ?>?v=<?= filemtime(ROOT . '/assets/js/resolution.js') ?>" defer></script>

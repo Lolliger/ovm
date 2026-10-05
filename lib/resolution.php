@@ -44,6 +44,8 @@ function res_default(array $committee): array
         'amendments' => [],
         'current' => null,
         'speakers' => [],
+        'roll' => [],
+        'timer' => ['on' => false, 'dur' => 60, 'left' => 60, 'ends' => 0, 'running' => false],
         'rev' => 0,
         'updated' => date('c'),
     ];
@@ -119,6 +121,8 @@ function res_archive_and_start_new(array $res, string $outcome): array
     }
     $fresh['number'] = $done['number'] + 1;
     $fresh['speakers'] = $res['speakers'];
+    $fresh['roll'] = $res['roll'] ?? [];
+    $fresh['timer'] = $res['timer'] ?? $fresh['timer'];
     $fresh['rev'] = $res['rev'];
     return $fresh;
 }
@@ -515,6 +519,14 @@ function res_handle_post(array $ctx): void
             case 'speaker_remove':
             case 'speaker_clear':
             case 'res_new':
+            case 'roll_set':
+            case 'roll_all':
+            case 'roll_reset':
+            case 'timer_set':
+            case 'timer_start':
+            case 'timer_pause':
+            case 'timer_reset':
+            case 'timer_off':
                 if (!$chair) {
                     throw new RuntimeException('Only the chairs can do this.');
                 }
@@ -633,6 +645,53 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
             break;
         case 'speaker_next':
             array_shift($res['speakers']);
+            $res['timer'] = res_timer_reset($res['timer'] ?? []);
+            break;
+        case 'roll_set':
+            if (in_array($p('val'), ['p', 'pv', 'a'], true)) {
+                $res['roll'][$p('id')] = $p('val');
+            } else {
+                unset($res['roll'][$p('id')]);
+            }
+            $res['roll_at'] = date('c');
+            break;
+        case 'roll_all':
+            foreach (committee_members(res_committee_of($res)) as $m) {
+                if (empty($m['is_chair'])) {
+                    $res['roll'][$m['id']] = 'p';
+                }
+            }
+            $res['roll_at'] = date('c');
+            break;
+        case 'roll_reset':
+            $res['roll'] = [];
+            break;
+        case 'timer_set':
+            $dur = max(5, min(1800, (int) $p('min') * 60 + (int) $p('sec')));
+            $res['timer'] = res_timer_reset(['on' => true, 'dur' => $dur]);
+            break;
+        case 'timer_start':
+            $t = $res['timer'] ?? res_timer_reset([]);
+            if (empty($t['running'])) {
+                $t['on'] = true;
+                $t['running'] = true;
+                $t['ends'] = (int) round(microtime(true) * 1000) + max(0, (int) $t['left']) * 1000;
+            }
+            $res['timer'] = $t;
+            break;
+        case 'timer_pause':
+            $t = $res['timer'] ?? res_timer_reset([]);
+            if (!empty($t['running'])) {
+                $t['left'] = max(0, (int) ceil(($t['ends'] - microtime(true) * 1000) / 1000));
+                $t['running'] = false;
+            }
+            $res['timer'] = $t;
+            break;
+        case 'timer_reset':
+            $res['timer'] = res_timer_reset($res['timer'] ?? []);
+            break;
+        case 'timer_off':
+            $res['timer'] = ['on' => false] + res_timer_reset($res['timer'] ?? []);
             break;
         case 'speaker_remove':
             $res['speakers'] = array_values(array_filter($res['speakers'], fn ($s) => $s['id'] !== $p('id')));
@@ -749,6 +808,90 @@ function res_layout_key(array $ctx, array $res): string
     $clauses = array_map(fn ($c) => [$c['id'], $c['type'], $c['level'], $c['text']], clauses_sorted($res['clauses']));
     return substr(md5(json_encode([$res['number'] ?? 1, $res['status'], res_can_edit($ctx, $res), $res['current'], $clauses, $res['topic'],
         $res['main_submitter'], $res['co_submitters'], $res['signatories'] ?? ''])), 0, 12);
+}
+
+/* ---------- Speaker timer & roll call ---------- */
+
+/** Stopped timer with the full speaking time (keeps whether it is shown). */
+function res_timer_reset(array $t): array
+{
+    $dur = (int) ($t['dur'] ?? 60);
+    return ['on' => (bool) ($t['on'] ?? false), 'dur' => $dur, 'left' => $dur, 'ends' => 0, 'running' => false];
+}
+
+function res_timer_html(array $res): string
+{
+    $t = $res['timer'] ?? [];
+    if (empty($t['on'])) {
+        return '';
+    }
+    $now = (int) round(microtime(true) * 1000);
+    $left = !empty($t['running']) ? max(0, (int) ceil(($t['ends'] - $now) / 1000)) : (int) $t['left'];
+    return '<div class="timer' . (!empty($t['running']) ? ' running' : '') . '" data-now="' . $now . '"'
+        . (!empty($t['running']) ? ' data-ends="' . (int) $t['ends'] . '"' : '') . ' data-dur="' . (int) $t['dur'] . '">'
+        . '<span class="timer-label">Speaking time</span><span class="timer-time">' . sprintf('%d:%02d', intdiv($left, 60), $left % 60) . '</span>'
+        . '<span class="timer-bar"><span style="width: ' . ($t['dur'] ? round($left / $t['dur'] * 100, 1) : 0) . '%"></span></span></div>';
+}
+
+/** Delegations of a committee for the roll call (chairs excluded). */
+function res_roll_members(array $committee): array
+{
+    $list = array_values(array_filter(committee_members($committee), fn ($m) => empty($m['is_chair'])));
+    usort($list, fn ($a, $b) => strcasecmp(reg_label($a), reg_label($b)));
+    return $list;
+}
+
+/** Present / majorities from the roll call, or null before anyone was called. */
+function res_quorum(array $res, array $committee): ?array
+{
+    $roll = $res['roll'] ?? [];
+    $ids = array_column(res_roll_members($committee), 'id');
+    $roll = array_intersect_key($roll, array_flip($ids));
+    if (!$roll) {
+        return null;
+    }
+    $present = count(array_filter($roll, fn ($v) => $v !== 'a'));
+    return [
+        'present' => $present,
+        'voting' => count(array_filter($roll, fn ($v) => $v === 'pv')),
+        'total' => count($ids),
+        'simple' => intdiv($present, 2) + 1,
+        'two_thirds' => (int) ceil($present * 2 / 3),
+    ];
+}
+
+function res_quorum_html(array $res, array $committee): string
+{
+    $q = res_quorum($res, $committee);
+    if (!$q) {
+        return '';
+    }
+    return '<div class="quorum"><div><strong>' . $q['present'] . '</strong><span>present</span></div>'
+        . '<div><strong>' . $q['simple'] . '</strong><span>simple majority</span></div>'
+        . '<div><strong>' . $q['two_thirds'] . '</strong><span>two-thirds</span></div></div>'
+        . ($q['voting'] ? '<p class="quorum-note">' . $q['voting'] . ' present and voting (cannot abstain)</p>' : '');
+}
+
+function res_roll_html(array $res, array $committee): string
+{
+    $members = res_roll_members($committee);
+    if (!$members) {
+        return '<p class="muted">No delegations are allocated to this committee yet.</p>';
+    }
+    $roll = $res['roll'] ?? [];
+    $labels = ['p' => 'Present', 'pv' => 'Present &amp; voting', 'a' => 'Absent'];
+    $h = '<table class="roll"><tbody>';
+    foreach ($members as $m) {
+        $cur = $roll[$m['id']] ?? '';
+        $h .= '<tr class="' . ($cur ? 'roll-' . $cur : 'roll-open') . '"><th>' . e(reg_label($m)) . '</th><td>';
+        foreach ($labels as $val => $label) {
+            $h .= '<form method="post" data-quick>' . csrf_field() . '<input type="hidden" name="a" value="roll_set"><input type="hidden" name="anchor" value="roll">'
+                . '<input type="hidden" name="id" value="' . e($m['id']) . '"><input type="hidden" name="val" value="' . ($cur === $val ? '' : $val) . '">'
+                . '<button class="roll-btn' . ($cur === $val ? ' on' : '') . '" aria-pressed="' . ($cur === $val ? 'true' : 'false') . '">' . $label . '</button></form>';
+        }
+        $h .= '</td></tr>';
+    }
+    return $h . '</tbody></table>';
 }
 
 /** Adds a delegation to the end of the speakers list unless it is already on it. */
@@ -1045,6 +1188,8 @@ function res_regions(array $ctx, array $res, string $mode): array
         return [
             'screen-main' => $floor !== '' ? $floor : res_document_html($res, $cm),
             'speakers' => res_speakers_html($res),
+            'timer' => res_timer_html($res),
+            'quorum' => res_quorum_html($res, $cm),
             'status' => e(status_label($res['status'])),
         ];
     }
@@ -1054,9 +1199,14 @@ function res_regions(array $ctx, array $res, string $mode): array
         'speakers' => res_speakers_html($res),
         'status' => e(status_label($res['status'])),
         'mine' => res_my_amendments_html($res, $myId),
+        'timer' => res_timer_html($res),
+        'quorum' => res_quorum_html($res, $cm),
     ];
     if (res_is_chair($ctx)) {
+        $open = count(array_filter($res['amendments'], fn ($a) => in_array($a['status'], ['pending', 'floor'], true)));
         $regions['queue'] = res_queue_html($res);
+        $regions['queue-count'] = $open ? (string) $open : '';
+        $regions['roll'] = res_roll_html($res, $cm);
     }
     return $regions;
 }
