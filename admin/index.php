@@ -663,6 +663,13 @@ function view_dashboard(array $schema, int $regCount): void
     <?php if (!totp_enabled()): ?>
       <p class="flash flash-error">Zwei-Faktor-Login ist noch nicht aktiv. <a href="<?= e(admin_url(['s' => 'settings'])) ?>">Jetzt einrichten →</a></p>
     <?php endif; ?>
+    <?php
+    $off = array_keys(array_filter(['Delegierte' => 'login_delegates', 'Chairs' => 'login_chairs', 'Conference Manager' => 'login_managers',
+        'Admins' => 'login_admins', '„Ohne Rechte“' => 'login_staff', 'Laptop-Konto' => 'login_laptop'], fn ($k) => !c('portal.' . $k, true)));
+    ?>
+    <?php if ($off): ?>
+      <p class="flash flash-warn">Login gerade <strong>aus</strong> für: <?= e(implode(', ', $off)) ?>. <a href="<?= e(admin_url(['s' => 'portal'])) ?>">Ändern →</a></p>
+    <?php endif; ?>
     <?php $purgeAt = registrations_purge_at(); ?>
     <?php if ($regCount && $purgeAt && $purgeAt > time() && $purgeAt - time() < 14 * 86400): ?>
       <p class="flash flash-error">Die Anmeldungen werden am <?= e(date('d.m.Y', $purgeAt)) ?> automatisch gelöscht. Bei Bedarf vorher <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">als CSV sichern</a>.</p>

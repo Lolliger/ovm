@@ -245,6 +245,55 @@ function send_login_link(string $email): bool
     return send_mail($email, c('site.name') . ' login link', $body, c('site.email') ?: null);
 }
 
+/* ---------- Login on/off per group ---------- */
+
+/** Groups an account belongs to: delegate, chair, manager, admin, staff, laptop. */
+function login_groups(string $email): array
+{
+    if (is_staff_account($email)) {
+        return ['laptop'];
+    }
+    $groups = [];
+    foreach (registrations_for($email) as $r) {
+        $kind = $r['kind'] ?? registration_kind((string) ($r['role'] ?? ''));
+        if (!empty($r['is_admin'])) {
+            $groups[] = 'admin';
+        }
+        if (!empty($r['is_chair']) || $kind === 'chair') {
+            $groups[] = 'chair';
+        } elseif (!empty($r['is_manager']) || $kind === 'manager') {
+            $groups[] = 'manager';
+        } elseif ($kind === 'staff') {
+            $groups[] = 'staff';
+        } elseif (empty($r['is_admin'])) {
+            $groups[] = 'delegate';
+        }
+    }
+    return array_values(array_unique($groups)) ?: ['delegate'];
+}
+
+/** True if at least one of the account's groups may currently log in (Admin → Teilnehmer-Bereich). */
+function login_allowed(string $email): bool
+{
+    static $cache = [];
+    if (!isset($cache[$email])) {
+        $keys = ['delegate' => 'login_delegates', 'chair' => 'login_chairs', 'manager' => 'login_managers',
+            'admin' => 'login_admins', 'staff' => 'login_staff', 'laptop' => 'login_laptop'];
+        $cache[$email] = false;
+        foreach (login_groups($email) as $g) {
+            if (c('portal.' . $keys[$g], true)) {
+                $cache[$email] = true;
+            }
+        }
+    }
+    return $cache[$email];
+}
+
+function login_closed_message(): string
+{
+    return (string) (c('portal.login_closed_message') ?: 'The login is currently closed.');
+}
+
 /* ---------- Session ---------- */
 
 function portal_email(): ?string
@@ -253,6 +302,11 @@ function portal_email(): ?string
     $p = $_SESSION['portal'] ?? null;
     if (!$p || time() - $p['last'] > PORTAL_IDLE) {
         unset($_SESSION['portal']);
+        return null;
+    }
+    if (!login_allowed($p['email'])) {
+        unset($_SESSION['portal']);
+        $_SESSION['login_closed'] = true;
         return null;
     }
     $_SESSION['portal']['last'] = time();
@@ -488,7 +542,9 @@ function login_route(?string $sub): void
                 $error = 'Your session expired. Please click the button again.';
             } elseif (rate_limited('portal-login', 30, 3600)) {
                 $error = 'Too many attempts. Please try again later.';
-            } elseif ($email = consume_login_token((string) ($_POST['token'] ?? ''))) {
+            } elseif (($email = consume_login_token((string) ($_POST['token'] ?? ''))) && !login_allowed($email)) {
+                $error = login_closed_message();
+            } elseif ($email) {
                 portal_login($email);
                 redirect_to(portal_home());
             } else {
@@ -526,6 +582,10 @@ function login_route(?string $sub): void
         redirect_to(portal_home());
     }
     $error = '';
+    if (!empty($_SESSION['login_closed'])) {
+        unset($_SESSION['login_closed']);
+        $error = login_closed_message();
+    }
     $address = '';
     if ($post) {
         $address = trim((string) ($_POST['email'] ?? ''));
@@ -534,8 +594,12 @@ function login_route(?string $sub): void
         } elseif (rate_limited('portal-password', 10, 900)) {
             $error = 'Too many attempts. Please wait 15 minutes and try again.';
         } elseif (verify_account($address, (string) ($_POST['password'] ?? ''))) {
-            portal_login(normalize_email($address));
-            redirect_to(portal_home());
+            if (!login_allowed(normalize_email($address))) {
+                $error = login_closed_message();
+            } else {
+                portal_login(normalize_email($address));
+                redirect_to(portal_home());
+            }
         } else {
             usleep(300000);
             $error = 'Username or password is wrong.';

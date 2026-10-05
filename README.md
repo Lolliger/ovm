@@ -81,6 +81,10 @@ danach unter `/admin` ein neues Passwort setzen (Zwei-Faktor-Login ist danach au
 Login unter **omun.eu/login** (Button „Login“ im Header), danach geht es auf **omun.eu/portal**.
 (Eine eigene Subdomain wird nicht verwendet, weil Strato im aktuellen Paket dafür kein SSL-Zertifikat ausliefert.)
 
+**Login ein/aus:** Unter *Teilnehmer-Bereich* gibt es je einen Schalter für Delegierte, Chairs, Conference Manager,
+Admins (Häkchen), „Ohne Rechte“ und das Laptop-Konto. Aus = kein Login möglich, bereits Eingeloggte werden beim
+nächsten Klick abgemeldet und sehen die einstellbare Meldung. Die Übersicht im Admin zeigt, welche Logins aus sind.
+
 Nach der Anmeldung bekommen Teilnehmende eine Bestätigungs-Mail mit **Zugangsdaten**:
 Benutzername = ihre E-Mail-Adresse, Passwort = automatisch erzeugt (z. B. `Kavo-Rimu-Teza-Lopa-47`), die Mail verlinkt auf omun.eu/login.
 Wer sich mit derselben Adresse erneut anmeldet, behält sein Passwort. Im Portal sehen sie Status und

@@ -289,3 +289,4 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .rank li > a, .rank li > span:not(.rank-bar), .rank li > strong { position: relative; z-index: 1; }
 .rank li > a { color: var(--text, #1e293b); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank strong { font-variant-numeric: tabular-nums; }
+.flash-warn { background: #fffaeb; border-color: #fedf89; color: #93370d; }

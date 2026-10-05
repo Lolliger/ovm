@@ -180,6 +180,13 @@
     "retention_days": "90"
   },
   "portal": {
+    "login_delegates": true,
+    "login_chairs": true,
+    "login_managers": true,
+    "login_admins": true,
+    "login_staff": true,
+    "login_laptop": true,
+    "login_closed_message": "The login is not open yet. You will be informed by e-mail as soon as it opens.",
     "portal_url": "",
     "mail_from": "noreply@omun.eu",
     "mail_from_name": "OMUN",
