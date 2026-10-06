@@ -626,6 +626,9 @@ function login_route(?string $sub): void
                 portal_login($account);
                 redirect_to(portal_home());
             }
+        } elseif (empty((codes()[$account] ?? ['reg' => 'x'])['reg'])) {
+            // A handed-out code nobody has registered with yet: first step is the registration form.
+            redirect_to(url('register') . '?code=' . rawurlencode(format_code($account)));
         } else {
             usleep(300000);
             $error = 'Personal code or password is wrong.';

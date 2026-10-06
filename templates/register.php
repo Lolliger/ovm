@@ -3,6 +3,11 @@ $kicker = e(c('conference.edition')) . ' · ' . e(date_range(c('conference.date_
 $heading = 'Register';
 require __DIR__ . '/_pagehead.php';
 $v = $result['values'] ?? [];
+// Coming from the login page with a code that is not registered yet.
+$fromLogin = !$result && isset($_GET['code']);
+if ($fromLogin) {
+    $v['code'] = normalize_code((string) $_GET['code']);
+}
 $val = fn ($k) => e($v[$k] ?? '');
 $committees = c('committees', []);
 $kind = registration_kind($v['role'] ?? '');
@@ -32,6 +37,9 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
 
     <?php if (registration_is_open() && !($result && $result['ok'])): ?>
     <form class="form" method="post" action="<?= e(url('register')) ?>" novalidate>
+      <?php if ($fromLogin): ?>
+        <div class="notice" role="status"><p><strong>First time here?</strong> This code has not been registered yet. Fill in the form and choose a password – after that you log in with your code and this password.</p></div>
+      <?php endif; ?>
       <?php if (!empty($result['errors'])): ?>
         <div class="notice notice-error" role="alert"><ul><?php foreach ($result['errors'] as $err): ?><li><?= e($err) ?></li><?php endforeach; ?></ul></div>
       <?php endif; ?>
