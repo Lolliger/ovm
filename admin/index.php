@@ -533,7 +533,7 @@ function admin_head(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> · Admin</title>
-<link rel="icon" href="<?= e(url('assets/img/favicon.svg')) ?>" type="image/svg+xml">
+<?= icon_links() ?>
 <link rel="stylesheet" href="<?= e(url('admin/admin.css')) ?>?v=<?= filemtime(__DIR__ . '/admin.css') ?>">
 <script src="<?= e(url('admin/qrcode.js')) ?>" defer></script>
 <script src="<?= e(url('admin/admin.js')) ?>?v=<?= filemtime(__DIR__ . '/admin.js') ?>" defer></script>
@@ -547,6 +547,7 @@ function admin_login_page(string $mode, string $error): void
     ?>
 <body class="login">
   <form class="login-box" method="post">
+    <?= emblem('login-emblem', 'purple') ?>
     <p class="login-brand"><?= e(c('site.name', 'OMUN')) ?> <span>Admin</span></p>
     <?= csrf_field() ?>
     <?php if ($mode === 'setup'): ?>
@@ -587,7 +588,7 @@ function admin_page(string $s, array $schema): void
 <input type="checkbox" id="nav-toggle" class="nav-toggle">
 <header class="topbar">
   <label for="nav-toggle" class="nav-btn" aria-label="Menü">☰</label>
-  <a class="topbar-brand" href="<?= e(admin_url()) ?>"><?= e(c('site.name')) ?> <span>Admin</span></a>
+  <a class="topbar-brand" href="<?= e(admin_url()) ?>"><?= emblem('topbar-emblem', 'purple') ?><?= e(c('site.name')) ?> <span>Admin</span></a>
   <a class="topbar-link" href="<?= e(url()) ?>" target="_blank">Website ansehen ↗</a>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="logout"><button class="topbar-link" type="submit">Abmelden</button></form>
 </header>

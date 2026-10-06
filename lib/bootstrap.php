@@ -45,6 +45,27 @@ function media(?string $path): string
     return url($path);
 }
 
+/** Browser-tab and home-screen icons (the OMUN emblem) for every page's <head>. */
+function icon_links(): string
+{
+    return '<link rel="icon" href="' . e(url('assets/img/favicon.png')) . '" type="image/png" sizes="64x64">' . "\n"
+        . '<link rel="apple-touch-icon" href="' . e(url('assets/img/apple-touch-icon.png')) . '">' . "\n";
+}
+
+/**
+ * The OMUN emblem as an <img>. $tone: 'auto' (purple, blue in dark mode – for the site's own surfaces),
+ * 'purple', 'gold' (dark backgrounds) or 'blue'.
+ */
+function emblem(string $class, string $tone = 'auto', string $alt = ''): string
+{
+    $file = $tone === 'auto' ? 'purple' : $tone;
+    $img = '<img class="' . e($class) . '" src="' . e(url('assets/img/emblem-' . $file . '.png')) . '" alt="' . e($alt) . '" width="400" height="340">';
+    if ($tone !== 'auto') {
+        return $img;
+    }
+    return '<picture><source srcset="' . e(url('assets/img/emblem-blue.png')) . '" media="(prefers-color-scheme: dark)">' . $img . '</picture>';
+}
+
 function slugify(string $s): string
 {
     $s = strtr(mb_strtolower($s), ['ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss']);

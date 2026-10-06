@@ -10,7 +10,7 @@ und werden über **/admin** gepflegt.
 | --- | --- |
 | `index.php` | Router für alle öffentlichen Seiten |
 | `templates/` | HTML-Vorlagen der Seiten |
-| `assets/` | CSS, JavaScript, Schriften (lokal gehostet, DSGVO-freundlich), Favicon |
+| `assets/` | CSS, JavaScript, Schriften (lokal gehostet, DSGVO-freundlich), OMUN-Emblem (`assets/img/emblem-*.png`, Favicon, Social-Media-Vorschaubild) |
 | `admin/` | Verwaltungsbereich |
 | `lib/schema.php` | Welche Inhalte es gibt und welche Felder im Admin erscheinen |
 | `lib/defaults.json` | Startinhalte beim allerersten Aufruf |

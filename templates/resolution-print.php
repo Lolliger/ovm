@@ -7,6 +7,7 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex">
 <title><?= e($ctx['committee']['name'] . ' – ' . ($res['topic'] ?: 'Resolution')) ?></title>
+<?= icon_links() ?>
 <link rel="stylesheet" href="<?= e(url('assets/css/site.css')) ?>?v=<?= filemtime(ROOT . '/assets/css/site.css') ?>">
 </head>
 <body class="print-page">

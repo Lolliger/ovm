@@ -109,7 +109,7 @@ function render(string $template, array $vars = []): void
     $siteName = c('site.name', 'OMUN');
     $pageTitle = !empty($vars['title']) ? $vars['title'] . ' · ' . $siteName : $siteName . ' · ' . c('site.full_name');
     $description = c('site.description');
-    $ogImage = c('site.og_image') ?: c('home.hero_image');
+    $ogImage = c('site.og_image') ?: c('home.hero_image') ?: 'assets/img/og-default.png';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $origin = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
@@ -126,10 +126,9 @@ function render(string $template, array $vars = []): void
 <meta name="description" content="<?= e($description) ?>">
 <meta property="og:title" content="<?= e($pageTitle) ?>">
 <meta property="og:description" content="<?= e($description) ?>">
-<?php if ($ogImage): ?><meta property="og:image" content="<?= e($origin . media($ogImage)) ?>">
-<?php endif; ?>
+<meta property="og:image" content="<?= e($origin . media($ogImage)) ?>">
 <meta name="theme-color" content="<?= e(safe_color('color_ink', '#1e293b')) ?>">
-<link rel="icon" href="<?= e(url('assets/img/favicon.svg')) ?>" type="image/svg+xml">
+<?= icon_links() ?>
 <link rel="preload" href="<?= e(url('assets/fonts/newsreader-latin-opsz-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="<?= e(url('assets/fonts/geist-latin-wght-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= e(url('assets/css/site.css')) ?>?v=<?= filemtime(ROOT . '/assets/css/site.css') ?>">
@@ -187,6 +186,7 @@ function render(string $template, array $vars = []): void
       <?php if (c('site.logo')): ?>
         <img src="<?= e(media(c('site.logo'))) ?>" alt="<?= e($siteName) ?>">
       <?php else: ?>
+        <?= emblem('brand-emblem') ?>
         <span class="brand-name"><?= e($siteName) ?></span>
         <span class="brand-sub"><?= e(c('site.full_name')) ?></span>
       <?php endif; ?>
@@ -208,6 +208,7 @@ function render(string $template, array $vars = []): void
 <footer class="site-footer">
   <div class="container footer-grid">
     <div>
+      <?= emblem('footer-emblem', 'gold') ?>
       <p class="footer-brand"><?= e($siteName) ?></p>
       <p class="footer-muted"><?= e(c('site.full_name')) ?><br><?= nl2br(e(c('site.address'))) ?></p>
     </div>

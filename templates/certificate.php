@@ -8,6 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title><?= e($cert['title'] . ' – ' . $cert['name']) ?></title>
+<?= icon_links() ?>
 <link rel="stylesheet" href="<?= e(url('assets/css/site.css')) ?>?v=<?= filemtime(ROOT . '/assets/css/site.css') ?>">
 <style>
   @page { size: A4 landscape; margin: 0; }
@@ -45,7 +46,7 @@
     <p>In the print dialog choose “Save as PDF”, landscape, without headers and footers.</p>
   </div>
   <article class="cert">
-    <img class="cert-emblem" src="<?= e(url('assets/img/res-emblem.jpg')) ?>" alt="">
+    <img class="cert-emblem" src="<?= e(url('assets/img/emblem-gold-print.png')) ?>" alt="">
     <p class="cert-conf"><?= e($cert['conference']) ?></p>
     <h1 class="cert-title"><?= e($cert['title']) ?></h1>
     <p class="cert-certify">This is to certify that</p>

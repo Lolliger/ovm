@@ -11,6 +11,7 @@ $heroImage = c('home.hero_image');
     <div class="hero-scrim"></div>
   <?php endif; ?>
   <div class="container hero-inner">
+    <?= emblem('hero-emblem', 'gold') ?>
     <?php if (c('home.hero_kicker')): ?><p class="kicker"><?= e(c('home.hero_kicker')) ?></p><?php endif; ?>
     <h1 class="hero-title"><?= emph(c('home.hero_title')) ?></h1>
     <?php if (c('home.hero_text')): ?><p class="hero-text"><?= e(c('home.hero_text')) ?></p><?php endif; ?>

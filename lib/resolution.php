@@ -1042,7 +1042,7 @@ function res_document_html(array $res, array $committee, array $mine = []): stri
 
     $forum = trim($committee['name'] . (($committee['abbr'] ?? '') !== '' ? ' (' . $committee['abbr'] . ')' : ''));
     $h = '<div class="res-doc">';
-    $h .= '<img class="res-emblem" src="' . e(url('assets/img/res-emblem.jpg')) . '" alt="" width="360" height="306">';
+    $h .= '<img class="res-emblem" src="' . e(url('assets/img/emblem-gold-print.png')) . '" alt="" width="900" height="766">';
     $h .= '<dl class="res-head">';
     $h .= '<div><dt>FORUM:</dt><dd>' . e($forum) . '</dd></div>';
     $h .= '<div><dt>TOPIC:</dt><dd>' . e($res['topic']) . '</dd></div>';

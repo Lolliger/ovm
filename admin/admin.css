@@ -53,6 +53,8 @@ code { background: #e6ecf3; padding: 0.1em 0.35em; border-radius: 0.25rem; font-
 .login-brand span, .topbar-brand span { font-family: "Geist", sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-left: 0.25rem; }
 .login-box label { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; font-size: 0.875rem; }
 .login-box p { margin: 0; }
+.login-emblem { width: 5rem; height: auto; align-self: center; }
+.login-box:has(.login-emblem) .login-brand { text-align: center; }
 
 input, select, textarea {
   width: 100%; font: inherit; color: inherit; background: #fff;
@@ -69,7 +71,9 @@ input[type=color] { width: 3rem; height: 2.4rem; padding: 0.15rem; }
   position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 1rem;
   padding: 0.6rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.topbar-brand { font-size: 1.4rem; margin-right: auto; }
+.topbar-brand { font-size: 1.4rem; margin-right: auto; display: flex; align-items: center; gap: 0.6rem; }
+.topbar-brand span { margin-left: 0; }
+.topbar-emblem { height: 2rem; width: auto; }
 .topbar form { margin: 0; }
 .topbar-link { background: none; border: 0; font: inherit; font-size: 0.875rem; color: var(--muted); cursor: pointer; text-decoration: none; padding: 0.25rem; }
 .topbar-link:hover { color: var(--accent); }

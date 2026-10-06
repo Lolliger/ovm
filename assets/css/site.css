@@ -190,6 +190,8 @@ p { margin: 0 0 1rem; }
   min-width: 0;
 }
 .brand img { max-height: 2.5rem; width: auto; }
+.brand .brand-emblem { height: 2.6rem; width: auto; max-height: none; flex: none; align-self: center; }
+.brand picture { display: contents; }
 .brand-name {
   font-family: var(--serif);
   font-size: 1.75rem;
@@ -308,6 +310,7 @@ body:has(#menu-toggle:checked) { overflow: hidden; }
   background: linear-gradient(to top, rgba(10, 18, 32, 0.88) 0%, rgba(10, 18, 32, 0.35) 55%, rgba(10, 18, 32, 0.45) 100%);
 }
 .hero-inner { padding-top: 5rem; padding-bottom: 2.5rem; }
+.hero-emblem { width: clamp(4.5rem, 9vw, 7rem); height: auto; margin-bottom: 1.5rem; filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.35)); }
 .hero .kicker { color: rgba(255, 255, 255, 0.75); }
 .hero-title {
   font-size: clamp(2.6rem, 7.5vw, 5.75rem);
@@ -638,6 +641,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--un); outlin
 .site-footer a { color: inherit; text-decoration: none; }
 .site-footer a:hover { color: #fff; text-decoration: underline; }
 .footer-grid { display: grid; gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.footer-emblem { width: 4.5rem; height: auto; margin-bottom: 1rem; }
 .footer-brand { font-family: var(--serif); font-size: 1.75rem; color: #fff; margin: 0 0 0.5rem; }
 .footer-muted { color: rgba(255, 255, 255, 0.6); font-size: 0.875rem; line-height: 1.6; }
 .footer-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); margin-bottom: 0.75rem; }
@@ -777,6 +781,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--un); outlin
 /* Beamer view */
 body.screen { background: var(--ink); color: #fff; min-height: 100vh; padding: 2vw 2.5vw; font-size: clamp(1rem, 1.35vw, 1.6rem); }
 .screen-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 2rem; margin-bottom: 2vw; }
+.screen-emblem { height: 3.4em; width: auto; flex: none; }
+.screen-head > div { margin-right: auto; }
 .screen-committee { font-size: 0.85em; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin: 0; }
 .screen-topic { font-family: var(--serif); font-size: 1.8em; line-height: 1.15; margin: 0.25em 0 0; }
 .screen .tag { background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 0.7em; }

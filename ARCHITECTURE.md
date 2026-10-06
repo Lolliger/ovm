@@ -68,7 +68,7 @@ flowchart LR
 | **Öffentliche Website** | Router, der für jede URL das passende Template mit Inhalten rendert. | `index.php`, `templates/*.php` |
 | **Admin-Bereich** | Login, 2FA und alle Bearbeitungsfunktionen: Controller und Views in einer Datei. | `admin/index.php` (+ `admin.css`, `admin.js`, `qrcode.js`) |
 | **Kern-Bibliothek** | Pfade, JSON lesen und schreiben, Inhalte laden, Sessions, CSRF, Rate-Limit, Hilfsfunktionen. | `lib/bootstrap.php` |
-| **Statische Dateien** | CSS, JavaScript (Countdown, Menü), lokal gehostete Schriften, Favicon. | `assets/` |
+| **Statische Dateien** | CSS, JavaScript (Countdown, Menü), lokal gehostete Schriften, OMUN-Emblem in Lila (hell), Blau (Dark Mode) und Gold (dunkle Flächen, Druck), Favicon. Eingebunden über `emblem()` und `icon_links()` in `lib/bootstrap.php`. | `assets/` |
 | **data/** | Alle Live-Daten: Inhalte, Passwort und 2FA, Anmeldungen, Versionen, Rate-Limits. | `data/` (siehe Abschnitt 4) |
 | **uploads/** | Hochgeladene Bilder und Dokumente, öffentlich abrufbar, ohne Skriptausführung. | `uploads/` |
 | **Strato Mailserver** | Verschickt die Benachrichtigung bei neuen Anmeldungen. | Aufruf in `lib/registration.php` → `notify_registration()` |
