@@ -165,7 +165,7 @@ function render(string $template, array $vars = []): void
   </nav>
 </aside>
 
-<?php if (c('site.banner_show') && c('site.banner_text')): ?>
+<?php if (c('site.banner_show') && c('site.banner_text') && (!c('site.banner_delegates_only') || registration_delegates_open())): ?>
   <div class="banner">
     <div class="container">
       <?php if (c('site.banner_link')): ?>

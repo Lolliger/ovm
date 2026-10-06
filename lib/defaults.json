@@ -16,7 +16,8 @@
     "color_paper": "#f0f5fa",
     "banner_show": true,
     "banner_text": "Registration for OMUN 2027 is open",
-    "banner_link": "/register"
+    "banner_link": "/register",
+    "banner_delegates_only": true
   },
   "home": {
     "hero_kicker": "Model United Nations · Munich",

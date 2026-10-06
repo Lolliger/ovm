@@ -35,6 +35,7 @@ function schema(): array
                 ['key' => 'banner_show', 'label' => 'Hinweisleiste oben anzeigen', 'type' => 'bool'],
                 ['key' => 'banner_text', 'label' => 'Text der Hinweisleiste', 'type' => 'text'],
                 ['key' => 'banner_link', 'label' => 'Link der Hinweisleiste', 'type' => 'text', 'help' => 'z. B. /register oder https://…'],
+                ['key' => 'banner_delegates_only', 'label' => 'Hinweisleiste nur zeigen, solange die Anmeldung für Delegierte offen ist', 'type' => 'bool', 'help' => 'Für einen „Registration is open“-Hinweis: Sind nur noch Chairs, Conference Manager o. Ä. offen, verschwindet die Leiste automatisch. Für andere Hinweise ausschalten.'],
             ],
         ],
         'home' => [

@@ -55,6 +55,12 @@ function registration_is_open(): bool
     return c('registration.open') && registration_open_role_defs();
 }
 
+/** Delegates can register (not only chairs, conference managers or staff). */
+function registration_delegates_open(): bool
+{
+    return c('registration.open') && in_array('delegate', array_column(registration_open_role_defs(), 'kind'), true);
+}
+
 /** delegate | chair | manager | staff – for an option name (older registrations: guessed from the name). */
 function registration_kind(string $role): string
 {
