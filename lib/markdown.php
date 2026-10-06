@@ -6,7 +6,8 @@ declare(strict_types=1);
  * All input is HTML-escaped first, so editors cannot inject scripts.
  *
  * Supports: # headings, paragraphs, **bold**, *italic*, `code`,
- * [links](https://…), ![images](uploads/…), - / 1. lists, > quotes, --- rules.
+ * [links](https://…), ![images](uploads/…), - / 1. lists, > quotes, --- rules,
+ * e-mail addresses (also "mailto:…") become links automatically.
  */
 function md(?string $text): string
 {
@@ -106,18 +107,23 @@ function md_safe_url(string $url): string
 function md_inline(string $s): string
 {
     $s = e($s);
+    // Finished pieces (code, images, links) are parked so later rules don't touch them.
     $codes = [];
-    $s = preg_replace_callback('/`([^`]+)`/', function ($m) use (&$codes) {
-        $codes[] = '<code>' . $m[1] . '</code>';
+    $park = function (string $html) use (&$codes): string {
+        $codes[] = $html;
         return "\x00" . (count($codes) - 1) . "\x00";
-    }, $s);
+    };
+    $s = preg_replace_callback('/`([^`]+)`/', fn ($m) => $park('<code>' . $m[1] . '</code>'), $s);
     $s = preg_replace_callback('/!\[([^\]]*)\]\(([^)\s]+)\)/', fn ($m) =>
-        '<img src="' . md_safe_url($m[2]) . '" alt="' . $m[1] . '" loading="lazy">', $s);
-    $s = preg_replace_callback('/\[([^\]]+)\]\(([^)\s]+)\)/', function ($m) {
+        $park('<img src="' . md_safe_url($m[2]) . '" alt="' . $m[1] . '" loading="lazy">'), $s);
+    $s = preg_replace_callback('/\[([^\]]+)\]\(([^)\s]+)\)/', function ($m) use ($park) {
         $href = md_safe_url($m[2]);
         $ext = preg_match('~^https?://~', html_entity_decode($m[2])) ? ' target="_blank" rel="noopener"' : '';
-        return '<a href="' . $href . '"' . $ext . '>' . $m[1] . '</a>';
+        return $park('<a href="' . $href . '"' . $ext . '>' . $m[1] . '</a>');
     }, $s);
+    // E-mail addresses become links: "mailto:name@example.org" and plain "name@example.org".
+    $s = preg_replace_callback('/(?<![\w.%+\/:-])(mailto:)?([a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})(?![\w@-])/i',
+        fn ($m) => $park('<a href="mailto:' . $m[2] . '">' . $m[2] . '</a>'), $s);
     $s = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $s);
     $s = preg_replace('/(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])/s', '<em>$1</em>', $s);
     $s = preg_replace('/(?<![\w_])_(?!\s)(.+?)(?<!\s)_(?![\w_])/s', '<em>$1</em>', $s);
