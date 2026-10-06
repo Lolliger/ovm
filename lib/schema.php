@@ -161,7 +161,7 @@ function schema(): array
                 ['key' => 'role', 'label' => 'Rolle', 'type' => 'text'],
                 ['key' => 'group', 'label' => 'Gruppe', 'type' => 'select', 'options' => ['Secretariat', 'Chairs', 'Organising Team', 'Teachers']],
                 ['key' => 'photo', 'label' => 'Foto', 'type' => 'image'],
-                ['key' => 'bio', 'label' => 'Kurzvorstellung', 'type' => 'textarea'],
+                ['key' => 'bio', 'label' => 'Kurzvorstellung', 'type' => 'textarea', 'help' => 'E-Mail-Adressen werden automatisch verlinkt; **fett**, *kursiv* und [Links](https://…) gehen auch. Leerzeile = neuer Absatz.'],
             ],
         ],
         'news' => [

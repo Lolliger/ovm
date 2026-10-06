@@ -977,3 +977,6 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .portal-cert strong { display: block; }
 .portal-cert span:last-child { font-size: 1.4rem; }
 .portal-cert:hover { background: #f6ecd2; }
+.person-bio-text p { line-height: 1.7; margin: 0 0 0.75rem; }
+.person-bio-text p:last-child { margin-bottom: 0; }
+.person-bio-text a { color: var(--link); }

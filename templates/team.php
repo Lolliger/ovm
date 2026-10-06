@@ -37,7 +37,7 @@ $initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => 
                 <?php if ($group): ?><p class="kicker"><?= e($group) ?></p><?php endif; ?>
                 <h3><?= e($m['name']) ?></h3>
                 <p class="person-role"><?= e($m['role'] ?? '') ?></p>
-                <?php if (!empty($m['bio'])): ?><p><?= nl2br(e($m['bio']), false) ?></p><?php endif; ?>
+                <?php if (!empty($m['bio'])): ?><div class="person-bio-text"><?= md($m['bio']) ?></div><?php endif; ?>
               </div>
             </div>
           </template>
