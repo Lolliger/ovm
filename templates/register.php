@@ -39,27 +39,32 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
       <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
       <fieldset>
+        <legend>Your login</legend>
+        <div class="field"><label for="f-code">Personal code *</label><input id="f-code" name="code" required autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. K7QF-M3XP" value="<?= e(format_code($v['code'] ?? '')) ?>">
+          <p class="hint">You received this code from us. You will log in with it – we do not ask for your name.</p></div>
+        <div class="row">
+          <div class="field"><label for="f-password">Choose a password *</label><input id="f-password" type="password" name="password" required minlength="10" autocomplete="new-password"></div>
+          <div class="field"><label for="f-password2">Repeat password *</label><input id="f-password2" type="password" name="password2" required minlength="10" autocomplete="new-password"></div>
+        </div>
+        <p class="hint">At least 10 characters.</p>
+      </fieldset>
+
+      <fieldset>
         <legend>About you</legend>
         <div class="field"><label for="f-role">Participation as *</label>
           <select id="f-role" name="role" required data-role-select>
             <option value="">– please choose –</option>
             <?php foreach (registration_role_defs() as $i => $d): if (!$d['open']) continue; ?><option data-kind="<?= e($d['kind']) ?>"<?= $d['popup'] !== '' ? ' data-popup="role-popup-' . $i . '"' : '' ?><?= ($v['role'] ?? '') === $d['name'] ? ' selected' : '' ?>><?= e($d['name']) ?></option><?php endforeach; ?>
           </select></div>
-        <div class="row">
-          <div class="field"><label for="f-first_name">First name *</label><input id="f-first_name" name="first_name" required autocomplete="given-name" value="<?= $val('first_name') ?>"></div>
-          <div class="field"><label for="f-last_name">Last name *</label><input id="f-last_name" name="last_name" required autocomplete="family-name" value="<?= $val('last_name') ?>"></div>
-        </div>
-        <div class="field"><label for="f-email">E-mail *</label><input id="f-email" type="email" name="email" required autocomplete="email" value="<?= $val('email') ?>"></div>
+        <div class="field"><label for="f-email">E-mail *</label><input id="f-email" type="email" name="email" required autocomplete="email" value="<?= $val('email') ?>">
+          <p class="hint">For your confirmation, your allocation and if you forget your password.</p></div>
         <?php if ($committeeNames): ?>
         <div class="field" data-kinds="chair"<?= $kind === 'chair' ? '' : ' hidden' ?>><label for="f-chair_committee">Committee *</label>
           <select id="f-chair_committee" name="chair_committee"><option value="">– please choose –</option>
             <?php foreach ($committeeNames as $o): ?><option<?= $kind === 'chair' && ($v['committee_1'] ?? '') === $o ? ' selected' : '' ?>><?= e($o) ?></option><?php endforeach; ?>
           </select></div>
         <?php endif; ?>
-        <div class="row" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>>
-          <div class="field"><label for="f-school">School *</label><input id="f-school" name="school" required value="<?= $val('school') ?>"></div>
-          <div class="field field-small"><label for="f-grade">Grade *</label><input id="f-grade" name="grade" required inputmode="numeric" value="<?= $val('grade') ?>"></div>
-        </div>
+        <div class="field field-small" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>><label for="f-grade">Grade *</label><input id="f-grade" name="grade" required inputmode="numeric" value="<?= $val('grade') ?>"></div>
         <div class="field" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>><label for="f-experience">MUN experience</label><?= $select('experience', ['This is my first conference', '1–2 conferences', '3 or more conferences']) ?></div>
       </fieldset>
 

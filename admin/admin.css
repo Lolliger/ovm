@@ -294,3 +294,10 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .rank li > a { color: var(--text, #1e293b); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank strong { font-variant-numeric: tabular-nums; }
 .flash-warn { background: #fffaeb; border-color: #fedf89; color: #93370d; }
+
+/* Switching old registrations to personal codes */
+.steps { margin: 0.75rem 0 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.steps li > form, .steps li > a { margin-top: 0.4rem; }
+.steps .inline-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.steps .inline-confirm input { width: 9rem; }
+.code-list code { font-size: 1rem; letter-spacing: 0.05em; }

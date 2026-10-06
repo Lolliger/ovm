@@ -136,7 +136,7 @@ function res_id(): string
 
 function reg_label(array $r): string
 {
-    return trim((string) ($r['assigned_country'] ?? '')) ?: trim($r['first_name'] . ' ' . $r['last_name']);
+    return trim((string) ($r['assigned_country'] ?? '')) ?: format_code((string) ($r['code'] ?? ''));
 }
 
 /** All non-cancelled registrations allocated to a committee. */
@@ -164,10 +164,10 @@ function committee_by_slug(string $slug): ?array
  */
 function res_context(?string $slug): ?array
 {
-    $email = portal_email();
+    $account = portal_account();
     // Logged in as a participant (e.g. testing a delegate account) → their own
     // rights only, even if the same browser is also logged into the admin.
-    $isAdmin = !$email && is_logged_in();
+    $isAdmin = !$account && is_logged_in();
     $rank = ['viewer' => 0, 'delegate' => 1, 'chair' => 2, 'admin' => 3];
     $options = []; // slug => [committee, role, reg]
     $offer = function (array $cm, string $role, ?array $reg) use (&$options, $rank) {
@@ -179,11 +179,11 @@ function res_context(?string $slug): ?array
     foreach (c('committees', []) as $cm) {
         if ($isAdmin) {
             $offer($cm, 'admin', null);
-        } elseif (is_staff_account($email)) {
+        } elseif ($account && is_staff_account($account)) {
             $offer($cm, 'viewer', null);
         }
     }
-    foreach ($email ? registrations_for($email) : [] as $r) {
+    foreach ($account ? registrations_for($account) : [] as $r) {
         if (($r['status'] ?? '') === 'cancelled' || !empty($r['role_pending'])) {
             continue; // chairs / conference managers only once confirmed in the admin
         }
@@ -208,7 +208,7 @@ function res_context(?string $slug): ?array
     $pick = $slug !== null && isset($options[$slug]) ? $options[$slug] : reset($options);
     [$cm, $role, $reg] = $pick;
     $label = match ($role) {
-        'viewer' => $reg ? 'Conference manager (view only)' : (staff_accounts()[$email]['label'] ?? 'Laptop') . ' (view only)',
+        'viewer' => $reg ? 'Conference manager (view only)' : (staff_accounts()[$account]['label'] ?? 'Laptop') . ' (view only)',
         'admin' => 'Chair',
         default => $reg ? reg_label($reg) : 'Chair',
     };
@@ -1131,7 +1131,7 @@ function resolution_route(): void
             http_response_code(403);
             exit('{}');
         }
-        if (!portal_email() && !is_logged_in()) {
+        if (!portal_account() && !is_logged_in()) {
             redirect_to(login_url());
         }
         render('resolution-none', ['title' => 'Resolution']);

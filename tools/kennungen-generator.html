@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMUN Kennungen-Generator</title>
+<!--
+  Läuft komplett offline im Browser: Doppelklick auf die Datei genügt.
+  Es wird nichts hochgeladen oder gespeichert – Namen bleiben auf diesem Computer.
+  Gleiches Format wie lib/codes.php: 8 Zeichen aus CODE_CHARS, mind. 1 Buchstabe und 1 Ziffer.
+-->
+<style>
+  :root { --ink: #1f044a; --muted: #5d6b80; --line: #d5dce6; --bg: #f4f6fa; --accent: #046bd2; --ok: #12784a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: #1b2433; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 56rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-family: Georgia, serif; font-weight: 600; color: var(--ink); margin: 0 0 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+  .lead { color: var(--muted); margin: 0 0 1.5rem; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+  label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.35rem; }
+  textarea, input { width: 100%; font: inherit; padding: 0.55rem 0.7rem; border: 1px solid #b9c5d3; border-radius: 0.5rem; background: #fff; }
+  textarea { min-height: 9rem; resize: vertical; }
+  input[type=number] { width: 8rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: flex-end; }
+  .hint { color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0; }
+  button { font: 600 0.95rem/1.2 inherit; padding: 0.7rem 1.2rem; border-radius: 0.5rem; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+  td.code { font: 600 1rem ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.05em; }
+  .msg { margin: 0.75rem 0 0; font-weight: 600; color: var(--ok); }
+  .warn { background: #fff7e6; border-color: #f0c36d; }
+  ol { margin: 0; padding-left: 1.2rem; }
+  /* Printable slips: one per person, to cut out and hand over. */
+  .slips { display: none; }
+  @media print {
+    body { background: #fff; }
+    main > *:not(.slips) { display: none !important; }
+    .slips { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .slip { border: 1px dashed #999; padding: 6mm; break-inside: avoid; font-size: 10.5pt; }
+    .slip strong { display: block; font: 700 16pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.08em; margin: 2mm 0; color: #000; }
+    .slip .name { font-size: 9pt; color: #555; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kennungen-Generator</h1>
+  <p class="lead">Erzeugt persönliche Kennungen für die OMUN-Anmeldung. Läuft nur in diesem Browser – nichts wird hochgeladen.</p>
+
+  <div class="card warn">
+    <h2>So geht's</h2>
+    <ol>
+      <li>Namensliste einfügen (eine Person pro Zeile) <em>oder</em> nur eine Anzahl angeben.</li>
+      <li><strong>„Liste mit Namen“</strong> herunterladen und bei euch speichern – sie kommt <strong>nie</strong> auf die Website.</li>
+      <li><strong>„Nur Kennungen“</strong> herunterladen und im Admin unter <em>Kennungen</em> hochladen.</li>
+      <li>Jeder Person ihre Kennung geben (z. B. mit „Zettel drucken“).</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <label for="names">Namensliste (optional, eine Person pro Zeile – z. B. aus Excel kopiert)</label>
+    <textarea id="names" placeholder="Max Mustermann&#10;Erika Musterfrau"></textarea>
+    <p class="hint">Mehrere Spalten aus Excel (z. B. Name und Schule) bleiben zusammen in einer Zeile erhalten.</p>
+    <div class="row" style="margin-top: 1rem">
+      <div><label for="count">… oder Anzahl ohne Namen</label><input id="count" type="number" min="1" max="5000" value="50"></div>
+      <div style="flex: 1"><label for="existing">Schon vergebene Kennungen (optional, damit keine doppelt vorkommt)</label><input id="existing" placeholder="z. B. Inhalt der letzten kennungen-upload.txt"></div>
+    </div>
+    <div class="actions"><button id="generate">Kennungen erzeugen</button></div>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <h2 id="result-title"></h2>
+    <div class="actions">
+      <button id="dl-names">Liste mit Namen (CSV, nur für euch)</button>
+      <button id="dl-upload" class="ghost">Nur Kennungen (für den Admin)</button>
+      <button id="print" class="ghost">Zettel drucken</button>
+    </div>
+    <p class="msg" id="msg"></p>
+    <table><thead><tr><th>#</th><th>Kennung</th><th>Name</th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+
+  <div class="slips" id="slips"></div>
+</main>
+<script>
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I
+  const $ = (id) => document.getElementById(id);
+  let rows = [];
+
+  const normalize = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const format = (c) => c.slice(0, 4) + '-' + c.slice(4);
+  const formatOk = (c) => /^[A-HJ-NP-Z2-9]{8}$/.test(c) && /\d/.test(c) && /[A-Z]/.test(c);
+
+  function randomCode() {
+    // crypto.getRandomValues: cryptographically secure; 256 is a multiple of 32, so no bias.
+    const bytes = new Uint8Array(8);
+    let code;
+    do {
+      crypto.getRandomValues(bytes);
+      code = Array.from(bytes, (b) => CHARS[b % 32]).join('');
+    } while (!formatOk(code));
+    return code;
+  }
+
+  function download(name, text) {
+    const blob = new Blob(['﻿' + text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  const csvCell = (v) => /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  const today = () => new Date().toISOString().slice(0, 10);
+  const esc = (s) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+  $('generate').addEventListener('click', () => {
+    const names = $('names').value.split(/\r?\n/).map((l) => l.replace(/\t+/g, ', ').trim()).filter(Boolean);
+    const count = names.length || Math.min(5000, Math.max(1, parseInt($('count').value, 10) || 0));
+    const used = new Set($('existing').value.split(/[\s,;]+/).map(normalize).filter(formatOk));
+    rows = [];
+    while (rows.length < count) {
+      const code = randomCode();
+      if (used.has(code)) continue;
+      used.add(code);
+      rows.push({ code, name: names[rows.length] || '' });
+    }
+    $('rows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td class="code">${format(r.code)}</td><td>${esc(r.name)}</td></tr>`).join('');
+    $('slips').innerHTML = rows.map((r) => `<div class="slip">OMUN – your personal code for registration and login:<strong>${format(r.code)}</strong>Register at omun.eu/register${r.name ? `<div class="name">${esc(r.name)}</div>` : ''}</div>`).join('');
+    $('result-title').textContent = `${rows.length} Kennungen erzeugt` + (names.length ? ' (eine pro Name)' : '');
+    $('msg').textContent = '';
+    $('result').hidden = false;
+  });
+
+  $('dl-names').addEventListener('click', () => {
+    const lines = ['Kennung;Name', ...rows.map((r) => format(r.code) + ';' + csvCell(r.name))];
+    download(`kennungen-mit-namen-NICHT-HOCHLADEN-${today()}.csv`, lines.join('\r\n') + '\r\n');
+    $('msg').textContent = 'Liste mit Namen gespeichert – bitte sicher bei euch aufbewahren.';
+  });
+
+  $('dl-upload').addEventListener('click', () => {
+    download(`kennungen-upload-${today()}.txt`, rows.map((r) => format(r.code)).join('\r\n') + '\r\n');
+    $('msg').textContent = 'Datei für den Admin gespeichert: im Admin unter „Kennungen“ hochladen.';
+  });
+
+  $('print').addEventListener('click', () => window.print());
+</script>
+</body>
+</html>

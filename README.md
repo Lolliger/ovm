@@ -16,6 +16,7 @@ und werden über **/admin** gepflegt.
 | `lib/defaults.json` | Startinhalte beim allerersten Aufruf |
 | `data/` | **Live-Daten**: Inhalte, Passwort-Hash, Anmeldungen (per `.htaccess` gesperrt) |
 | `uploads/` | Hochgeladene Bilder und Dateien |
+| `tools/kennungen-generator.html` | Generator für die persönlichen Kennungen (Anmeldung ohne Namen). Lokal per Doppelklick im Browser öffnen, läuft offline; auf dem Server per `.htaccess` gesperrt |
 
 ## Auf Strato hochladen
 

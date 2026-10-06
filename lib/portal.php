@@ -2,10 +2,13 @@
 declare(strict_types=1);
 
 /**
- * Participant portal: login with e-mail + generated password (sent after
- * registering), "forgot password" via one-time e-mail link, overview of the
- * own registration(s) and upload of position papers.
+ * Participant portal: login with the personal code ("Kennung") + the password
+ * chosen when registering, "forgot password" via one-time link to the e-mail
+ * address of the registration, overview of the own registration and upload of
+ * position papers. Names are not stored (see lib/codes.php).
  */
+
+require_once __DIR__ . '/codes.php';
 
 const LOGIN_TOKEN_TTL = 1800;       // link valid for 30 minutes
 const PORTAL_IDLE = 2 * 3600;       // logged out after 2 h without activity
@@ -35,42 +38,41 @@ function normalize_email(string $email): string
 /* ---------- Login links ---------- */
 
 /**
- * Creates a one-time login token for an e-mail address and returns it,
- * or null if a link was requested for this address less than a minute ago.
+ * Creates a one-time login token for an account (personal code) and returns it,
+ * or null if a link was requested for this account less than a minute ago.
  */
-function create_login_token(string $email): ?string
+function create_login_token(string $account): ?string
 {
-    $email = normalize_email($email);
     $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     $created = true;
-    update_json(TOKENS_FILE, function (array $tokens) use ($email, $token, &$created) {
+    update_json(TOKENS_FILE, function (array $tokens) use ($account, $token, &$created) {
         $now = time();
         $tokens = array_filter($tokens, fn ($t) => $t['exp'] > $now);
         foreach ($tokens as $t) {
-            if ($t['email'] === $email && $t['created'] > $now - 60) {
+            if (($t['account'] ?? null) === $account && $t['created'] > $now - 60) {
                 $created = false;
                 return $tokens;
             }
         }
-        $tokens[hash('sha256', $token)] = ['email' => $email, 'created' => $now, 'exp' => $now + LOGIN_TOKEN_TTL];
+        $tokens[hash('sha256', $token)] = ['account' => $account, 'created' => $now, 'exp' => $now + LOGIN_TOKEN_TTL];
         return $tokens;
     });
     return $created ? $token : null;
 }
 
-/** Returns the e-mail address for a valid token and invalidates the token. */
+/** Returns the account for a valid token and invalidates the token. */
 function consume_login_token(string $token): ?string
 {
-    $email = null;
+    $account = null;
     $hash = hash('sha256', $token);
-    update_json(TOKENS_FILE, function (array $tokens) use ($hash, &$email) {
+    update_json(TOKENS_FILE, function (array $tokens) use ($hash, &$account) {
         if (isset($tokens[$hash]) && $tokens[$hash]['exp'] > time()) {
-            $email = $tokens[$hash]['email'];
+            $account = $tokens[$hash]['account'] ?? null;
         }
         unset($tokens[$hash]);
         return array_filter($tokens, fn ($t) => $t['exp'] > time());
     });
-    return $email;
+    return $account;
 }
 
 function login_link(string $token): string
@@ -84,7 +86,17 @@ function fill_placeholders(string $text, array $vars): string
     return preg_replace_callback('/\{(\w+)\}/', fn ($m) => $vars[$m[1]] ?? $m[0], $text);
 }
 
-/* ---------- Accounts: username = e-mail address ---------- */
+/* ---------- Accounts: username = personal code ---------- */
+
+/**
+ * What someone types as username → account key: the staff account name
+ * ("laptops"), otherwise the normalized personal code.
+ */
+function account_key(string $login): string
+{
+    $name = strtolower(trim($login));
+    return isset(staff_accounts()[$name]) ? $name : normalize_code($login);
+}
 
 /**
  * Strong but easy to type password, e.g. "Kavo-Rimu-Teza-Lopa-47":
@@ -105,16 +117,10 @@ function generate_password(): string
     return implode('-', $groups) . '-' . random_int(10, 99);
 }
 
-function account_exists(string $email): bool
+function set_account_password(string $account, string $password): void
 {
-    return isset(read_json(ACCOUNTS_FILE)[normalize_email($email)]);
-}
-
-function set_account_password(string $email, string $password): void
-{
-    $email = normalize_email($email);
-    update_json(ACCOUNTS_FILE, function (array $accounts) use ($email, $password) {
-        $accounts[$email] = ['hash' => password_hash($password, PASSWORD_DEFAULT), 'changed' => date('c')];
+    update_json(ACCOUNTS_FILE, function (array $accounts) use ($account, $password) {
+        $accounts[$account] = ['hash' => password_hash($password, PASSWORD_DEFAULT), 'changed' => date('c')];
         return $accounts;
     });
 }
@@ -140,101 +146,113 @@ function set_staff_password(string $name, string $password): void
     });
 }
 
-function verify_account(string $email, string $password): bool
+function verify_account(string $account, string $password): bool
 {
-    $name = normalize_email($email);
-    $hash = (staff_accounts()[$name] ?? read_json(ACCOUNTS_FILE)[$name] ?? [])['hash'] ?? null;
+    $hash = $account === '' ? null : ((staff_accounts()[$account] ?? read_json(ACCOUNTS_FILE)[$account] ?? [])['hash'] ?? null);
     if (!$hash) {
         // Same amount of work as a real check, so the response time does not
-        // reveal whether an address is registered.
+        // reveal whether a code is registered.
         password_verify($password, '$2y$12$oijHYh35lxqfWJ94XfYnReqTZc.sNxlC6Db3vCxP3rqjB6U9J7gfW');
         return false;
     }
     return password_verify($password, $hash);
 }
 
-/** Removes accounts whose registrations have all been deleted. */
+/**
+ * Removes accounts whose registration has been deleted (also old accounts from
+ * before the switch to personal codes) and frees their codes.
+ */
 function delete_orphan_accounts(): void
 {
+    release_unused_codes();
     if (!is_file(ACCOUNTS_FILE)) {
         return;
     }
-    $emails = array_map(fn ($r) => normalize_email($r['email'] ?? ''), read_json(REGISTRATIONS_FILE));
-    update_json(ACCOUNTS_FILE, fn (array $accounts) => array_intersect_key($accounts, array_flip($emails)));
+    $codes = array_map(fn ($r) => normalize_code((string) ($r['code'] ?? '')), read_json(REGISTRATIONS_FILE));
+    update_json(ACCOUNTS_FILE, fn (array $accounts) => array_intersect_key($accounts, array_flip(array_filter($codes))));
 }
 
 function credentials_block(array $vars): string
 {
     return "\n\nYour login for the delegate area:\n"
-        . "Website:  {$vars['portal']}\n"
-        . "Username: {$vars['username']}\n"
-        . "Password: {$vars['password']}\n";
+        . "Website:       {$vars['portal']}\n"
+        . "Personal code: {$vars['username']}\n"
+        . "Password:      {$vars['password']}\n";
+}
+
+/** The e-mail address of an account (from its registration), or null. */
+function account_email(string $account): ?string
+{
+    foreach (registrations_for($account) as $r) {
+        if (($r['email'] ?? '') !== '') {
+            return $r['email'];
+        }
+    }
+    return null;
 }
 
 /**
- * Confirmation mail right after registering. New addresses get an account
- * with a generated password; addresses that already have one keep it.
+ * Confirmation mail right after registering. The participant chose the
+ * password in the form, so it is not repeated here.
  */
 function send_confirmation(array $entry): bool
 {
     if (!c('portal.confirm_email')) {
         return false;
     }
-    $password = null;
-    if (!account_exists($entry['email'])) {
-        $password = generate_password();
-        set_account_password($entry['email'], $password);
-    }
     $portal = login_url();
+    $code = format_code($entry['code']);
     $vars = [
-        'first_name' => $entry['first_name'],
-        'last_name' => $entry['last_name'],
+        'code' => $code,
+        // Older mail texts still greet with {first_name}; names are no longer stored.
+        'first_name' => $code,
+        'last_name' => '',
         'conference' => c('conference.edition'),
-        'username' => $entry['email'],
-        'password' => $password ?? '(unchanged – use the password you already received)',
+        'username' => $code,
+        'password' => '(the password you chose when registering)',
         'portal' => $portal,
         'link' => $portal,
         'email' => c('site.email'),
     ];
     $template = (string) c('portal.confirm_text');
     $body = fill_placeholders($template, $vars);
-    if (!str_contains($template, '{password}')) {
+    if (!str_contains($template, '{code}') && !str_contains($template, '{username}')) {
         $body .= credentials_block($vars);
     }
     $summary = [];
     foreach (registration_fields() as $key => [$label]) {
         if (($entry[$key] ?? '') !== '') {
-            $summary[] = $label . ': ' . $entry[$key];
+            $summary[] = $label . ': ' . ($key === 'code' ? format_code($entry[$key]) : $entry[$key]);
         }
     }
     $body .= "\n\n---\nYour details:\n" . implode("\n", $summary) . "\n";
     return send_mail($entry['email'], fill_placeholders((string) c('portal.confirm_subject'), $vars), $body, c('site.email') ?: null);
 }
 
-/** New password + e-mail with the login details (button in the admin). */
-function send_new_credentials(string $email): bool
+/** New password + e-mail with the login details to the registration's address (button in the admin). */
+function send_new_credentials(string $account): bool
 {
-    $email = normalize_email($email);
-    if (!registrations_for($email)) {
+    $email = account_email($account);
+    if (!$email) {
         return false;
     }
     $password = generate_password();
-    set_account_password($email, $password);
-    $vars = ['portal' => login_url(), 'username' => $email, 'password' => $password];
+    set_account_password($account, $password);
+    $vars = ['portal' => login_url(), 'username' => format_code($account), 'password' => $password];
     $body = "Hello,\n\nhere are your (new) login details for the " . c('site.name') . " delegate area."
         . credentials_block($vars)
         . "\nAny previous password no longer works. You can change the password after logging in.\n";
     return send_mail($email, c('site.name') . ' – your login details', $body, c('site.email') ?: null);
 }
 
-/** "Forgot password": one-time login link, then set a new password in the portal. */
-function send_login_link(string $email): bool
+/** "Forgot password": one-time login link to the registration's address, then set a new password in the portal. */
+function send_login_link(string $account): bool
 {
-    $email = normalize_email($email);
-    if (!registrations_for($email)) {
+    $email = account_email($account);
+    if (!$email) {
         return false;
     }
-    $token = create_login_token($email);
+    $token = create_login_token($account);
     if (!$token) {
         return true; // one was just sent, don't flood the inbox
     }
@@ -248,13 +266,13 @@ function send_login_link(string $email): bool
 /* ---------- Login on/off per group ---------- */
 
 /** Groups an account belongs to: delegate, chair, manager, admin, staff, laptop. */
-function login_groups(string $email): array
+function login_groups(string $account): array
 {
-    if (is_staff_account($email)) {
+    if (is_staff_account($account)) {
         return ['laptop'];
     }
     $groups = [];
-    foreach (registrations_for($email) as $r) {
+    foreach (registrations_for($account) as $r) {
         $kind = $r['kind'] ?? registration_kind((string) ($r['role'] ?? ''));
         if (!empty($r['is_admin'])) {
             $groups[] = 'admin';
@@ -273,20 +291,20 @@ function login_groups(string $email): array
 }
 
 /** True if at least one of the account's groups may currently log in (Admin → Teilnehmer-Bereich). */
-function login_allowed(string $email): bool
+function login_allowed(string $account): bool
 {
     static $cache = [];
-    if (!isset($cache[$email])) {
+    if (!isset($cache[$account])) {
         $keys = ['delegate' => 'login_delegates', 'chair' => 'login_chairs', 'manager' => 'login_managers',
             'admin' => 'login_admins', 'staff' => 'login_staff', 'laptop' => 'login_laptop'];
-        $cache[$email] = false;
-        foreach (login_groups($email) as $g) {
+        $cache[$account] = false;
+        foreach (login_groups($account) as $g) {
             if (c('portal.' . $keys[$g], true)) {
-                $cache[$email] = true;
+                $cache[$account] = true;
             }
         }
     }
-    return $cache[$email];
+    return $cache[$account];
 }
 
 function login_closed_message(): string
@@ -296,36 +314,42 @@ function login_closed_message(): string
 
 /* ---------- Session ---------- */
 
-function portal_email(): ?string
+/** The logged-in account (personal code or staff account name), or null. */
+function portal_account(): ?string
 {
     start_session();
     $p = $_SESSION['portal'] ?? null;
-    if (!$p || time() - $p['last'] > PORTAL_IDLE) {
+    // Sessions from before the switch to personal codes have no 'account'.
+    if (!$p || !isset($p['account']) || time() - $p['last'] > PORTAL_IDLE) {
         unset($_SESSION['portal']);
         return null;
     }
-    if (!login_allowed($p['email'])) {
+    if (!login_allowed($p['account'])) {
         unset($_SESSION['portal']);
         $_SESSION['login_closed'] = true;
         return null;
     }
     $_SESSION['portal']['last'] = time();
-    return $p['email'];
+    return $p['account'];
 }
 
-function portal_login(string $email): void
+function portal_login(string $account): void
 {
     start_session();
     session_regenerate_id(true);
-    $_SESSION['portal'] = ['email' => $email, 'last' => time()];
+    $_SESSION['portal'] = ['account' => $account, 'last' => time()];
 }
 
 /* ---------- Registrations & papers ---------- */
 
-function registrations_for(string $email): array
+/** The registration(s) of an account (one per personal code). */
+function registrations_for(string $account): array
 {
-    $email = normalize_email($email);
-    return array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => normalize_email($r['email'] ?? '') === $email));
+    $code = normalize_code($account);
+    if ($code === '' || is_staff_account($account)) {
+        return [];
+    }
+    return array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => normalize_code((string) ($r['code'] ?? '')) === $code));
 }
 
 function papers_open(): bool
@@ -380,7 +404,8 @@ function store_paper(string $regId, array $file): ?string
                 $old = $r;
                 $r['paper'] = [
                     'file' => $stored,
-                    'name' => mb_substr(preg_replace('/[^\w .()-]/u', '_', $file['name']), 0, 120),
+                    // Not the original file name – it often contains the participant's name.
+                    'name' => 'Position paper ' . (format_code((string) ($r['code'] ?? '')) ?: $regId) . '.' . $ext,
                     'size' => (int) $file['size'],
                     'uploaded' => date('c'),
                 ];
@@ -542,10 +567,10 @@ function login_route(?string $sub): void
                 $error = 'Your session expired. Please click the button again.';
             } elseif (rate_limited('portal-login', 30, 3600)) {
                 $error = 'Too many attempts. Please try again later.';
-            } elseif (($email = consume_login_token((string) ($_POST['token'] ?? ''))) && !login_allowed($email)) {
+            } elseif (($account = consume_login_token((string) ($_POST['token'] ?? ''))) && !login_allowed($account)) {
                 $error = login_closed_message();
-            } elseif ($email) {
-                portal_login($email);
+            } elseif ($account) {
+                portal_login($account);
                 redirect_to(portal_home());
             } else {
                 $error = 'This login link is invalid or has expired.';
@@ -559,16 +584,16 @@ function login_route(?string $sub): void
         $sent = false;
         $error = '';
         if ($post) {
-            $address = trim((string) ($_POST['email'] ?? ''));
+            $code = normalize_code((string) ($_POST['code'] ?? ''));
             if (!csrf_check()) {
                 $error = 'Your session expired. Please try again.';
-            } elseif (!filter_var($address, FILTER_VALIDATE_EMAIL)) {
-                $error = 'Please enter a valid e-mail address.';
+            } elseif (!code_format_ok($code)) {
+                $error = 'Please enter your personal code (8 characters, e.g. K7QF-M3XP).';
             } elseif (rate_limited('portal-link', 6, 3600)) {
                 $error = 'Too many requests. Please try again later.';
             } else {
-                send_login_link($address);
-                $sent = true; // same answer whether the address is registered or not
+                send_login_link($code);
+                $sent = true; // same answer whether the code is registered or not
             }
         }
         render('portal-forgot', ['title' => 'Forgot password', 'sent' => $sent, 'error' => $error]);
@@ -578,7 +603,7 @@ function login_route(?string $sub): void
     if ($sub !== null) {
         not_found();
     }
-    if (portal_email()) {
+    if (portal_account()) {
         redirect_to(portal_home());
     }
     $error = '';
@@ -588,21 +613,22 @@ function login_route(?string $sub): void
     }
     $address = '';
     if ($post) {
-        $address = trim((string) ($_POST['email'] ?? ''));
+        $address = trim((string) ($_POST['code'] ?? ''));
+        $account = account_key($address);
         if (!csrf_check()) {
             $error = 'Your session expired. Please try again.';
         } elseif (rate_limited('portal-password', 10, 900)) {
             $error = 'Too many attempts. Please wait 15 minutes and try again.';
-        } elseif (verify_account($address, (string) ($_POST['password'] ?? ''))) {
-            if (!login_allowed(normalize_email($address))) {
+        } elseif (verify_account($account, (string) ($_POST['password'] ?? ''))) {
+            if (!login_allowed($account)) {
                 $error = login_closed_message();
             } else {
-                portal_login(normalize_email($address));
+                portal_login($account);
                 redirect_to(portal_home());
             }
         } else {
             usleep(300000);
-            $error = 'Username or password is wrong.';
+            $error = 'Personal code or password is wrong.';
         }
     }
     render('portal-login', ['title' => 'Delegate login', 'error' => $error, 'address' => $address]);
@@ -624,25 +650,25 @@ function portal_route(?string $sub): void
         redirect_to(login_url());
     }
 
-    $email = portal_email();
+    $account = portal_account();
 
     if ($sub === 'resolution') {
         resolution_route();
         return;
     }
     if ($sub === 'certificate') {
-        foreach ($email ? registrations_for($email) : [] as $reg) {
+        foreach ($account ? registrations_for($account) : [] as $reg) {
             if ($reg['id'] === ($_GET['id'] ?? '') && certificate_available($reg)) {
                 send_certificate($reg);
             }
         }
-        if (!$email) {
+        if (!$account) {
             redirect_to(login_url());
         }
         not_found();
     }
     if ($sub === 'paper') {
-        foreach ($email ? registrations_for($email) : [] as $reg) {
+        foreach ($account ? registrations_for($account) : [] as $reg) {
             if ($reg['id'] === ($_GET['id'] ?? '')) {
                 send_paper($reg);
             }
@@ -653,7 +679,7 @@ function portal_route(?string $sub): void
     if ($sub !== null) {
         not_found();
     }
-    if (!$email) {
+    if (!$account) {
         redirect_to(login_url());
     }
 
@@ -665,7 +691,7 @@ function portal_route(?string $sub): void
     }
     if ($post && ($_POST['a'] ?? '') === 'paper') {
         $regId = (string) ($_POST['id'] ?? '');
-        $own = array_filter(registrations_for($email), fn ($r) => $r['id'] === $regId);
+        $own = array_filter(registrations_for($account), fn ($r) => $r['id'] === $regId);
         if (!csrf_check()) {
             $error = 'Your session expired. Please try again.';
         } elseif (!$own) {
@@ -678,7 +704,7 @@ function portal_route(?string $sub): void
             $message = 'Thank you! Your position paper has been uploaded.';
         }
     }
-    $staff = is_staff_account($email);
+    $staff = is_staff_account($account);
     if ($post && ($_POST['a'] ?? '') === 'password') {
         $new = (string) ($_POST['new_password'] ?? '');
         if (!csrf_check()) {
@@ -690,11 +716,11 @@ function portal_route(?string $sub): void
         } elseif ($new !== ($_POST['new_password2'] ?? '')) {
             $error = 'The two passwords do not match.';
         } else {
-            set_account_password($email, $new);
+            set_account_password($account, $new);
             $message = 'Your password has been changed.';
         }
     }
-    render('portal', ['title' => $staff ? 'Conference area' : 'Your registration', 'email' => $email, 'staff' => $staff, 'regs' => $staff ? [] : registrations_for($email), 'message' => $message, 'error' => $error]);
+    render('portal', ['title' => $staff ? 'Conference area' : 'Your registration', 'account' => $account, 'staff' => $staff, 'regs' => $staff ? [] : registrations_for($account), 'message' => $message, 'error' => $error]);
 }
 
 /** Requests on the portal subdomain: only the delegate area, everything else goes to the main site. */
@@ -803,7 +829,8 @@ function certificate_vars(array $reg): array
         }
     }
     return [
-        'name' => trim($reg['first_name'] . ' ' . $reg['last_name']),
+        // Names are not stored: the participant types it on the certificate page (stays in the browser).
+        'name' => '',
         'title' => c('portal.cert_title') ?: 'Certificate of Participation',
         'text' => fill_placeholders((string) c('portal.cert_text'), $vars),
         'signers' => $signers,

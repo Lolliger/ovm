@@ -7,7 +7,7 @@ $statuses = registration_statuses();
 <section class="section">
   <div class="container narrow portal">
     <div class="portal-top">
-      <p class="muted">Logged in as <strong><?= e($email) ?></strong></p>
+      <p class="muted">Logged in as <strong><?= e($staff ? $account : format_code($account)) ?></strong></p>
       <form method="post" action="<?= e(portal_link('logout')) ?>"><?= csrf_field() ?><button class="btn-link" type="submit">Log out</button></form>
     </div>
     <?php if ($message): ?><div class="notice notice-ok" role="status"><?= e($message) ?></div><?php endif; ?>
@@ -51,7 +51,7 @@ $statuses = registration_statuses();
     <?php if (c('portal.intro')): ?><div class="prose"><?= md(c('portal.intro')) ?></div><?php endif; ?>
 
     <?php if (!$regs): ?>
-      <div class="notice"><p>We could not find a registration for this address (it may have been deleted after the conference).</p></div>
+      <div class="notice"><p>We could not find a registration for this code (it may have been deleted after the conference).</p></div>
     <?php endif; ?>
 
     <?php foreach ($regs as $r): ?>
@@ -62,7 +62,7 @@ $statuses = registration_statuses();
       ?>
       <article class="portal-card">
         <header>
-          <h2><?= e($r['first_name'] . ' ' . $r['last_name']) ?></h2>
+          <h2><?= e(format_code((string) ($r['code'] ?? '')) ?: 'Your registration') ?></h2>
           <span class="tag status-<?= e($status) ?>"><?= e($statuses[$status][0] ?? $status) ?></span>
         </header>
 
@@ -81,7 +81,7 @@ $statuses = registration_statuses();
               <?= e(committee_display((string) ($r['assigned_committee'] ?? '')) ?: 'Not allocated yet') ?>
             <?php endif; ?>
           </dd></div><?php endif; ?>
-          <?php if (($r['school'] ?? '') !== ''): ?><div><dt>School</dt><dd><?= e($r['school']) ?>, grade <?= e($r['grade']) ?></dd></div><?php endif; ?>
+          <?php if (($r['grade'] ?? '') !== ''): ?><div><dt>Grade</dt><dd><?= e($r['grade']) ?></dd></div><?php endif; ?>
           <div><dt>Registered on</dt><dd><?= e(format_date($r['created'])) ?></dd></div>
         </dl>
 
@@ -119,7 +119,7 @@ $statuses = registration_statuses();
       <form class="form" method="post" action="<?= e(portal_link()) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="a" value="password">
-        <input type="hidden" name="username" value="<?= e($email) ?>" autocomplete="username">
+        <input type="hidden" name="username" value="<?= e(format_code($account)) ?>" autocomplete="username">
         <div class="field"><label for="p-new">New password (at least 10 characters)</label><input id="p-new" type="password" name="new_password" required minlength="10" autocomplete="new-password"></div>
         <div class="field"><label for="p-new2">Repeat new password</label><input id="p-new2" type="password" name="new_password2" required minlength="10" autocomplete="new-password"></div>
         <button class="btn" type="submit">Save new password</button>

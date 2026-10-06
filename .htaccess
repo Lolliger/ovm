@@ -19,7 +19,7 @@ DirectoryIndex index.php
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
   # Interne Ordner sperren
-  RewriteRule ^(data|lib|templates)(/|$) - [F,L]
+  RewriteRule ^(data|lib|templates|tools)(/|$) - [F,L]
   RewriteRule (^|/)\.(?!well-known/) - [F,L]
   RewriteRule ^(README\.md|ARCHITECTURE\.md|UPDATES\.md|\.gitignore|start-windows\.bat|start-mac\.command)$ - [F,L]
 

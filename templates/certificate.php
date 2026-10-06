@@ -1,5 +1,8 @@
 <?php
-/** Printable certificate (A4 landscape, "Save as PDF" in the browser). @var array $cert */
+/**
+ * Printable certificate (A4 landscape, "Save as PDF" in the browser). @var array $cert
+ * Names are not stored on the website: the participant types their name here; it stays in the browser.
+ */
 ?>
 <!doctype html>
 <html lang="en">
@@ -7,7 +10,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title><?= e($cert['title'] . ' – ' . $cert['name']) ?></title>
+<title><?= e($cert['title'] . ($cert['name'] !== '' ? ' – ' . $cert['name'] : '')) ?></title>
 <?= icon_links() ?>
 <link rel="stylesheet" href="<?= e(url('assets/css/site.css')) ?>?v=<?= filemtime(ROOT . '/assets/css/site.css') ?>">
 <style>
@@ -15,6 +18,10 @@
   html, body { background: #e9edf2; }
   .cert-actions { text-align: center; padding: 1.25rem 1rem; }
   .cert-actions p { font-size: 0.85rem; color: #5d6b80; margin: 0.5rem 0 0; }
+  .cert-actions label { display: block; font: 600 0.9rem var(--sans, sans-serif); margin: 0 auto 0.75rem; max-width: 26rem; text-align: left; }
+  .cert-actions input { display: block; width: 100%; margin-top: 0.35rem; font: inherit; font-weight: 400; padding: 0.6rem 0.75rem; border: 1px solid #b9c5d3; border-radius: 0.5rem; }
+  .cert-name:empty::before { content: "Your name"; color: #b9c5d3; }
+  @media print { .cert-name:empty::before { content: none; } }
   .cert {
     width: 297mm; height: 210mm; margin: 0 auto 2rem; background: #fff; color: #1b2433; position: relative;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12); font-family: "Times New Roman", Times, "Liberation Serif", serif;
@@ -42,15 +49,18 @@
 </head>
 <body>
   <div class="cert-actions">
+    <label>Your name as it should appear on the certificate
+      <input id="cert-name-input" autocomplete="name" value="<?= e($cert['name']) ?>">
+    </label>
     <button class="btn" onclick="window.print()">Download as PDF / print</button>
-    <p>In the print dialog choose “Save as PDF”, landscape, without headers and footers.</p>
+    <p>Your name is only used on this page and is not saved. In the print dialog choose “Save as PDF”, landscape, without headers and footers.</p>
   </div>
   <article class="cert">
     <img class="cert-emblem" src="<?= e(url('assets/img/emblem-gold-print.png')) ?>" alt="">
     <p class="cert-conf"><?= e($cert['conference']) ?></p>
     <h1 class="cert-title"><?= e($cert['title']) ?></h1>
     <p class="cert-certify">This is to certify that</p>
-    <p class="cert-name"><?= e($cert['name']) ?></p>
+    <p class="cert-name" id="cert-name"><?= e($cert['name']) ?></p>
     <p class="cert-text"><?= e($cert['text']) ?></p>
     <?php if ($cert['signers']): ?>
       <div class="cert-signs">
@@ -58,5 +68,10 @@
       </div>
     <?php endif; ?>
   </article>
+  <script>
+    document.getElementById('cert-name-input').addEventListener('input', (ev) => {
+      document.getElementById('cert-name').textContent = ev.target.value.trim();
+    });
+  </script>
 </body>
 </html>

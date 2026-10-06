@@ -308,17 +308,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect(admin_url(['s' => 'resolutions']));
 
             case 'reg_sendcreds':
-                $email = '';
+                $reg = null;
                 foreach (read_json(REGISTRATIONS_FILE) as $r) {
                     if (($r['id'] ?? '') === ($_POST['id'] ?? '')) {
-                        $email = $r['email'];
+                        $reg = $r;
                     }
                 }
-                if ($email && send_new_credentials($email)) {
-                    flash('Neue Zugangsdaten an ' . $email . ' gesendet. Das alte Passwort gilt nicht mehr.');
+                if ($reg && ($reg['code'] ?? '') === '') {
+                    flash('Diese Anmeldung hat noch keine Kennung. Erst oben „Kennungen vergeben“ ausführen.', 'error');
+                } elseif ($reg && send_new_credentials($reg['code'])) {
+                    flash('Neue Zugangsdaten (Kennung + Passwort) an ' . $reg['email'] . ' gesendet. Das alte Passwort gilt nicht mehr.');
                 } else {
                     flash('Die E-Mail konnte nicht gesendet werden. Ist der Mailversand im Hosting-Paket aktiv?', 'error');
                 }
+                redirect(admin_url(['s' => 'registrations']));
+
+            case 'codes_add':
+                $text = (string) ($_POST['codes'] ?? '');
+                $file = $_FILES['codes_file'] ?? null;
+                if ($file && $file['error'] === UPLOAD_ERR_OK && $file['size'] < 2 * 1024 * 1024) {
+                    $text .= "\n" . file_get_contents($file['tmp_name']);
+                }
+                [$added, $known, $invalid] = add_codes($text);
+                flash($added . ' Kennung' . ($added === 1 ? '' : 'en') . ' hinzugefügt'
+                    . ($known ? ', ' . $known . ' waren schon da' : '')
+                    . ($invalid ? ', ' . $invalid . ' Zeile' . ($invalid === 1 ? '' : 'n') . ' übersprungen (keine gültige Kennung – Namen werden nie übernommen)' : '') . '.',
+                    $added || !$invalid ? 'ok' : 'error');
+                redirect(admin_url(['s' => 'codes']));
+
+            case 'codes_delete':
+                $n = delete_unused_codes([(string) ($_POST['code'] ?? '')]);
+                flash($n ? 'Kennung gelöscht.' : 'Die Kennung wird schon von einer Anmeldung verwendet und wurde nicht gelöscht.', $n ? 'ok' : 'error');
+                redirect(admin_url(['s' => 'codes']));
+
+            case 'codes_delete_unused':
+                $n = delete_unused_codes();
+                flash($n . ' unbenutzte Kennung' . ($n === 1 ? '' : 'en') . ' gelöscht.');
+                redirect(admin_url(['s' => 'codes']));
+
+            case 'legacy_assign_codes':
+                $n = 0;
+                update_json(REGISTRATIONS_FILE, function (array $regs) use (&$n) {
+                    foreach ($regs as &$r) {
+                        if (($r['code'] ?? '') === '') {
+                            $r['code'] = new_code_for($r['id']);
+                            $r['migrated'] = true;
+                            $n++;
+                        }
+                    }
+                    return $regs;
+                });
+                delete_orphan_accounts(); // old log-ins by e-mail address no longer work
+                flash($n . ($n === 1 ? ' Anmeldung hat' : ' Anmeldungen haben') . ' eine Kennung bekommen. Jetzt die Liste herunterladen (Schritt 2).');
+                redirect(admin_url(['s' => 'registrations']));
+
+            case 'legacy_strip':
+                if (($_POST['confirm'] ?? '') !== 'LÖSCHEN') {
+                    flash('Zum Bestätigen bitte LÖSCHEN eintippen.', 'error');
+                    redirect(admin_url(['s' => 'registrations']));
+                }
+                $n = 0;
+                update_json(REGISTRATIONS_FILE, function (array $regs) use (&$n) {
+                    foreach ($regs as &$r) {
+                        if (isset($r['first_name']) || isset($r['last_name']) || isset($r['school'])) {
+                            unset($r['first_name'], $r['last_name'], $r['school']);
+                            $n++;
+                        }
+                    }
+                    return $regs;
+                });
+                flash('Namen und Schulen aus ' . $n . ' Anmeldung' . ($n === 1 ? '' : 'en') . ' gelöscht.');
+                redirect(admin_url(['s' => 'registrations']));
+
+            case 'legacy_sendcreds':
+                set_time_limit(300);
+                $sent = 0;
+                $failed = 0;
+                foreach (read_json(REGISTRATIONS_FILE) as $r) {
+                    if (!empty($r['migrated']) && empty($r['creds_sent']) && ($r['code'] ?? '') !== '' && ($r['status'] ?? '') !== 'cancelled') {
+                        if (send_new_credentials($r['code'])) {
+                            $sent++;
+                            update_json(REGISTRATIONS_FILE, function (array $regs) use ($r) {
+                                foreach ($regs as &$x) {
+                                    if ($x['id'] === $r['id']) {
+                                        $x['creds_sent'] = date('c');
+                                    }
+                                }
+                                return $regs;
+                            });
+                        } else {
+                            $failed++;
+                        }
+                    }
+                }
+                flash($sent . ' E-Mail' . ($sent === 1 ? '' : 's') . ' mit Kennung und neuem Passwort gesendet.' . ($failed ? ' ' . $failed . ' konnten nicht gesendet werden.' : ''), $failed ? 'error' : 'ok');
                 redirect(admin_url(['s' => 'registrations']));
 
             case 'reg_delete_all':
@@ -489,6 +572,19 @@ if ($s === 'paper') {
     exit('Nicht gefunden');
 }
 
+if ($s === 'legacy_csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="kennungen-alte-anmeldungen-' . date('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['Kennung', 'Vorname', 'Nachname', 'Schule', 'E-Mail', 'Teilnahme als'], ';', '"', '\\');
+    foreach (legacy_registrations() as $r) {
+        $row = [format_code((string) ($r['code'] ?? '')), $r['first_name'] ?? '', $r['last_name'] ?? '', $r['school'] ?? '', $r['email'] ?? '', $r['role'] ?? ''];
+        fputcsv($out, array_map(fn ($v) => preg_match('/^[=+\-@]/', (string) $v) ? "'" . $v : $v, $row), ';', '"', '\\');
+    }
+    exit;
+}
+
 if ($s === 'registrations_csv') {
     $regs = read_json(REGISTRATIONS_FILE);
     header('Content-Type: text/csv; charset=utf-8');
@@ -497,7 +593,7 @@ if ($s === 'registrations_csv') {
     fwrite($out, "\xEF\xBB\xBF"); // BOM, so Excel shows umlauts correctly
     $fields = registration_fields();
     $statuses = registration_statuses();
-    fputcsv($out, array_merge(['Datum', 'Status', 'Rechte', 'Land (zugeteilt)', 'Gremium (zugeteilt)', 'Position Paper'], array_column($fields, 0), ['Notiz']), ';');
+    fputcsv($out, array_merge(['Datum', 'Status', 'Rechte', 'Land (zugeteilt)', 'Gremium (zugeteilt)', 'Position Paper'], array_column($fields, 0), ['Notiz']), ';', '"', '\\');
     foreach ($regs as $r) {
         $row = [
             date('d.m.Y H:i', strtotime($r['created'])),
@@ -508,11 +604,11 @@ if ($s === 'registrations_csv') {
             !empty($r['paper']) ? 'ja (' . date('d.m.Y', strtotime($r['paper']['uploaded'])) . ')' : 'nein',
         ];
         foreach ($fields as $k => $_) {
-            $v = (string) ($r[$k] ?? '');
+            $v = $k === 'code' ? format_code((string) ($r['code'] ?? '')) : (string) ($r[$k] ?? '');
             $row[] = preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v; // no formula injection
         }
         $row[] = $r['admin_note'] ?? '';
-        fputcsv($out, $row, ';');
+        fputcsv($out, $row, ';', '"', '\\');
     }
     exit;
 }
@@ -580,7 +676,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung', 'stats' => 'Besucher'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung', 'stats' => 'Besucher', 'codes' => 'Kennungen'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -596,6 +692,7 @@ function admin_page(string $s, array $schema): void
   <nav class="sidebar">
     <a href="<?= e(admin_url()) ?>"<?= $s === '' ? ' class="active"' : '' ?>>Übersicht</a>
     <a href="<?= e(admin_url(['s' => 'registrations'])) ?>"<?= $s === 'registrations' ? ' class="active"' : '' ?>>Anmeldungen <span class="count"><?= $regCount ?></span></a>
+    <a href="<?= e(admin_url(['s' => 'codes'])) ?>"<?= $s === 'codes' ? ' class="active"' : '' ?>>Kennungen <span class="count"><?= count(array_filter(codes(), fn ($c) => empty($c['reg']))) ?> frei</span></a>
     <a href="<?= e(admin_url(['s' => 'stats'])) ?>"<?= $s === 'stats' ? ' class="active"' : '' ?>>Besucher</a>
     <a href="<?= e(admin_url(['s' => 'allocation'])) ?>"<?= $s === 'allocation' ? ' class="active"' : '' ?>>Zuteilung</a>
     <a href="<?= e(admin_url(['s' => 'resolutions'])) ?>"<?= $s === 'resolutions' ? ' class="active"' : '' ?>>Resolutionen</a>
@@ -625,6 +722,8 @@ function admin_page(string $s, array $schema): void
         }
     } elseif ($s === 'registrations') {
         view_registrations();
+    } elseif ($s === 'codes') {
+        view_codes();
     } elseif ($s === 'stats') {
         view_stats();
     } elseif ($s === 'allocation') {
@@ -670,6 +769,12 @@ function view_dashboard(array $schema, int $regCount): void
     ?>
     <?php if ($off): ?>
       <p class="flash flash-warn">Login gerade <strong>aus</strong> für: <?= e(implode(', ', $off)) ?>. <a href="<?= e(admin_url(['s' => 'portal'])) ?>">Ändern →</a></p>
+    <?php endif; ?>
+    <?php if ($legacy = count(legacy_registrations())): ?>
+      <p class="flash flash-error"><?= $legacy ?> Anmeldung<?= $legacy === 1 ? '' : 'en' ?> enthalten noch Namen oder Schulen. <a href="<?= e(admin_url(['s' => 'registrations'])) ?>">Jetzt umstellen →</a></p>
+    <?php endif; ?>
+    <?php if (registration_is_open() && !array_filter(codes(), fn ($c) => empty($c['reg']))): ?>
+      <p class="flash flash-warn">Die Anmeldung ist offen, aber es gibt keine freien Kennungen – niemand kann sich anmelden. <a href="<?= e(admin_url(['s' => 'codes'])) ?>">Kennungen hinzufügen →</a></p>
     <?php endif; ?>
     <?php $purgeAt = registrations_purge_at(); ?>
     <?php if ($regCount && $purgeAt && $purgeAt > time() && $purgeAt - time() < 14 * 86400): ?>
@@ -898,21 +1003,21 @@ function view_stats(): void
 function view_allocation(): void
 {
     $regs = read_json(REGISTRATIONS_FILE);
-    usort($regs, fn ($a, $b) => [committee_display((string) ($a['assigned_committee'] ?? '')) ?: 'zzz', $a['last_name']] <=> [committee_display((string) ($b['assigned_committee'] ?? '')) ?: 'zzz', $b['last_name']]);
+    usort($regs, fn ($a, $b) => [committee_display((string) ($a['assigned_committee'] ?? '')) ?: 'zzz', reg_display($a)] <=> [committee_display((string) ($b['assigned_committee'] ?? '')) ?: 'zzz', reg_display($b)]);
     ?>
     <div class="page-title"><h1>Zuteilung</h1></div>
     <p class="help">Land und Gremium für alle auf einmal ändern – auch nach der Bestätigung. Die Änderung gilt sofort (Teilnehmer-Bereich und Resolution Editor).
       Die Liste der Gremien selbst (Namen, Abkürzungen, neue Gremien) bearbeitet ihr unter <a href="<?= e(admin_url(['s' => 'committees'])) ?>">Gremien</a>; Zuteilungen bleiben beim Umbenennen erhalten.</p>
     <?php if (!$regs): ?><p class="empty">Noch keine Anmeldungen.</p><?php return; endif; ?>
-    <input type="search" class="filter" placeholder="Suchen (Name, Land, Gremium …)" data-filter=".alloc-table tbody tr">
+    <input type="search" class="filter" placeholder="Suchen (Kennung, Land, Gremium …)" data-filter=".alloc-table tbody tr">
     <form method="post" class="alloc-form">
       <?= csrf_field() ?><input type="hidden" name="a" value="alloc_save">
       <div class="table-wrap"><table class="alloc-table">
-        <thead><tr><th>Name</th><th>Teilnahme</th><th>Wünsche</th><th>Land</th><th>Gremium</th><th>Chair</th><th>Admin</th></tr></thead>
+        <thead><tr><th>Kennung</th><th>Teilnahme</th><th>Wünsche</th><th>Land</th><th>Gremium</th><th>Chair</th><th>Admin</th></tr></thead>
         <tbody>
         <?php foreach ($regs as $r): $id = e($r['id']); ?>
           <tr<?= ($r['status'] ?? '') === 'cancelled' ? ' class="cancelled"' : '' ?>>
-            <td><strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong><?= ($r['status'] ?? '') === 'cancelled' ? ' <small>(abgesagt)</small>' : '' ?></td>
+            <td><strong><?= e(reg_display($r)) ?></strong><?= ($r['status'] ?? '') === 'cancelled' ? ' <small>(abgesagt)</small>' : '' ?></td>
             <td><?= e($r['role'] ?? '') ?><?= !empty($r['role_pending']) ? ' <small>(Bestätigung offen)</small>' : '' ?></td>
             <td><small><?= e(implode(' / ', array_filter([$r['committee_1'] ?? '', $r['committee_2'] ?? '', $r['country_wishes'] ?? '']))) ?></small></td>
             <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" aria-label="Land"></td>
@@ -957,6 +1062,7 @@ function view_registrations(): void
       <p class="empty">Noch keine Anmeldungen.</p>
       <?php return; ?>
     <?php endif; ?>
+    <?php legacy_box($regs); ?>
     <?php $pending = array_filter($regs, fn ($r) => !empty($r['role_pending'])); ?>
     <?php if ($pending): ?>
       <div class="pending-box">
@@ -965,7 +1071,7 @@ function view_registrations(): void
         <ul>
           <?php foreach ($pending as $r): ?>
             <li>
-              <span><strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?></strong> · <?= e(($r['kind'] ?? '') === 'manager' ? 'Conference Manager' : 'Chair' . (($r['assigned_committee'] ?? '') !== '' ? ' – ' . committee_display($r['assigned_committee']) : '')) ?> · <?= e($r['email']) ?></span>
+              <span><strong><?= e(reg_display($r)) ?></strong> · <?= e(($r['kind'] ?? '') === 'manager' ? 'Conference Manager' : 'Chair' . (($r['assigned_committee'] ?? '') !== '' ? ' – ' . committee_display($r['assigned_committee']) : '')) ?> · <?= e($r['email']) ?></span>
               <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="reg_confirm_role"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn">Bestätigen</button></form>
               <a class="btn-ghost" href="<?= e(admin_url(['s' => 'registrations', 'open' => $r['id']])) ?>#reg-<?= e($r['id']) ?>">Details</a>
             </li>
@@ -979,19 +1085,19 @@ function view_registrations(): void
         <li><span>Position Papers abgegeben</span><strong><?= $papers ?></strong></li></ul></div>
       <div><h3>Erstwunsch Gremium</h3><ul><?php foreach ($byCommittee as $k => $n): ?><li><span><?= e((string) $k) ?></span><strong><?= $n ?></strong></li><?php endforeach; ?></ul></div>
     </div>
-    <input type="search" class="filter" placeholder="Suchen (Name, Schule, E-Mail …)" data-filter=".reg">
+    <input type="search" class="filter" placeholder="Suchen (Kennung, E-Mail, Land …)" data-filter=".reg">
     <div class="regs">
       <?php foreach ($regs as $r): ?>
         <?php $st = $r['status'] ?? 'received'; ?>
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
-            <strong><?= e($r['first_name'] . ' ' . $r['last_name']) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['is_admin']) ? ' <span class="st st-paper">Admin</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
-            <span><?= e(implode(' · ', array_filter([$r['school'] ?? '', $r['role'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
+            <strong><?= e(reg_display($r)) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['is_admin']) ? ' <span class="st st-paper">Admin</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
+            <span><?= e(implode(' · ', array_filter([$r['role'] ?? '', $r['email'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
           </summary>
           <dl>
             <?php foreach ($fields as $k => [$label]): ?>
-              <?php if (($r[$k] ?? '') !== ''): ?><dt><?= e($label) ?></dt><dd><?= nl2br(e($r[$k])) ?></dd><?php endif; ?>
+              <?php if (($r[$k] ?? '') !== ''): ?><dt><?= e($label) ?></dt><dd><?= nl2br(e($k === 'code' ? format_code($r[$k]) : $r[$k])) ?></dd><?php endif; ?>
             <?php endforeach; ?>
           </dl>
           <form method="post" class="reg-edit">
@@ -1010,7 +1116,7 @@ function view_registrations(): void
               <a class="btn-ghost" href="<?= e(admin_url(['s' => 'paper', 'id' => $r['id']])) ?>">Position Paper herunterladen (<?= e(human_size((int) $r['paper']['size'])) ?>, <?= e(date('d.m.Y', strtotime($r['paper']['uploaded']))) ?>)</a>
             <?php endif; ?>
             <a class="btn-ghost" href="<?= e(admin_url(['s' => 'certificate', 'id' => $r['id']])) ?>" target="_blank">Zertifikat (Vorschau)</a>
-            <form method="post" data-confirm="Neues Passwort erzeugen und an <?= e($r['email']) ?> schicken? Das bisherige Passwort gilt dann nicht mehr."><?= csrf_field() ?><input type="hidden" name="a" value="reg_sendcreds"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost">Neue Zugangsdaten senden</button></form>
+            <form method="post" data-confirm="Neues Passwort erzeugen und zusammen mit der Kennung an <?= e($r['email']) ?> schicken? Das bisherige Passwort gilt dann nicht mehr."><?= csrf_field() ?><input type="hidden" name="a" value="reg_sendcreds"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost">Neue Zugangsdaten senden</button></form>
             <form method="post" data-confirm="Anmeldung wirklich löschen? Ein hochgeladenes Position Paper wird mitgelöscht."><?= csrf_field() ?><input type="hidden" name="a" value="reg_delete"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn-ghost danger">Anmeldung löschen</button></form>
           </div>
         </details>
@@ -1024,6 +1130,97 @@ function view_registrations(): void
       <label>Zum Bestätigen <code>LÖSCHEN</code> eintippen: <input name="confirm" autocomplete="off"></label>
       <button class="btn danger">Alle löschen</button>
     </form>
+    <?php
+}
+
+/**
+ * Switching old registrations (with name and school) to personal codes:
+ * 1. give each a code, 2. download the list for your own records, 3. delete
+ * names and schools here, 4. send everyone their code + a new password.
+ */
+function legacy_box(array $regs): void
+{
+    $legacy = legacy_registrations();
+    $noCode = count(array_filter($regs, fn ($r) => ($r['code'] ?? '') === ''));
+    $unsent = count(array_filter($regs, fn ($r) => !empty($r['migrated']) && empty($r['creds_sent']) && ($r['code'] ?? '') !== '' && ($r['status'] ?? '') !== 'cancelled'));
+    if (!$legacy && !$noCode && !$unsent) {
+        return;
+    }
+    ?>
+    <div class="pending-box">
+      <h2>Alte Anmeldungen auf Kennungen umstellen</h2>
+      <p class="help">Namen und Schulen dürfen auf der Website nicht mehr gespeichert werden. <?= count($legacy) ?> Anmeldung<?= count($legacy) === 1 ? '' : 'en' ?> enthalten sie noch<?= $noCode ? ', ' . $noCode . ' haben noch keine Kennung' : '' ?>. In dieser Reihenfolge:</p>
+      <ol class="steps">
+        <li><strong>Kennungen vergeben</strong> – jede alte Anmeldung bekommt eine neue Kennung.
+          <?php if ($noCode): ?>
+            <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="legacy_assign_codes"><button class="btn">Kennungen für <?= $noCode ?> Anmeldung<?= $noCode === 1 ? '' : 'en' ?> vergeben</button></form>
+          <?php else: ?> <span class="st st-confirmed">erledigt</span><?php endif; ?></li>
+        <li><strong>Liste herunterladen</strong> – Kennung, Name, Schule, E-Mail. Für eure eigene Namensliste außerhalb der Website.
+          <?php if ($legacy && !$noCode): ?><a class="btn-ghost" href="<?= e(admin_url(['s' => 'legacy_csv'])) ?>">Liste herunterladen (CSV)</a>
+          <?php elseif (!$legacy): ?> <span class="st st-confirmed">Namen schon gelöscht</span><?php endif; ?></li>
+        <li><strong>Namen und Schulen löschen</strong> – endgültig, aus allen Anmeldungen. Erst nach Schritt 2!
+          <?php if ($legacy && !$noCode): ?>
+            <form method="post" class="inline-confirm" data-confirm="Namen und Schulen aus allen Anmeldungen endgültig löschen? Habt ihr die Liste aus Schritt 2 gespeichert?"><?= csrf_field() ?><input type="hidden" name="a" value="legacy_strip">
+              <label>Zum Bestätigen <code>LÖSCHEN</code> eintippen: <input name="confirm" autocomplete="off"></label><button class="btn danger">Namen und Schulen löschen</button></form>
+          <?php elseif (!$legacy): ?> <span class="st st-confirmed">erledigt</span><?php endif; ?></li>
+        <li><strong>Zugangsdaten senden</strong> – jede Person bekommt per E-Mail ihre Kennung und ein neues Passwort (das alte Login per E-Mail-Adresse funktioniert nicht mehr).
+          <?php if ($unsent): ?>
+            <form method="post" data-confirm="<?= $unsent ?> E-Mails mit Kennung und neuem Passwort senden?"><?= csrf_field() ?><input type="hidden" name="a" value="legacy_sendcreds"><button class="btn">An <?= $unsent ?> Person<?= $unsent === 1 ? '' : 'en' ?> senden</button></form>
+          <?php elseif (!$noCode): ?> <span class="st st-confirmed">erledigt</span><?php endif; ?></li>
+      </ol>
+    </div>
+    <?php
+}
+
+function view_codes(): void
+{
+    $codes = codes();
+    $regs = array_column(read_json(REGISTRATIONS_FILE), null, 'id');
+    $free = array_filter($codes, fn ($c) => empty($c['reg']));
+    ksort($codes);
+    ?>
+    <div class="page-title"><h1>Kennungen</h1></div>
+    <p class="help">Jede Person meldet sich mit einer persönlichen Kennung an, nicht mit ihrem Namen. Kennungen erzeugt ihr mit dem Generator
+      (<code>tools/kennungen-generator.html</code> im Projektordner, läuft offline im Browser) und tragt sie hier ein.
+      <strong>Die Liste, wer welche Kennung bekommen hat, bleibt bei euch und kommt nie auf die Website.</strong></p>
+    <div class="summary">
+      <div><h3>Kennungen</h3><ul>
+        <li><span>Insgesamt</span><strong><?= count($codes) ?></strong></li>
+        <li><span>Frei</span><strong><?= count($free) ?></strong></li>
+        <li><span>Verwendet (angemeldet)</span><strong><?= count($codes) - count($free) ?></strong></li>
+      </ul></div>
+    </div>
+    <form class="edit-form" method="post" enctype="multipart/form-data">
+      <?= csrf_field() ?><input type="hidden" name="a" value="codes_add">
+      <h2>Kennungen hinzufügen</h2>
+      <div class="field"><label>Datei „kennungen-upload-….txt“ aus dem Generator<input type="file" name="codes_file" accept=".txt,.csv,text/plain,text/csv"></label></div>
+      <div class="field"><label>… oder hier einfügen (eine pro Zeile)<textarea name="codes" rows="5" placeholder="K7QF-M3XP&#10;R2WD-9HTA"></textarea></label>
+        <p class="help">Nur die Kennung wird übernommen. Steht in einer Zeile noch ein Name dahinter (z. B. aus der CSV mit Namen), wird er ignoriert und nicht gespeichert.</p></div>
+      <div class="save-bar"><button class="btn">Hinzufügen</button></div>
+    </form>
+    <?php if ($codes): ?>
+      <input type="search" class="filter" placeholder="Kennung suchen …" data-filter=".code-list li">
+      <ul class="item-list code-list">
+        <?php foreach ($codes as $code => $c): $reg = !empty($c['reg']) ? ($regs[$c['reg']] ?? null) : null; ?>
+          <li><span class="item-title"><code><?= e(format_code((string) $code)) ?></code>
+            <small><?= $reg ? 'angemeldet als ' . e($reg['role'] ?? '–') . ' · ' . e(date('d.m.Y', strtotime($reg['created']))) : 'frei' ?></small></span>
+            <?php if ($reg): ?>
+              <a class="btn-ghost" href="<?= e(admin_url(['s' => 'registrations', 'open' => $reg['id']])) ?>#reg-<?= e($reg['id']) ?>">Anmeldung</a>
+            <?php else: ?>
+              <form method="post" data-confirm="Kennung <?= e(format_code((string) $code)) ?> löschen? Damit kann sich niemand mehr anmelden."><?= csrf_field() ?><input type="hidden" name="a" value="codes_delete"><input type="hidden" name="code" value="<?= e((string) $code) ?>"><button class="btn-ghost danger">Löschen</button></form>
+            <?php endif; ?>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php if ($free): ?>
+        <form class="danger-zone" method="post" data-confirm="Alle <?= count($free) ?> unbenutzten Kennungen löschen? Verwendete Kennungen bleiben.">
+          <?= csrf_field() ?><input type="hidden" name="a" value="codes_delete_unused">
+          <h3>Unbenutzte Kennungen löschen</h3>
+          <p>Z. B. nach der Anmeldephase oder nach der Konferenz. Kennungen, mit denen sich jemand angemeldet hat, bleiben erhalten.</p>
+          <button class="btn danger">Alle <?= count($free) ?> unbenutzten löschen</button>
+        </form>
+      <?php endif; ?>
+    <?php endif; ?>
     <?php
 }
 

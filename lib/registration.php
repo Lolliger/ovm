@@ -3,15 +3,17 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/portal.php';
 
-/** Fields of the public registration form: key => [label, required]. */
+/**
+ * Fields of the public registration form: key => [label, required].
+ * No name and no school: participants register with their personal code (lib/codes.php).
+ * The password is set in the same form but only stored as a hash in the account.
+ */
 function registration_fields(): array
 {
     return [
+        'code' => ['Personal code', true],
         'role' => ['Participation as', true],
-        'first_name' => ['First name', true],
-        'last_name' => ['Last name', true],
         'email' => ['E-mail', true],
-        'school' => ['School', true],
         'grade' => ['Grade', true],
         'experience' => ['MUN experience', false],
         'committee_1' => ['Committee (1st choice)', false],
@@ -82,7 +84,7 @@ function kind_needs_confirmation(string $kind): bool
 }
 
 /** Fields only delegates fill in (hidden for chairs and conference managers). */
-const DELEGATE_ONLY_FIELDS = ['school', 'grade', 'experience', 'committee_1', 'committee_2', 'country_wishes', 'diet', 'message'];
+const DELEGATE_ONLY_FIELDS = ['grade', 'experience', 'committee_1', 'committee_2', 'country_wishes', 'diet', 'message'];
 
 /**
  * Handles a POST to /register.
@@ -97,6 +99,8 @@ function handle_registration(): ?array
     foreach (registration_fields() as $key => $_) {
         $values[$key] = trim(mb_substr((string) ($_POST[$key] ?? ''), 0, 2000));
     }
+    $values['code'] = normalize_code($values['code']);
+    $password = (string) ($_POST['password'] ?? '');
     $errors = [];
     $kind = registration_kind($values['role']);
     $chairCommittee = trim((string) ($_POST['chair_committee'] ?? ''));
@@ -131,6 +135,22 @@ function handle_registration(): ?array
     if ($kind === 'chair' && $values['committee_1'] === '' && c('committees')) {
         $errors[] = 'Please choose your committee.';
     }
+    if ($values['code'] !== '') {
+        // Every attempt counts (not only wrong ones), so the limit cannot be used to tell valid codes apart.
+        $known = codes()[$values['code']] ?? null;
+        if (rate_limited('register-code', 30, 3600)) {
+            $errors[] = 'Too many attempts. Please try again later.';
+        } elseif (!$known) {
+            $errors[] = 'This personal code is not valid. Please check it (8 characters, e.g. K7QF-M3XP).';
+        } elseif (!empty($known['reg'])) {
+            $errors[] = 'This personal code has already been used to register. Please log in instead – or contact us if that was not you.';
+        }
+    }
+    if (mb_strlen($password) < 10) {
+        $errors[] = 'Please choose a password with at least 10 characters.';
+    } elseif ($password !== ($_POST['password2'] ?? '')) {
+        $errors[] = 'The two passwords do not match.';
+    }
     if ($values['email'] !== '' && !filter_var($values['email'], FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid e-mail address.';
     }
@@ -146,6 +166,10 @@ function handle_registration(): ?array
 
     $values['email'] = normalize_email($values['email']);
     $entry = ['id' => bin2hex(random_bytes(6)), 'created' => date('c'), 'status' => 'received'] + $values;
+    if (!claim_code($values['code'], $entry['id'])) {
+        // Someone registered with the same code a moment ago.
+        return ['ok' => false, 'errors' => ['This personal code has already been used to register. Please log in instead – or contact us if that was not you.'], 'values' => $values];
+    }
     if ($kind !== 'delegate') {
         $entry['kind'] = $kind;
     }
@@ -158,6 +182,7 @@ function handle_registration(): ?array
         }
     }
     append_json(REGISTRATIONS_FILE, $entry);
+    set_account_password($values['code'], $password);
     notify_registration($entry);
     send_confirmation($entry);
 
@@ -173,13 +198,13 @@ function notify_registration(array $entry): void
     $lines = [];
     foreach (registration_fields() as $key => [$label]) {
         if (($entry[$key] ?? '') !== '') {
-            $lines[] = str_pad($label . ':', 26) . $entry[$key];
+            $lines[] = str_pad($label . ':', 26) . ($key === 'code' ? format_code($entry[$key]) : $entry[$key]);
         }
     }
     $pending = !empty($entry['role_pending']) ? "\n\nPlease confirm this " . ($entry['kind'] === 'chair' ? 'chair' : 'conference manager') . ' registration in the admin area.' : '';
     $body = 'New registration on ' . mail_domain() . "\n\n" . implode("\n", $lines) . $pending
         . "\n\nAll registrations: " . site_origin() . url('admin/?s=registrations') . "\n";
-    send_mail($to, c('site.name') . ' registration: ' . $entry['first_name'] . ' ' . $entry['last_name'], $body, $entry['email']);
+    send_mail($to, c('site.name') . ' registration: ' . format_code($entry['code']), $body, $entry['email']);
 }
 
 /**
