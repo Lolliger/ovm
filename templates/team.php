@@ -5,7 +5,7 @@ $groups = [];
 foreach (c('team', []) as $m) {
     $groups[$m['group'] ?? ''][] = $m;
 }
-$initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/', trim($name)), 0, 2))));
+$initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/', plain_name($name)), 0, 2))));
 ?>
 <?php foreach ($groups as $group => $members): ?>
 <section class="section">
@@ -14,7 +14,7 @@ $initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => 
     <div class="team-grid">
       <?php foreach ($members as $m): ?>
         <figure class="person">
-          <button type="button" class="person-open" aria-haspopup="dialog" aria-label="<?= e($m['name']) ?>: more">
+          <button type="button" class="person-open" aria-haspopup="dialog" aria-label="<?= e(plain_name($m['name'])) ?>: more">
             <?php if (!empty($m['photo'])): ?>
               <img src="<?= e(media($m['photo'])) ?>" alt="" loading="lazy">
             <?php else: ?>
@@ -22,20 +22,20 @@ $initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => 
             <?php endif; ?>
           </button>
           <figcaption>
-            <strong><?= e($m['name']) ?></strong>
+            <strong><?= fancy_name($m['name']) ?></strong>
             <span><?= e($m['role'] ?? '') ?></span>
             <?php if (!empty($m['bio'])): ?><span class="person-more">Read bio <span aria-hidden="true">→</span></span><?php endif; ?>
           </figcaption>
           <template class="person-detail">
             <div class="person-card">
               <?php if (!empty($m['photo'])): ?>
-                <img src="<?= e(media($m['photo'])) ?>" alt="<?= e($m['name']) ?>">
+                <img src="<?= e(media($m['photo'])) ?>" alt="<?= e(plain_name($m['name'])) ?>">
               <?php else: ?>
                 <span class="person-initials" aria-hidden="true"><?= e($initials($m['name'])) ?></span>
               <?php endif; ?>
               <div class="person-card-text">
                 <?php if ($group): ?><p class="kicker"><?= e($group) ?></p><?php endif; ?>
-                <h3><?= e($m['name']) ?></h3>
+                <h3><?= fancy_name($m['name']) ?></h3>
                 <p class="person-role"><?= e($m['role'] ?? '') ?></p>
                 <?php if (!empty($m['bio'])): ?><div class="person-bio-text"><?= md($m['bio']) ?></div><?php endif; ?>
               </div>

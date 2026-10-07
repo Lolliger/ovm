@@ -981,3 +981,32 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .person-bio-text p { line-height: 1.7; margin: 0 0 0.75rem; }
 .person-bio-text p:last-child { margin-bottom: 0; }
 .person-bio-text a { color: var(--link); }
+
+/* Team names: *Name* = italic flowing gradient, **Name** = gold shimmer */
+.fx-flow { font-style: italic; color: var(--link); }
+.fx-gold { font-weight: 700; color: #a8812f; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .fx-flow, .fx-gold {
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+  .fx-flow {
+    --fx-a: #046bd2; --fx-b: #00a3e0; --fx-c: #3d5afe;
+    background-image: linear-gradient(100deg, var(--fx-a) 0%, var(--fx-b) 30%, var(--fx-c) 55%, var(--fx-b) 80%, var(--fx-a) 100%);
+    background-size: 250% 100%;
+    padding: 0 0.1em 0.05em 0.02em; margin: 0 -0.1em -0.05em -0.02em; /* italic overhang */
+    animation: fx-flow 6s ease-in-out infinite alternate;
+  }
+  .fx-gold {
+    background-image: linear-gradient(110deg, #9a7428 0%, #b8913f 38%, #f3dc93 48%, #fff6d6 50%, #f3dc93 52%, #b8913f 62%, #9a7428 100%);
+    background-size: 300% 100%;
+    animation: fx-gold 4.5s ease-in-out infinite;
+  }
+}
+@keyframes fx-flow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@keyframes fx-gold { 0% { background-position: 100% 50%; } 60%, 100% { background-position: 0% 50%; } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fx-flow { --fx-a: #7cc4ff; --fx-b: #b6e3ff; --fx-c: #9fa8ff; }
+}
+:root[data-theme="dark"] .fx-flow { --fx-a: #7cc4ff; --fx-b: #b6e3ff; --fx-c: #9fa8ff; }
+@media (prefers-reduced-motion: reduce) { .fx-flow, .fx-gold { animation: none; } }
