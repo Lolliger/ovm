@@ -68,13 +68,20 @@ function link_href(string $link): string
     return url(ltrim($link, '/'));
 }
 
-/** Title with *emphasis* → <em>. */
-/** Team names: **Name** = gold shimmer, *Name* = italic flowing gradient (escaped). */
+/**
+ * Team names: a marked name gets the effect on the whole name (first and last name),
+ * no matter which part carries the marker. **…** = gold, *…* = blue (escaped).
+ */
 function fancy_name(string $s): string
 {
-    $h = e($s);
-    $h = preg_replace('/\*\*(.+?)\*\*/', '<strong class="fx-gold">$1</strong>', $h);
-    return preg_replace('/\*(.+?)\*/', '<em class="fx-flow">$1</em>', $h);
+    $plain = e(plain_name($s));
+    if (str_contains($s, '**')) {
+        return '<span class="fx-name fx-gold">' . $plain . '</span>';
+    }
+    if (preg_match('/\*.+?\*/', $s)) {
+        return '<span class="fx-name fx-flow">' . $plain . '</span>';
+    }
+    return $plain;
 }
 
 /** Name without the * / ** markers (for alt texts, initials, labels). */
@@ -83,6 +90,7 @@ function plain_name(string $s): string
     return trim(str_replace('*', '', $s));
 }
 
+/** Title with *emphasis* → <em>. */
 function emph(string $s): string
 {
     return preg_replace('/\*(.+?)\*/', '<em>$1</em>', nl2br(e($s), false));
