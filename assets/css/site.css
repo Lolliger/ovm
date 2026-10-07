@@ -982,9 +982,9 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .person-bio-text p:last-child { margin-bottom: 0; }
 .person-bio-text a { color: var(--link); }
 
-/* Team names: *Name* = italic flowing gradient, **Name** = subtle gold */
+/* Team names: *Name* = flowing blue gradient, **Name** = subtle gold */
 .person strong .fx-gold, .person strong .fx-flow { display: inline; } /* names are block-level; marked words stay in line */
-.fx-flow { font-style: italic; color: var(--link); }
+.fx-flow { font-style: normal; color: var(--link); }
 .fx-gold { font-weight: inherit; color: #a07d34; }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .fx-flow, .fx-gold {
@@ -995,7 +995,6 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
     --fx-a: #046bd2; --fx-b: #00b4ff; --fx-c: #4f46e5;
     background-image: linear-gradient(90deg, var(--fx-a), var(--fx-b), var(--fx-c), var(--fx-b), var(--fx-a));
     background-size: 300% 100%;
-    padding: 0 0.1em 0.05em 0.02em; margin: 0 -0.1em -0.05em -0.02em; /* italic overhang */
     animation: fx-flow 3.5s linear infinite;
   }
   .fx-gold {
