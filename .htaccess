@@ -6,6 +6,9 @@ DirectoryIndex index.php
   RewriteEngine On
   RewriteBase /
 
+  # Authorization-Header an PHP weitergeben (MCP-Zugang für Claude, siehe Admin → Update)
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
   # conference.omun.eu ohne eigenes SSL-Zertifikat: http-Aufrufe direkt zum
   # Teilnehmer-Bereich auf der Hauptdomain schicken (statt auf https umzuleiten)
   RewriteCond %{HTTPS} !=on

@@ -37,6 +37,8 @@ Voraussetzung: ein Strato-Hosting-Paket mit **PHP 8.1 oder neuer** (im Strato-Ku
 
 ### Updates einspielen
 
+**Am einfachsten:** Admin → Update → „Auf GitHub nach Updates suchen“ → mit Passwort einspielen. Optional kann Claude Updates auch selbst einspielen (Abschnitt „Claude-Zugang (MCP)“ auf derselben Seite, standardmäßig aus). Alternativ geht weiterhin die Zip:
+
 Im Admin unter **Update** die Update-Zip hochladen und mit dem Admin-Passwort bestätigen. Der Server
 ersetzt die Programmdateien selbst; `data/` und `uploads/` (Inhalte, Passwort, Anmeldungen, Bilder)
 werden nie verändert. Vorher wird die laufende Version als Zip in `data/code-backups/` gesichert

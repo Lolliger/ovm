@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/lib/admin.php';
 require dirname(__DIR__) . '/lib/registration.php';
 require dirname(__DIR__) . '/lib/totp.php';
 require dirname(__DIR__) . '/lib/updater.php';
+require dirname(__DIR__) . '/lib/deploy.php';
 require dirname(__DIR__) . '/lib/resolution.php';
 require dirname(__DIR__) . '/lib/stats.php';
 
@@ -453,9 +454,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash($u && $u['error'] !== UPLOAD_ERR_NO_FILE ? upload_error_text((int) $u['error']) : 'Bitte die Update-Zip auswählen.', 'error');
                     redirect(admin_url(['s' => 'update']));
                 }
-                [$count, $old, $new] = apply_update($u['tmp_name']);
+                try {
+                    [$count, $old, $new] = with_update_lock(fn () => apply_update($u['tmp_name']));
+                } catch (RuntimeException $ex) {
+                    deploy_log('upload', current_version(), '?', false, $ex->getMessage());
+                    throw $ex;
+                }
+                deploy_log('upload', $old, $new, true, "$count Dateien");
                 flash("Update eingespielt: Version $old → $new ($count Dateien). Inhalte, Bilder und Anmeldungen wurden nicht verändert.");
                 redirect(admin_url(['s' => 'update']));
+
+            case 'gh_check':
+                $meta = with_update_lock(fn () => github_fetch());
+                $_SESSION['gh_checked'] = $meta['commit'] ?: (string) $meta['fetched'];
+                redirect(admin_url(['s' => 'update']) . '#github');
+
+            case 'gh_install':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Zum Einspielen eines Updates bitte das richtige Admin-Passwort eingeben.', 'error');
+                    redirect(admin_url(['s' => 'update']) . '#github');
+                }
+                $commit = (string) ($_POST['commit'] ?? '');
+                [$count, $old, $new, $meta] = github_install(preg_match('/^[0-9a-f]{40}$/', $commit) ? $commit : null, 'github');
+                unset($_SESSION['gh_checked']);
+                flash("Update von GitHub eingespielt: Version $old → $new ($count Dateien). Inhalte, Bilder und Anmeldungen wurden nicht verändert.");
+                redirect(admin_url(['s' => 'update']));
+
+            case 'backup_restore':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Zum Wiederherstellen bitte das richtige Admin-Passwort eingeben.', 'error');
+                    redirect(admin_url(['s' => 'update']) . '#backups');
+                }
+                [$count, $old, $new] = restore_code_backup((string) ($_POST['file'] ?? ''), 'restore');
+                flash("Sicherung eingespielt: Version $old → $new ($count Dateien).");
+                redirect(admin_url(['s' => 'update']));
+
+            case 'deploy_settings':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Bitte zur Bestätigung das richtige Admin-Passwort eingeben.', 'error');
+                    redirect(admin_url(['s' => 'update']) . '#mcp');
+                }
+                $branch = trim((string) ($_POST['branch'] ?? ''));
+                if (!valid_branch($branch)) {
+                    flash('Ungültiger Branch-Name.', 'error');
+                    redirect(admin_url(['s' => 'update']) . '#mcp');
+                }
+                $enable = !empty($_POST['mcp_enabled']);
+                save_deploy_settings(['branch' => $branch, 'mcp_enabled' => $enable]);
+                if (!empty($_POST['new_token']) || ($enable && deploy_settings()['mcp_token_hash'] === '')) {
+                    $_SESSION['mcp_new_token'] = new_mcp_token();
+                }
+                flash('Gespeichert. Claude-Zugang ist ' . ($enable ? 'eingeschaltet.' : 'ausgeschaltet.'));
+                redirect(admin_url(['s' => 'update']) . '#mcp');
 
             case 'history_restore':
                 $path = history_path((string) ($_POST['file'] ?? ''));
@@ -1397,35 +1447,111 @@ function view_history(): void
 function view_update(): void
 {
     $backups = code_backups();
+    $deploy = deploy_settings();
+    $checked = $_SESSION['gh_checked'] ?? null;
+    $meta = $checked ? github_cached() : null;
+    $newToken = $_SESSION['mcp_new_token'] ?? null;
+    unset($_SESSION['mcp_new_token']);
+    $mcpUrl = site_origin() . url('mcp');
+    $pw = fn () => '<div class="field"><label>Admin-Passwort zur Bestätigung<input type="password" name="password" required autocomplete="current-password"></label></div>';
     ?>
     <div class="page-title"><h1>Update</h1><span class="muted">Installierte Version: <strong><?= e(current_version()) ?></strong></span></div>
-    <form class="edit-form" method="post" enctype="multipart/form-data" data-confirm="Update jetzt einspielen?">
-      <?= csrf_field() ?><input type="hidden" name="a" value="update">
-      <h2>Neue Version einspielen</h2>
-      <p>Die Update-Zip hier hochladen – der Server ersetzt die Programmdateien selbst.
-        <strong>Texte, Einstellungen, Passwort, Bilder und Anmeldungen</strong> (Ordner <code>data/</code> und <code>uploads/</code>)
-        werden dabei <strong>nie</strong> verändert, auch wenn sie in der Zip enthalten sind.
-        Vorher wird die aktuelle Version automatisch gesichert.</p>
-      <div class="field"><label>Update-Zip<input type="file" name="package" accept=".zip,application/zip" required></label></div>
-      <div class="field"><label>Admin-Passwort zur Bestätigung<input type="password" name="password" required autocomplete="current-password"></label></div>
-      <div class="save-bar"><button class="btn">Update einspielen</button></div>
-    </form>
 
-    <div class="edit-form">
+    <div class="edit-form" id="github">
+      <h2>Update von GitHub holen</h2>
+      <p>Der Server lädt den aktuellen Stand direkt von GitHub
+        (<a href="<?= e(github_branch_url()) ?>" target="_blank" rel="noopener"><?= e(GITHUB_REPO) ?>, Branch <code><?= e(github_branch()) ?></code></a>)
+        und spielt ihn ein – wie eine hochgeladene Update-Zip, mit Sicherung vorher.
+        <strong>Texte, Einstellungen, Passwort, Bilder und Anmeldungen</strong> bleiben unverändert.</p>
+      <?php if ($meta):
+          $cmp = version_cmp($meta['version'], current_version()); ?>
+        <div class="flash <?= $cmp > 0 ? 'flash-ok' : 'flash-warn' ?>">
+          GitHub: <strong>Version <?= e($meta['version']) ?></strong><?= $meta['commit'] ? ' · Commit <code>' . e(substr($meta['commit'], 0, 7)) . '</code>' : '' ?>
+          · installiert: <?= e(current_version()) ?> –
+          <?= $cmp > 0 ? 'neuere Version verfügbar.' : ($cmp === 0 ? 'gleiche Versionsnummer, also vermutlich schon aktuell.' : '<strong>Achtung: Das ist eine ÄLTERE Version als die installierte.</strong>') ?>
+        </div>
+        <form method="post" data-confirm="Version <?= e($meta['version']) ?> von GitHub jetzt einspielen?">
+          <?= csrf_field() ?><input type="hidden" name="a" value="gh_install"><input type="hidden" name="commit" value="<?= e($meta['commit']) ?>">
+          <?= $pw() ?>
+          <div class="save-bar"><button class="btn">Version <?= e($meta['version']) ?> einspielen</button></div>
+        </form>
+        <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="gh_check"><button class="btn-ghost">Erneut prüfen</button></form>
+      <?php else: ?>
+        <form method="post"><?= csrf_field() ?><input type="hidden" name="a" value="gh_check">
+          <div class="save-bar"><button class="btn">Auf GitHub nach Updates suchen</button></div></form>
+      <?php endif; ?>
+    </div>
+
+    <details class="edit-form">
+      <summary><strong>Update-Zip manuell hochladen</strong></summary>
+      <form method="post" enctype="multipart/form-data" data-confirm="Update jetzt einspielen?">
+        <?= csrf_field() ?><input type="hidden" name="a" value="update">
+        <p>Alternativ eine Update-Zip hochladen (z. B. eine Sicherung von unten). <code>data/</code> und <code>uploads/</code> in der Zip werden ignoriert.</p>
+        <div class="field"><label>Update-Zip<input type="file" name="package" accept=".zip,application/zip" required></label></div>
+        <?= $pw() ?>
+        <div class="save-bar"><button class="btn">Update einspielen</button></div>
+      </form>
+    </details>
+
+    <div class="edit-form" id="backups">
       <h2>Sicherungen der vorherigen Versionen</h2>
       <?php if (!$backups): ?>
         <p class="muted">Noch keine – eine Sicherung entsteht automatisch bei jedem Update.</p>
       <?php else: ?>
-        <p>Falls nach einem Update etwas nicht funktioniert: Sicherung herunterladen und oben wieder als Update einspielen.</p>
+        <p>Falls nach einem Update etwas nicht funktioniert: die Version von vorher wieder einspielen.</p>
         <ul class="item-list">
           <?php foreach ($backups as $b): ?>
             <li><span class="item-title"><?= e($b['file']) ?><small><?= e(date('d.m.Y, H:i', $b['time'])) ?> Uhr · <?= e(human_size($b['size'])) ?></small></span>
               <a class="btn-ghost" href="<?= e(admin_url(['s' => 'code_backup', 'file' => $b['file']])) ?>">Download</a></li>
           <?php endforeach; ?>
         </ul>
+        <form method="post" data-confirm="Diese Sicherung jetzt wieder einspielen?">
+          <?= csrf_field() ?><input type="hidden" name="a" value="backup_restore">
+          <div class="field"><label>Sicherung wiederherstellen<select name="file">
+            <?php foreach ($backups as $b): ?><option value="<?= e($b['file']) ?>"><?= e($b['file']) ?></option><?php endforeach; ?>
+          </select></label></div>
+          <?= $pw() ?>
+          <div class="save-bar"><button class="btn-ghost">Sicherung einspielen</button></div>
+        </form>
       <?php endif; ?>
     </div>
-    <?php
+
+    <div class="edit-form" id="mcp">
+      <h2>Claude-Zugang (MCP)</h2>
+      <p>Damit kann Claude Updates selbst von GitHub einspielen und bei Problemen eine Sicherung zurückholen – nicht mehr.
+        Claude kann darüber <strong>keine</strong> Inhalte, Anmeldungen oder Passwörter lesen oder ändern und nur den Branch oben installieren.
+        Status: <strong><?= !empty($deploy['mcp_enabled']) ? 'eingeschaltet' : 'ausgeschaltet' ?></strong><?= $deploy['mcp_token_created'] ? ' · Schlüssel erstellt am ' . e(date('d.m.Y, H:i', strtotime($deploy['mcp_token_created']))) : '' ?>.</p>
+      <?php if ($newToken): ?>
+        <div class="flash flash-warn">
+          <p><strong>Neuer Schlüssel – wird nur jetzt angezeigt.</strong> Wer diesen Link hat, kann Updates einspielen. Nicht weitergeben, nicht in Git oder Chats posten.</p>
+          <p><strong>Claude.ai / Claude-App:</strong> Einstellungen → Connectors → Benutzerdefinierten Connector hinzufügen → als URL eintragen:</p>
+          <p><input type="text" readonly value="<?= e($mcpUrl . '/' . $newToken) ?>" onclick="this.select()" style="width:100%;font-family:monospace"></p>
+          <p><strong>Claude Code (Terminal):</strong></p>
+          <p><input type="text" readonly value="<?= e('claude mcp add --transport http omun ' . $mcpUrl . ' --header "Authorization: Bearer ' . $newToken . '"') ?>" onclick="this.select()" style="width:100%;font-family:monospace"></p>
+        </div>
+      <?php endif; ?>
+      <form method="post">
+        <?= csrf_field() ?><input type="hidden" name="a" value="deploy_settings">
+        <div class="field"><label><input type="checkbox" name="mcp_enabled" value="1"<?= !empty($deploy['mcp_enabled']) ? ' checked' : '' ?>> Claude-Zugang eingeschaltet</label></div>
+        <div class="field"><label><input type="checkbox" name="new_token" value="1"> Neuen Schlüssel erstellen (der alte gilt dann nicht mehr)</label></div>
+        <div class="field"><label>GitHub-Branch<input type="text" name="branch" value="<?= e(github_branch()) ?>" required></label>
+          <small class="muted">Aus diesem Branch von <?= e(GITHUB_REPO) ?> werden Updates geholt (Button oben und Claude).</small></div>
+        <?= $pw() ?>
+        <div class="save-bar"><button class="btn">Speichern</button></div>
+      </form>
+    </div>
+
+    <?php $log = deploy_log_entries(15); if ($log): ?>
+    <div class="edit-form">
+      <h2>Protokoll</h2>
+      <ul class="item-list">
+        <?php foreach ($log as $l): ?>
+          <li><span class="item-title"><?= e($l['old'] . ' → ' . $l['new']) ?><?= $l['ok'] ? '' : ' · <strong>fehlgeschlagen</strong>' ?>
+            <small><?= e(date('d.m.Y, H:i', strtotime($l['time']))) ?> Uhr · <?= e(DEPLOY_SOURCES[$l['source']] ?? $l['source']) ?><?= $l['commit'] ? ' · Commit ' . e($l['commit']) : '' ?><?= $l['msg'] !== '' ? ' · ' . e($l['msg']) : '' ?></small></span></li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif;
 }
 
 function view_resolutions(): void

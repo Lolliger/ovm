@@ -33,6 +33,13 @@ if ($path === 'index.php') {
 }
 $parts = $path === '' ? [] : explode('/', $path);
 
+// Claude's update connector (lib/mcp.php): /mcp or /mcp/<key>
+if (($parts[0] ?? '') === 'mcp' && count($parts) <= 2) {
+    require __DIR__ . '/lib/mcp.php';
+    mcp_handle($parts[1] ?? null);
+    exit;
+}
+
 function find_by_slug(string $list, string $slug): ?array
 {
     foreach (c($list, []) as $item) {

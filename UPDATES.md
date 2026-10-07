@@ -6,6 +6,20 @@ und mit dem Admin-Passwort bestätigt, dann ersetzt der Server die Dateien selbs
 
 Kurz gesagt: **Die Update-Zip ist der komplette Projektordner aus Git, ohne `data/` und `uploads/`.**
 
+## 0. Einfachster Weg: über GitHub
+
+Seit Version 2026.10.07.8 holt sich der Server Updates selbst von GitHub (`lolliger/ovm`, Branch siehe Admin → Update).
+Eine Zip ist dann nicht mehr nötig:
+
+1. Änderungen committen, **`VERSION` erhöhen**, auf den Branch pushen (vorher `git pull`, es arbeiten mehrere daran).
+2. Einspielen, entweder
+   - durch einen Menschen: **Admin → Update → „Auf GitHub nach Updates suchen“ → einspielen**, oder
+   - durch Claude über den MCP-Connector „OMUN Website“ (falls verbunden): `check_github`, dann
+     `install_update` mit `expected_version` = der gerade gepushten Versionsnummer.
+3. Bei Problemen: `restore_backup` bzw. Admin → Update → Sicherung einspielen.
+
+Nur fertige, getestete Stände pushen: Was auf dem Branch liegt, kann jederzeit live gehen.
+
 ---
 
 ## 1. So erstellst du die Zip

@@ -174,6 +174,8 @@ flowchart TD
 | **Anmeldungen** | Liste, Suche, CSV-Export (mit BOM und Schutz vor Formeln), einzelne oder alle löschen. | `admin/index.php` → `view_registrations()` und `case 'reg_*'` |
 | **Sicherheit** | Passwortwechsel, 2FA-Geräte hinzufügen und entfernen, Notfall-Codes, Backup-Export und -Import. | `admin/index.php` → `view_settings()`, `view_2fa()` |
 | **Update** | Nimmt eine Update-Zip entgegen (Passwort nötig), prüft alle Pfade, sichert die laufende Version und ersetzt die Programmdateien. `data/` und `uploads/` werden übersprungen. | `lib/updater.php` → `apply_update()`, `admin/index.php` → `view_update()` |
+| **Update von GitHub** | Lädt den Branch aus `lolliger/ovm` von codeload.github.com (fest im Code, Branch im Admin einstellbar) und installiert ihn über `apply_update()`. Update-Sperre (`data/update.lock`), Protokoll `data/update-log.json`, Sicherung zurückspielen. | `lib/deploy.php` → `github_fetch()`, `github_install()`, `restore_code_backup()` |
+| **MCP-Endpunkt** | `/mcp/<schlüssel>` oder `/mcp` + `Authorization: Bearer`. JSON-RPC (MCP Streamable HTTP, nur JSON-Antworten). Tools: `status`, `check_github`, `install_update` (braucht `expected_version`, ältere Version nur mit `allow_older`), `list_backups`, `restore_backup`. Standardmäßig aus; Schlüssel nur als SHA-256 in `data/deploy.json`; 10 Fehlversuche/15 min pro IP. | `lib/mcp.php` → `mcp_handle()`; Route in `index.php` |
 
 ---
 
