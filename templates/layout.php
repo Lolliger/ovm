@@ -9,13 +9,21 @@ function published_news(): array
 }
 
 /** Main menu entries: [key, label, href]. Sections without content are hidden. */
+/** The fixed links in the header (Downloads also while still empty). */
 function main_nav(): array
 {
-    $nav = [
+    return [
         ['conference', 'Conference', url('conference')],
         ['committees', 'Committees', url('committees')],
         ['team', 'Team', url('team')],
+        ['downloads', 'Downloads', url('downloads')],
     ];
+}
+
+/** Everything else, in the header's "More" menu – only pages that have content. */
+function more_nav(): array
+{
+    $nav = [];
     if (published_news()) {
         $nav[] = ['news', 'News', url('news')];
     }
@@ -25,6 +33,12 @@ function main_nav(): array
     if (c('faq', [])) {
         $nav[] = ['faq', 'FAQ', url('faq')];
     }
+    if (c('sponsors', [])) {
+        $nav[] = ['sponsors', 'Sponsors', url('sponsors')];
+    }
+    if (c('archive', [])) {
+        $nav[] = ['archive', 'Archive', url('archive')];
+    }
     foreach (c('pages', []) as $p) {
         if (!empty($p['in_nav'])) {
             $nav[] = ['page:' . $p['slug'], $p['title'], url($p['slug'])];
@@ -33,18 +47,10 @@ function main_nav(): array
     return $nav;
 }
 
+/** The "More" pages plus pages shown only in the footer (footer and mobile menu). */
 function secondary_nav(): array
 {
-    $nav = [];
-    if (c('downloads', [])) {
-        $nav[] = ['downloads', 'Downloads', url('downloads')];
-    }
-    if (c('sponsors', [])) {
-        $nav[] = ['sponsors', 'Sponsors', url('sponsors')];
-    }
-    if (c('archive', [])) {
-        $nav[] = ['archive', 'Archive', url('archive')];
-    }
+    $nav = more_nav();
     foreach (c('pages', []) as $p) {
         if (!empty($p['in_footer']) && empty($p['in_nav'])) {
             $nav[] = ['page:' . $p['slug'], $p['title'], url($p['slug'])];
@@ -69,19 +75,13 @@ function link_href(string $link): string
 }
 
 /**
- * Team names: a marked name gets the effect on the whole name (first and last name),
- * no matter which part carries the marker. **…** = gold, *…* = blue (escaped).
+ * Team names: a marked name (*…* or **…**, any part) is highlighted as a whole –
+ * blue in light mode, gold in dark mode (escaped).
  */
 function fancy_name(string $s): string
 {
     $plain = e(plain_name($s));
-    if (str_contains($s, '**')) {
-        return '<span class="fx-name fx-gold">' . $plain . '</span>';
-    }
-    if (preg_match('/\*.+?\*/', $s)) {
-        return '<span class="fx-name fx-flow">' . $plain . '</span>';
-    }
-    return $plain;
+    return preg_match('/\*.+?\*/', $s) ? '<span class="fx-name">' . $plain . '</span>' : $plain;
 }
 
 /** Name without the * / ** markers (for alt texts, initials, labels). */
@@ -201,25 +201,38 @@ function render(string $template, array $vars = []): void
 
 <header class="site-header">
   <div class="container header-row">
-    <label for="menu-toggle" class="menu-btn" title="Menu">
-      <span class="menu-btn-icon" aria-hidden="true"><i></i><i></i><i></i></span>
-    </label>
-    <a class="brand" href="<?= e(url()) ?>">
+    <div class="header-start">
+      <label for="menu-toggle" class="menu-btn" title="Menu">
+        <span class="menu-btn-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+      </label>
+      <nav class="main-nav" aria-label="Main">
+        <?php foreach (main_nav() as [$key, $label, $href]): ?>
+          <a href="<?= e($href) ?>"<?= $nav === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
+        <?php endforeach; ?>
+        <?php if ($more = more_nav()): ?>
+          <details class="nav-more">
+            <summary<?= in_array($nav, array_column($more, 0), true) ? ' class="current"' : '' ?>>More <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+            <div class="nav-more-menu">
+              <?php foreach ($more as [$key, $label, $href]): ?>
+                <a href="<?= e($href) ?>"<?= $nav === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
+              <?php endforeach; ?>
+            </div>
+          </details>
+        <?php endif; ?>
+      </nav>
+    </div>
+    <a class="brand" href="<?= e(url()) ?>" aria-label="<?= e($siteName . ' – ' . c('site.full_name')) ?>">
       <?php if (c('site.logo')): ?>
         <img src="<?= e(media(c('site.logo'))) ?>" alt="<?= e($siteName) ?>">
       <?php else: ?>
         <?= emblem('brand-emblem') ?>
         <span class="brand-name"><?= e($siteName) ?></span>
-        <span class="brand-sub"><?= e(c('site.full_name')) ?></span>
       <?php endif; ?>
     </a>
-    <nav class="main-nav" aria-label="Main">
-      <?php foreach (main_nav() as [$key, $label, $href]): ?>
-        <a href="<?= e($href) ?>"<?= $nav === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
-      <?php endforeach; ?>
-    </nav>
-    <a class="header-login" href="<?= e(url('login')) ?>"<?= $nav === 'login' ? ' aria-current="page"' : '' ?>>Login</a>
-    <a class="btn btn-small header-cta" href="<?= e(url('register')) ?>"<?= $nav === 'register' ? ' aria-current="page"' : '' ?>>Register</a>
+    <div class="header-end">
+      <a class="header-login" href="<?= e(url('login')) ?>"<?= $nav === 'login' ? ' aria-current="page"' : '' ?>>Login</a>
+      <a class="btn btn-small header-cta" href="<?= e(url('register')) ?>"<?= $nav === 'register' ? ' aria-current="page"' : '' ?>>Register</a>
+    </div>
   </div>
 </header>
 

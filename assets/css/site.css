@@ -174,23 +174,25 @@ p { margin: 0 0 1rem; }
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
+/* Three columns: menu / navigation | OMUN (centred) | login and registration */
 .header-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 1rem;
-  min-height: 4.25rem;
+  min-height: 4.5rem;
 }
+.header-start { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.header-end { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
 .brand {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.6rem;
   color: var(--text);
   text-decoration: none;
-  margin-right: auto;
-  min-width: 0;
 }
 .brand img { max-height: 2.5rem; width: auto; }
-.brand .brand-emblem { height: 2.6rem; width: auto; max-height: none; flex: none; align-self: center; }
+.brand .brand-emblem { height: 2.75rem; width: auto; max-height: none; flex: none; }
 .brand picture { display: contents; }
 .brand-name {
   font-family: var(--serif);
@@ -208,34 +210,46 @@ p { margin: 0 0 1rem; }
   border-radius: 50%;
   background: var(--un);
 }
-.brand-sub {
-  font-size: 0.8125rem;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+@media (max-width: 479px) {
+  .header-row { gap: 0.5rem; }
+  .brand { gap: 0.45rem; }
+  .brand .brand-emblem { height: 2.25rem; }
+  .brand-name { font-size: 1.5rem; }
+  .header-cta { padding-inline: 0.8rem; }
 }
-@media (max-width: 719px) { .brand-sub { display: none; } }
 
-.main-nav { display: none; gap: 0.25rem; }
-.main-nav a {
-  padding: 0.5rem 0.7rem;
+.main-nav { display: none; align-items: center; gap: 0.1rem; }
+.main-nav a, .nav-more summary {
+  padding: 0.5rem 0.6rem;
   border-radius: var(--radius);
   color: var(--text);
   font-size: 0.9375rem;
   font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
 }
-.main-nav a:hover { background: var(--surface-2); }
-.main-nav a[aria-current="page"] { color: var(--link); }
+.main-nav a:hover, .nav-more summary:hover { background: var(--surface-2); }
+.main-nav a[aria-current="page"], .nav-more summary.current { color: var(--link); }
 
-@media (min-width: 1080px) {
+/* "More" drop-down (details/summary – works without JavaScript) */
+.nav-more { position: relative; }
+.nav-more summary { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; list-style: none; }
+.nav-more summary::-webkit-details-marker { display: none; }
+.nav-more summary svg { transition: transform 0.2s ease; }
+.nav-more[open] summary { background: var(--surface-2); }
+.nav-more[open] summary svg { transform: rotate(180deg); }
+.nav-more-menu {
+  position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 40;
+  display: flex; flex-direction: column; min-width: 12rem; padding: 0.4rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 0.6rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+.main-nav .nav-more-menu a { padding: 0.55rem 0.75rem; }
+
+@media (min-width: 1200px) {
   .main-nav { display: flex; }
   .menu-btn { display: none !important; }
-  .brand-sub { display: none; }
 }
-@media (min-width: 1280px) { .brand-sub { display: inline; } }
-
 /* Mobile side menu (checkbox hack – works without JavaScript) */
 
 .menu-toggle {
@@ -276,7 +290,9 @@ body:has(#menu-toggle:checked) { overflow: hidden; }
   transform: translateX(-100%);
   transition: transform 0.25s ease, visibility 0s linear 0.25s;
 }
-.side-menu nav { display: flex; flex-direction: column; gap: 0.15rem; padding: 5rem 0.75rem 1.5rem; }
+.side-menu nav { display: flex; flex-direction: column; gap: 0.15rem; padding: 5.5rem 0.75rem 1.5rem; }
+/* The header (with the notice bar above it) stays on top of the open menu – keep the first link below it. */
+body:has(.banner) .side-menu nav { padding-top: 8rem; }
 .side-menu nav a {
   padding: 0.7rem 1rem; border-radius: var(--radius);
   color: var(--text); font-family: var(--serif); font-size: 1.35rem; text-decoration: none;
@@ -982,32 +998,31 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .person-bio-text p:last-child { margin-bottom: 0; }
 .person-bio-text a { color: var(--link); }
 
-/* Team names marked in the admin (the whole name): **Name** = gold, *Name* = blue.
-   Engraved metal look; one slow light sweep when the page loads and when the card is hovered. */
-.fx-name { color: var(--fx-base); }
-.fx-gold { --fx-top: #a9864a; --fx-base: #8a6a30; --fx-bottom: #6f5223; --fx-shine: rgba(255, 244, 214, 0.9); }
-.fx-flow { --fx-top: #355d97; --fx-base: #24467a; --fx-bottom: #1a3560; --fx-shine: rgba(255, 255, 255, 0.75); }
+/* Team names marked in the admin (the whole name): blue in light mode, gold in dark mode.
+   Engraved metal look; one slow, faint light sweep when the page loads and when the card is hovered. */
+.fx-name {
+  --fx-top: #355d97; --fx-base: #24467a; --fx-bottom: #1a3560; --fx-shine: rgba(255, 255, 255, 0.4);
+  color: var(--fx-base);
+}
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .fx-name {
     background-image:
-      linear-gradient(105deg, transparent 42%, var(--fx-shine) 50%, transparent 58%),
+      linear-gradient(105deg, transparent 44%, var(--fx-shine) 50%, transparent 56%),
       linear-gradient(180deg, var(--fx-top), var(--fx-base) 55%, var(--fx-bottom));
     background-size: 250% 100%, 100% 100%;
     background-repeat: no-repeat;
     background-position: 100% 0, 0 0;
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
     -webkit-box-decoration-break: clone; box-decoration-break: clone;
-    animation: fx-sweep 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.5s both;
+    animation: fx-sweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) 0.6s both;
   }
-  .person:hover .fx-name, .person:focus-within .fx-name { animation: fx-sweep-again 1.8s cubic-bezier(0.4, 0, 0.2, 1) both; }
+  .person:hover .fx-name, .person:focus-within .fx-name { animation: fx-sweep-again 2.4s cubic-bezier(0.4, 0, 0.2, 1) both; }
 }
 /* Two identical keyframes, so hovering restarts the sweep. */
 @keyframes fx-sweep { from { background-position: 100% 0, 0 0; } to { background-position: 0% 0, 0 0; } }
 @keyframes fx-sweep-again { from { background-position: 100% 0, 0 0; } to { background-position: 0% 0, 0 0; } }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .fx-gold { --fx-top: #e2c98f; --fx-base: #cdb070; --fx-bottom: #b39352; }
-  :root:not([data-theme="light"]) .fx-flow { --fx-top: #c4d6f2; --fx-base: #a3bde6; --fx-bottom: #87a5d6; }
+  :root:not([data-theme="light"]) .fx-name { --fx-top: #f0dfb2; --fx-base: #e0c78c; --fx-bottom: #c9ab6c; --fx-shine: rgba(255, 252, 240, 0.45); }
 }
-:root[data-theme="dark"] .fx-gold { --fx-top: #e2c98f; --fx-base: #cdb070; --fx-bottom: #b39352; }
-:root[data-theme="dark"] .fx-flow { --fx-top: #c4d6f2; --fx-base: #a3bde6; --fx-bottom: #87a5d6; }
+:root[data-theme="dark"] .fx-name { --fx-top: #f0dfb2; --fx-base: #e0c78c; --fx-bottom: #c9ab6c; --fx-shine: rgba(255, 252, 240, 0.45); }
 @media (prefers-reduced-motion: reduce) { .fx-name, .person:hover .fx-name, .person:focus-within .fx-name { animation: none; } }

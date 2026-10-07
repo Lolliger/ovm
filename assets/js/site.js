@@ -35,6 +35,20 @@
       a.addEventListener('click', function () { toggle.checked = false; });
     });
   }
+
+  // Header "More" menu: close on a click elsewhere and with Escape.
+  var more = document.querySelector('.nav-more');
+  if (more) {
+    document.addEventListener('click', function (e) {
+      if (more.open && !more.contains(e.target)) more.open = false;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && more.open) {
+        more.open = false;
+        more.querySelector('summary').focus();
+      }
+    });
+  }
 })();
 
 // Team: open a person as a pop-up, the rest of the page is blurred behind it.

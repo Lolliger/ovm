@@ -7,6 +7,11 @@ foreach (c('downloads', []) as $d) {
     }
 }
 ?>
+<?php if (!$cats): ?>
+<section class="section">
+  <div class="container"><p class="muted">No documents yet. Study guides, rules of procedure and other material will be published here before the conference.</p></div>
+</section>
+<?php endif; ?>
 <?php foreach ($cats as $cat => $files): ?>
 <section class="section">
   <div class="container">

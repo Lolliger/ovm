@@ -114,7 +114,7 @@ flowchart TD
 | **Tägliche Auto-Löschung** | Löscht höchstens einmal pro Tag alte Anmeldungen. Gesteuert über die Datei `data/purge-check`. | `lib/registration.php` → `purge_registrations_daily()` |
 | **Inhalte laden** | Liest `content.json` einmal pro Request, füllt fehlende Schlüssel aus `defaults.json` und legt die Datei beim ersten Start an. | `lib/bootstrap.php` → `content()`, `c()` |
 | **Schema + Markdown** | Das Schema beschreibt alle Felder, der Markdown-Renderer wandelt Admin-Texte sicher in HTML um. | `lib/schema.php`, `lib/markdown.php` → `md()` |
-| **Layout + Navigation** | Rahmen jeder Seite: Head, Farben aus dem Admin, Menü (blendet leere Bereiche aus), Footer. | `templates/layout.php` → `render()`, `main_nav()` |
+| **Layout + Navigation** | Rahmen jeder Seite: Head, Farben aus dem Admin, Header mit OMUN mittig (links feste Links Conference/Committees/Team/Downloads + Menü „More“ für alle übrigen Seiten mit Inhalt, rechts Login/Register), Footer. | `templates/layout.php` → `render()`, `main_nav()`, `more_nav()`, `secondary_nav()` |
 | **Seiten-Template** | Eine Datei pro Seitentyp, gemeinsame Bausteine stehen in `_pagehead.php` und `_files.php`. | `templates/` |
 | **Anmeldung** | Kennung prüfen (Rate-Limit pro IP), Passwort wählen, Validierung, Honeypot, Mindestzeit, Rate-Limit, Speichern, Mail und danach ein Redirect. Keine Namen, keine Schule. | `lib/registration.php` → `handle_registration()` |
 | **Mailversand** | Einziger Weg für E-Mails (Benachrichtigung, Bestätigung, Login-Links). Lokal (`php -S`) landen Mails in `data/mail-outbox/`. | `lib/mailer.php` → `send_mail()` |
