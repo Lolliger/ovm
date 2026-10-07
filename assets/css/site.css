@@ -982,31 +982,33 @@ body.print-page { background: #fff; padding: 2rem 1rem; }
 .person-bio-text p:last-child { margin-bottom: 0; }
 .person-bio-text a { color: var(--link); }
 
-/* Team names: *Name* = italic flowing gradient, **Name** = gold shimmer */
+/* Team names: *Name* = italic flowing gradient, **Name** = subtle gold */
+.person strong .fx-gold, .person strong .fx-flow { display: inline; } /* names are block-level; marked words stay in line */
 .fx-flow { font-style: italic; color: var(--link); }
-.fx-gold { font-weight: 700; color: #a8812f; }
+.fx-gold { font-weight: inherit; color: #a07d34; }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .fx-flow, .fx-gold {
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
     -webkit-box-decoration-break: clone; box-decoration-break: clone;
   }
   .fx-flow {
-    --fx-a: #046bd2; --fx-b: #00a3e0; --fx-c: #3d5afe;
-    background-image: linear-gradient(100deg, var(--fx-a) 0%, var(--fx-b) 30%, var(--fx-c) 55%, var(--fx-b) 80%, var(--fx-a) 100%);
-    background-size: 250% 100%;
+    --fx-a: #046bd2; --fx-b: #00b4ff; --fx-c: #4f46e5;
+    background-image: linear-gradient(90deg, var(--fx-a), var(--fx-b), var(--fx-c), var(--fx-b), var(--fx-a));
+    background-size: 300% 100%;
     padding: 0 0.1em 0.05em 0.02em; margin: 0 -0.1em -0.05em -0.02em; /* italic overhang */
-    animation: fx-flow 6s ease-in-out infinite alternate;
+    animation: fx-flow 3.5s linear infinite;
   }
   .fx-gold {
-    background-image: linear-gradient(110deg, #9a7428 0%, #b8913f 38%, #f3dc93 48%, #fff6d6 50%, #f3dc93 52%, #b8913f 62%, #9a7428 100%);
-    background-size: 300% 100%;
-    animation: fx-gold 4.5s ease-in-out infinite;
+    background-image: linear-gradient(100deg, #9a7a35 0%, #a8873e 40%, #c9a85e 50%, #a8873e 60%, #9a7a35 100%);
+    background-size: 250% 100%;
+    animation: fx-gold 9s ease-in-out infinite;
   }
 }
-@keyframes fx-flow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
-@keyframes fx-gold { 0% { background-position: 100% 50%; } 60%, 100% { background-position: 0% 50%; } }
+@keyframes fx-flow { from { background-position: 0% 50%; } to { background-position: 150% 50%; } }
+@keyframes fx-gold { 0%, 55% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .fx-flow { --fx-a: #7cc4ff; --fx-b: #b6e3ff; --fx-c: #9fa8ff; }
+  :root:not([data-theme="light"]) .fx-flow { --fx-a: #7cc4ff; --fx-b: #c4ecff; --fx-c: #a5b4fc; }
+  :root:not([data-theme="light"]) .fx-gold { background-image: linear-gradient(100deg, #b8975a 0%, #c4a465 40%, #dcc28a 50%, #c4a465 60%, #b8975a 100%); }
 }
-:root[data-theme="dark"] .fx-flow { --fx-a: #7cc4ff; --fx-b: #b6e3ff; --fx-c: #9fa8ff; }
+:root[data-theme="dark"] .fx-flow { --fx-a: #7cc4ff; --fx-b: #c4ecff; --fx-c: #a5b4fc; }
 @media (prefers-reduced-motion: reduce) { .fx-flow, .fx-gold { animation: none; } }

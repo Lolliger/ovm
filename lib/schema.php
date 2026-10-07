@@ -158,7 +158,7 @@ function schema(): array
             'type' => 'list',
             'title_field' => 'name',
             'fields' => [
-                ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'help' => '*Name* = kursiv mit fließendem Blauverlauf, **Name** = fett mit Goldglanz. Geht auch für einzelne Wörter, z. B. Lena *Hoffmann*.'],
+                ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'help' => '*Name* = kursiv mit fließendem Blauverlauf, **Name** = dezentes Gold. Geht auch für einzelne Wörter, z. B. Lena *Hoffmann*.'],
                 ['key' => 'role', 'label' => 'Rolle', 'type' => 'text'],
                 ['key' => 'group', 'label' => 'Gruppe', 'type' => 'select', 'options' => ['Secretariat', 'Chairs', 'Organising Team', 'Teachers']],
                 ['key' => 'photo', 'label' => 'Foto', 'type' => 'image'],
