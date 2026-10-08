@@ -199,6 +199,12 @@ function render(string $template, array $vars = []): void
   </div>
 <?php endif; ?>
 
+<?php
+// The menu is split around the centred OMUN: the first links left, the rest + "More" right.
+$navMain = main_nav();
+$navLeft = array_slice($navMain, 0, intdiv(count($navMain) + 2, 2));
+$navRight = array_slice($navMain, count($navLeft));
+?>
 <header class="site-header">
   <div class="container header-row">
     <div class="header-start">
@@ -206,7 +212,22 @@ function render(string $template, array $vars = []): void
         <span class="menu-btn-icon" aria-hidden="true"><i></i><i></i><i></i></span>
       </label>
       <nav class="main-nav" aria-label="Main">
-        <?php foreach (main_nav() as [$key, $label, $href]): ?>
+        <?php foreach ($navLeft as [$key, $label, $href]): ?>
+          <a href="<?= e($href) ?>"<?= $nav === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
+        <?php endforeach; ?>
+      </nav>
+    </div>
+    <a class="brand" href="<?= e(url()) ?>" aria-label="<?= e($siteName . ' – ' . c('site.full_name')) ?>">
+      <?php if (c('site.logo')): ?>
+        <img src="<?= e(media(c('site.logo'))) ?>" alt="<?= e($siteName) ?>">
+      <?php else: ?>
+        <?= emblem('brand-emblem') ?>
+        <span class="brand-name"><?= e($siteName) ?></span>
+      <?php endif; ?>
+    </a>
+    <div class="header-end">
+      <nav class="main-nav main-nav-end" aria-label="More pages">
+        <?php foreach ($navRight as [$key, $label, $href]): ?>
           <a href="<?= e($href) ?>"<?= $nav === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
         <?php endforeach; ?>
         <?php if ($more = more_nav()): ?>
@@ -220,16 +241,6 @@ function render(string $template, array $vars = []): void
           </details>
         <?php endif; ?>
       </nav>
-    </div>
-    <a class="brand" href="<?= e(url()) ?>" aria-label="<?= e($siteName . ' – ' . c('site.full_name')) ?>">
-      <?php if (c('site.logo')): ?>
-        <img src="<?= e(media(c('site.logo'))) ?>" alt="<?= e($siteName) ?>">
-      <?php else: ?>
-        <?= emblem('brand-emblem') ?>
-        <span class="brand-name"><?= e($siteName) ?></span>
-      <?php endif; ?>
-    </a>
-    <div class="header-end">
       <a class="header-login" href="<?= e(url('login')) ?>"<?= $nav === 'login' ? ' aria-current="page"' : '' ?>>Login</a>
       <a class="btn btn-small header-cta" href="<?= e(url('register')) ?>"<?= $nav === 'register' ? ' aria-current="page"' : '' ?>>Register</a>
     </div>

@@ -245,6 +245,8 @@ p { margin: 0 0 1rem; }
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 .main-nav .nav-more-menu a { padding: 0.55rem 0.75rem; }
+.main-nav-end .nav-more-menu { left: auto; right: 0; }
+.main-nav-end { margin-right: 0.5rem; }
 
 @media (min-width: 1200px) {
   .main-nav { display: flex; }
