@@ -1,10 +1,20 @@
 <?php
 $lead = 'OMUN is planned and run by students. These are the people behind it.';
 require __DIR__ . '/_pagehead.php';
+// Secretariat is shown together with the Organising Team. Fixed order of the
+// groups: Organising Team, Chairs, other groups, Teachers at the very end.
+$merge = ['Secretariat' => 'Organising Team'];
+$order = ['Organising Team' => 0, 'Chairs' => 1, 'Teachers' => 3];
 $groups = [];
 foreach (c('team', []) as $m) {
-    $groups[$m['group'] ?? ''][] = $m;
+    $g = $m['group'] ?? '';
+    $groups[$merge[$g] ?? $g][] = $m;
 }
+uksort($groups, fn ($a, $b) => [$order[$a] ?? 2, $a] <=> [$order[$b] ?? 2, $b]);
+foreach ($groups as &$members) {
+    usort($members, fn ($a, $b) => team_sort_key($a['name']) <=> team_sort_key($b['name']));
+}
+unset($members);
 $initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/', plain_name($name)), 0, 2))));
 ?>
 <?php foreach ($groups as $group => $members): ?>

@@ -160,7 +160,7 @@ function schema(): array
             'fields' => [
                 ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'help' => '*Name* = hervorgehoben: im hellen Modus Dunkelblau, im dunklen Modus Gold, mit einem dezenten Lichtschimmer. Es wird immer der ganze Name (Vor- und Nachname) hervorgehoben, auch wenn nur ein Wort markiert ist.'],
                 ['key' => 'role', 'label' => 'Rolle', 'type' => 'text'],
-                ['key' => 'group', 'label' => 'Gruppe', 'type' => 'select', 'options' => ['Secretariat', 'Chairs', 'Organising Team', 'Teachers']],
+                ['key' => 'group', 'label' => 'Gruppe', 'type' => 'select', 'options' => ['Secretariat', 'Chairs', 'Organising Team', 'Teachers'], 'help' => 'Reihenfolge auf der Seite: Organising Team (zusammen mit Secretariat), Chairs, Teachers. Innerhalb jeder Gruppe alphabetisch nach Nachname.'],
                 ['key' => 'photo', 'label' => 'Foto', 'type' => 'image'],
                 ['key' => 'bio', 'label' => 'Kurzvorstellung', 'type' => 'textarea', 'help' => 'E-Mail-Adressen werden automatisch verlinkt; **fett**, *kursiv* und [Links](https://…) gehen auch. Leerzeile = neuer Absatz.'],
             ],

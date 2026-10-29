@@ -90,6 +90,26 @@ function plain_name(string $s): string
     return trim(str_replace('*', '', $s));
 }
 
+/**
+ * Sort key for a person: last name, then first name. Everything after the first
+ * name counts as the last name ("Ella Schmitz Travagin" → Schmitz Travagin);
+ * titles ("Dr.") and particles ("von", "van", "de", "zu") are ignored,
+ * umlauts sort like their base letter.
+ */
+function team_sort_key(string $name): string
+{
+    $words = preg_split('/\s+/', plain_name($name));
+    while (count($words) > 1 && str_ends_with($words[0], '.')) {
+        array_shift($words);
+    }
+    $first = count($words) > 1 ? array_shift($words) : '';
+    while (count($words) > 1 && in_array(mb_strtolower($words[0]), ['von', 'vom', 'van', 'de', 'der', 'den', 'zu', 'zur'], true)) {
+        array_shift($words);
+    }
+    $key = mb_strtolower(implode(' ', $words) . ' ' . $first);
+    return strtr($key, ['ä' => 'a', 'ö' => 'o', 'ü' => 'u', 'ß' => 'ss', 'é' => 'e', 'è' => 'e', 'á' => 'a', 'à' => 'a', 'ç' => 'c', 'ñ' => 'n']);
+}
+
 /** Title with *emphasis* → <em>. */
 function emph(string $s): string
 {
