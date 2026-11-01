@@ -2,9 +2,9 @@
 $lead = 'OMUN is planned and run by students. These are the people behind it.';
 require __DIR__ . '/_pagehead.php';
 // Secretariat is shown together with the Organising Team. Fixed order of the
-// groups: Organising Team, Chairs, other groups, Teachers at the very end.
+// groups: Organising Team, Chairs, other groups, MUN Directors at the very end.
 $merge = ['Secretariat' => 'Organising Team'];
-$order = ['Organising Team' => 0, 'Chairs' => 1, 'Teachers' => 3];
+$order = ['Organising Team' => 0, 'Chairs' => 1, 'MUN Directors' => 3];
 $groups = [];
 foreach (c('team', []) as $m) {
     $g = $m['group'] ?? '';
@@ -20,7 +20,7 @@ $initials = fn (string $name) => mb_strtoupper(implode('', array_map(fn ($w) => 
 <?php foreach ($groups as $group => $members): ?>
 <section class="section">
   <div class="container">
-    <?php if ($group): ?><h2><?= e($group) ?></h2><?php endif; ?>
+    <?php if ($group): ?><h2><?= e($group === 'MUN Directors' && count($members) === 1 ? 'MUN Director' : $group) ?></h2><?php endif; ?>
     <div class="team-grid">
       <?php foreach ($members as $m): ?>
         <figure class="person">

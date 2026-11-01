@@ -166,6 +166,17 @@ function migrate_role_options(array $c): array
     return $c;
 }
 
+/** The team group "Teachers" is called "MUN Directors" now. */
+function migrate_team_groups(array $c): array
+{
+    foreach ($c['team'] ?? [] as $i => $m) {
+        if (is_array($m) && ($m['group'] ?? '') === 'Teachers') {
+            $c['team'][$i]['group'] = 'MUN Directors';
+        }
+    }
+    return $c;
+}
+
 function content(): array
 {
     static $c = null;
@@ -174,7 +185,7 @@ function content(): array
             $defaults = read_json(__DIR__ . '/defaults.json');
             write_json(CONTENT_FILE, $defaults);
         }
-        $c = migrate_role_options(read_json(CONTENT_FILE));
+        $c = migrate_team_groups(migrate_role_options(read_json(CONTENT_FILE)));
         // Fill in keys that were added to the schema later.
         $defaults ??= read_json(__DIR__ . '/defaults.json');
         foreach ($defaults as $k => $v) {

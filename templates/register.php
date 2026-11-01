@@ -89,8 +89,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
         <div class="field"><label for="f-message">Anything else?</label><textarea id="f-message" name="message" rows="4"><?= $val('message') ?></textarea></div>
       </fieldset>
 
-      <label class="check"><input type="checkbox" name="consent" value="1" required>
-        <span>I agree that my data is stored and used to organise the conference, as described in the <a href="<?= e(url('privacy')) ?>" target="_blank">privacy policy</a>. If I am under 16, my parents agree as well. *</span></label>
+      <p class="hint">We use your details to process your registration and to communicate with you about the conference. More information in our <a href="<?= e(url('privacy')) ?>" target="_blank">privacy policy</a>.</p>
 
       <button class="btn" type="submit">Send registration</button>
     </form>

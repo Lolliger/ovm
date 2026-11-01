@@ -154,9 +154,7 @@ function handle_registration(): ?array
     if ($values['email'] !== '' && !filter_var($values['email'], FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid e-mail address.';
     }
-    if (empty($_POST['consent'])) {
-        $errors[] = 'Please agree to the processing of your data.';
-    }
+
     if (!$errors && rate_limited('register', 10, 3600)) {
         $errors[] = 'Too many registrations from this connection. Please try again later.';
     }
