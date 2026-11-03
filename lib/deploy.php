@@ -7,7 +7,7 @@ declare(strict_types=1);
  * the fixed repository below and installs it with apply_update() – the same
  * path as an uploaded update zip, including the backup beforehand.
  *
- * data/deploy.json:      branch, MCP switch, hash of the MCP key (never the key itself)
+ * data/deploy.json:      branch, MCP/Hub-API switches, hashes of the MCP key and hub token (never the keys themselves)
  * data/github-update.*:  the last downloaded zip + its version/commit
  * data/update-log.json:  who installed what, when (last 50 entries)
  */

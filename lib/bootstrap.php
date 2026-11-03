@@ -20,6 +20,7 @@ define('BASE', $scriptDir);
 require __DIR__ . '/markdown.php';
 require __DIR__ . '/mailer.php';
 require __DIR__ . '/schema.php';
+require __DIR__ . '/audit.php';
 
 date_default_timezone_set('Europe/Berlin');
 

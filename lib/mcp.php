@@ -44,6 +44,7 @@ function mcp_handle(?string $urlToken): void
     }
     if (!check_mcp_token($token)) {
         mcp_failures(true);
+        audit_error('mcp.auth_failed', '/mcp');
         header('WWW-Authenticate: Bearer');
         mcp_http(401, 'Unauthorized');
     }

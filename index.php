@@ -40,6 +40,13 @@ if (($parts[0] ?? '') === 'mcp' && count($parts) <= 2) {
     exit;
 }
 
+// Hub-API for the external admin dashboard (lib/hub.php, HUB_API.md): /api/hub/<endpoint>
+if (($parts[0] ?? '') === 'api' && ($parts[1] ?? '') === 'hub' && count($parts) <= 3) {
+    require __DIR__ . '/lib/hub.php';
+    hub_handle($parts[2] ?? null);
+    exit;
+}
+
 function find_by_slug(string $list, string $slug): ?array
 {
     foreach (c($list, []) as $item) {
