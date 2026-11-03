@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/lib/registration.php';
 require dirname(__DIR__) . '/lib/totp.php';
 require dirname(__DIR__) . '/lib/updater.php';
 require dirname(__DIR__) . '/lib/deploy.php';
+require dirname(__DIR__) . '/lib/hub.php';
 require dirname(__DIR__) . '/lib/resolution.php';
 require dirname(__DIR__) . '/lib/stats.php';
 
@@ -32,6 +33,7 @@ if (!is_setup()) {
             $error = 'Die Passwörter stimmen nicht überein.';
         } else {
             set_password($pw);
+            audit('admin.setup');
             content(); // creates data/content.json
             flash('Passwort gespeichert. Willkommen im Admin-Bereich!');
             redirect(admin_url());
@@ -63,8 +65,10 @@ if (!is_logged_in()) {
         } elseif (verify_second_factor((string) ($_POST['code'] ?? ''))) {
             unset($_SESSION['2fa']);
             login_session(auth_data()['v']);
+            audit('admin.login', '2fa');
             redirect(admin_url());
         } else {
+            audit_error('admin.2fa_failed', 'admin');
             usleep(400000);
             $error = 'Der Code ist falsch oder abgelaufen.';
         }
@@ -77,6 +81,7 @@ if (!is_logged_in()) {
         if (!csrf_check()) {
             $error = 'Sitzung abgelaufen, bitte erneut versuchen.';
         } elseif (rate_limited('login', 8, 900)) {
+            audit_error('admin.login_rate_limited', 'admin');
             $error = 'Zu viele Versuche. Bitte 15 Minuten warten.';
         } elseif (check_password((string) ($_POST['password'] ?? ''))) {
             if (totp_enabled()) {
@@ -85,8 +90,10 @@ if (!is_logged_in()) {
                 redirect(admin_url());
             }
             login_session(auth_data()['v']);
+            audit('admin.login', 'password');
             redirect(admin_url(array_filter(['s' => $s])));
         } else {
+            audit_error('admin.login_failed', 'admin');
             usleep(400000);
             $error = 'Falsches Passwort.';
         }
@@ -108,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         switch ($action) {
             case 'logout':
+                audit('admin.logout');
                 $_SESSION = [];
                 session_destroy();
                 redirect(admin_url());
@@ -124,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $content[$s][$f['key']] = field_value($f, $in[$f['key']] ?? '', $f['key'], $errors);
                     }
                     save_content($content, $def['label']);
+                    audit('content.save', $def['label']);
                     foreach ($errors as $er) {
                         flash($er, 'error');
                     }
@@ -157,6 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $content[$s] = array_values($list);
                 save_content($content, $def['label'] . ': ' . ($item[$def['title_field']] ?? ''));
+                audit($found ? 'content.item_update' : 'content.item_create', $def['label'] . ': ' . ($item[$def['title_field']] ?? ''));
                 foreach ($errors as $er) {
                     flash($er, 'error');
                 }
@@ -181,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $label = ($schema[$s]['label'] ?? $s) . ': ' . ($action === 'delete_item' ? 'Eintrag gelöscht' : 'Reihenfolge geändert');
                     $content[$s] = array_values($list);
                     save_content($content, $label);
+                    audit($action === 'delete_item' ? 'content.item_delete' : 'content.item_move', $label);
                 }
                 redirect(admin_url(['s' => $s]));
 
@@ -201,6 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 if ($n) {
+                    audit('media.upload', $n . ' file(s)');
                     flash($n === 1 ? '1 Datei hochgeladen.' : "$n Dateien hochgeladen.");
                 }
                 redirect(admin_url(['s' => 'media']));
@@ -210,6 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $path = UPLOAD_DIR . '/' . $file;
                 if ($file !== '' && $file[0] !== '.' && is_file($path)) {
                     unlink($path);
+                    audit('media.delete', $file);
                     flash('„' . $file . '“ gelöscht.');
                 }
                 redirect(admin_url(['s' => 'media']));
@@ -225,6 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return array_values(array_filter($regs, fn ($r) => ($r['id'] ?? '') !== $id));
                 });
                 delete_orphan_accounts();
+                audit('registration.delete', 'id ' . $id);
                 flash('Anmeldung gelöscht.');
                 redirect(admin_url(['s' => 'registrations']));
 
@@ -248,6 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     return $regs;
                 });
+                audit('registration.update', 'id ' . $id . ' → ' . $status);
                 flash('Anmeldung aktualisiert.');
                 redirect(admin_url(['s' => 'registrations', 'open' => $id]) . '#reg-' . rawurlencode($id));
 
@@ -274,6 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     return $regs;
                 });
+                audit('allocation.save', $changed . ' changed');
                 flash($changed . ' Zuteilung' . ($changed === 1 ? '' : 'en') . ' geändert.');
                 redirect(admin_url(['s' => 'allocation']));
 
@@ -293,6 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     return $regs;
                 });
+                audit('registration.confirm_role', 'id ' . $id);
                 flash('Bestätigt. Die Rechte gelten ab dem nächsten Seitenaufruf der Person.');
                 redirect(admin_url(['s' => 'registrations']));
 
@@ -304,6 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('Das neue Passwort muss mindestens 10 Zeichen lang sein.', 'error');
                 } else {
                     set_staff_password('laptops', $pw);
+                    audit('staff.password_change', 'laptops');
                     flash('Passwort des Laptop-Kontos geändert. Bereits angemeldete Laptops bleiben angemeldet, bis sie sich abmelden.');
                 }
                 redirect(admin_url(['s' => 'resolutions']));
@@ -318,6 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($reg && ($reg['code'] ?? '') === '') {
                     flash('Diese Anmeldung hat noch keine Kennung. Erst oben „Kennungen vergeben“ ausführen.', 'error');
                 } elseif ($reg && send_new_credentials($reg['code'])) {
+                    audit('registration.send_credentials', 'id ' . $reg['id']);
                     flash('Neue Zugangsdaten (Kennung + Passwort) an ' . $reg['email'] . ' gesendet. Das alte Passwort gilt nicht mehr.');
                 } else {
                     flash('Die E-Mail konnte nicht gesendet werden. Ist der Mailversand im Hosting-Paket aktiv?', 'error');
@@ -331,6 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $text .= "\n" . file_get_contents($file['tmp_name']);
                 }
                 [$added, $known, $invalid] = add_codes($text);
+                audit('codes.add', $added . ' added');
                 flash($added . ' Kennung' . ($added === 1 ? '' : 'en') . ' hinzugefügt'
                     . ($known ? ', ' . $known . ' waren schon da' : '')
                     . ($invalid ? ', ' . $invalid . ' Zeile' . ($invalid === 1 ? '' : 'n') . ' übersprungen (keine gültige Kennung – Namen werden nie übernommen)' : '') . '.',
@@ -339,11 +359,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'codes_delete':
                 $n = delete_unused_codes([(string) ($_POST['code'] ?? '')]);
+                if ($n) {
+                    audit('codes.delete', '1 code');
+                }
                 flash($n ? 'Kennung gelöscht.' : 'Die Kennung wird schon von einer Anmeldung verwendet und wurde nicht gelöscht.', $n ? 'ok' : 'error');
                 redirect(admin_url(['s' => 'codes']));
 
             case 'codes_delete_unused':
                 $n = delete_unused_codes();
+                audit('codes.delete_unused', $n . ' codes');
                 flash($n . ' unbenutzte Kennung' . ($n === 1 ? '' : 'en') . ' gelöscht.');
                 redirect(admin_url(['s' => 'codes']));
 
@@ -360,6 +384,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return $regs;
                 });
                 delete_orphan_accounts(); // old log-ins by e-mail address no longer work
+                audit('legacy.assign_codes', $n . ' registrations');
                 flash($n . ($n === 1 ? ' Anmeldung hat' : ' Anmeldungen haben') . ' eine Kennung bekommen. Jetzt die Liste herunterladen (Schritt 2).');
                 redirect(admin_url(['s' => 'registrations']));
 
@@ -378,6 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     return $regs;
                 });
+                audit('legacy.strip_names', $n . ' registrations');
                 flash('Namen und Schulen aus ' . $n . ' Anmeldung' . ($n === 1 ? '' : 'en') . ' gelöscht.');
                 redirect(admin_url(['s' => 'registrations']));
 
@@ -402,6 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
                 }
+                audit('legacy.send_credentials', $sent . ' sent, ' . $failed . ' failed');
                 flash($sent . ' E-Mail' . ($sent === 1 ? '' : 's') . ' mit Kennung und neuem Passwort gesendet.' . ($failed ? ' ' . $failed . ' konnten nicht gesendet werden.' : ''), $failed ? 'error' : 'ok');
                 redirect(admin_url(['s' => 'registrations']));
 
@@ -414,6 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         return [];
                     });
                     delete_orphan_accounts();
+                    audit('registration.delete_all');
                     flash('Alle Anmeldungen wurden gelöscht.');
                 } else {
                     flash('Zum Bestätigen bitte LÖSCHEN eintippen.', 'error');
@@ -429,6 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('Die neuen Passwörter stimmen nicht überein.', 'error');
                 } else {
                     set_password((string) $_POST['password']);
+                    audit('admin.password_change');
                     flash('Passwort geändert. Alle anderen Geräte wurden abgemeldet.');
                 }
                 redirect(admin_url(['s' => 'settings']));
@@ -440,6 +469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('Das ist keine gültige Backup-Datei.', 'error');
                 } else {
                     save_content(array_intersect_key($data, $schema), 'Backup-Import');
+                    audit('content.import');
                     flash('Backup wiederhergestellt. Der vorherige Stand ist unter „Versionen“ gesichert.');
                 }
                 redirect(admin_url(['s' => 'settings']));
@@ -503,9 +533,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 save_deploy_settings(['branch' => $branch, 'mcp_enabled' => $enable]);
                 if (!empty($_POST['new_token']) || ($enable && deploy_settings()['mcp_token_hash'] === '')) {
                     $_SESSION['mcp_new_token'] = new_mcp_token();
+                    audit('mcp.new_key');
                 }
+                audit('deploy.settings', 'branch ' . $branch . ', mcp ' . ($enable ? 'on' : 'off'));
                 flash('Gespeichert. Claude-Zugang ist ' . ($enable ? 'eingeschaltet.' : 'ausgeschaltet.'));
                 redirect(admin_url(['s' => 'update']) . '#mcp');
+
+            case 'hub_settings':
+                if (!check_password((string) ($_POST['password'] ?? ''))) {
+                    flash('Bitte zur Bestätigung das richtige Admin-Passwort eingeben.', 'error');
+                    redirect(admin_url(['s' => 'update']) . '#hub');
+                }
+                $enable = !empty($_POST['hub_enabled']);
+                save_deploy_settings(['hub_enabled' => $enable]);
+                if (!empty($_POST['new_hub_token']) || ($enable && hub_settings()['hub_token_hash'] === '')) {
+                    $_SESSION['hub_new_token'] = new_hub_token();
+                    audit('hub.new_token');
+                }
+                audit('hub.settings', 'hub ' . ($enable ? 'on' : 'off'));
+                flash('Gespeichert. Hub-API ist ' . (hub_enabled() ? 'eingeschaltet.' : 'ausgeschaltet.'));
+                redirect(admin_url(['s' => 'update']) . '#hub');
 
             case 'history_restore':
                 $path = history_path((string) ($_POST['file'] ?? ''));
@@ -514,6 +561,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('Version nicht gefunden.', 'error');
                 } else {
                     save_content($version['content'], 'Wiederherstellung (Stand vom ' . date('d.m.Y H:i', strtotime($version['saved'])) . ')');
+                    audit('content.history_restore', basename((string) $path));
                     flash('Version vom ' . date('d.m.Y, H:i', strtotime($version['saved'])) . ' wiederhergestellt. Der Stand davor ist ebenfalls gesichert.');
                 }
                 redirect(admin_url(['s' => 'history']));
@@ -531,6 +579,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $auth['totp'][] = ['id' => bin2hex(random_bytes(4)), 'name' => $name, 'secret' => $secret, 'created' => date('c'), 'last_step' => $step];
                 write_json(AUTH_FILE, $auth);
                 unset($_SESSION['totp_new']);
+                audit('admin.2fa_add', $name);
                 flash('„' . $name . '“ hinzugefügt. Ab jetzt wird beim Login ein Code verlangt.');
                 if ($first || empty($auth['recovery'])) {
                     $_SESSION['recovery_show'] = new_recovery_codes();
@@ -548,6 +597,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         unset($auth['recovery']);
                     }
                     write_json(AUTH_FILE, $auth);
+                    audit('admin.2fa_remove', $auth['totp'] ? '' : '2fa now off');
                     flash($auth['totp'] ? 'Gerät entfernt.' : 'Gerät entfernt. Zwei-Faktor-Login ist jetzt AUS.', $auth['totp'] ? 'ok' : 'error');
                 }
                 redirect(admin_url(['s' => 'settings']));
@@ -557,6 +607,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('Bitte das richtige Passwort eingeben.', 'error');
                 } else {
                     $_SESSION['recovery_show'] = new_recovery_codes();
+                    audit('admin.recovery_codes_new');
                     flash('Neue Notfall-Codes erstellt. Die alten gelten nicht mehr.');
                 }
                 redirect(admin_url(['s' => 'settings']));
@@ -1452,6 +1503,10 @@ function view_update(): void
     $meta = $checked ? github_cached() : null;
     $newToken = $_SESSION['mcp_new_token'] ?? null;
     unset($_SESSION['mcp_new_token']);
+    $hub = hub_settings();
+    $hubToken = $_SESSION['hub_new_token'] ?? null;
+    unset($_SESSION['hub_new_token']);
+    $hubUrl = site_origin() . url('api/hub');
     $mcpUrl = site_origin() . url('mcp');
     $pw = fn () => '<div class="field"><label>Admin-Passwort zur Bestätigung<input type="password" name="password" required autocomplete="current-password"></label></div>';
     ?>
@@ -1536,6 +1591,29 @@ function view_update(): void
         <div class="field"><label><input type="checkbox" name="new_token" value="1"> Neuen Schlüssel erstellen (der alte gilt dann nicht mehr)</label></div>
         <div class="field"><label>GitHub-Branch<input type="text" name="branch" value="<?= e(github_branch()) ?>" required></label>
           <small class="muted">Aus diesem Branch von <?= e(GITHUB_REPO) ?> werden Updates geholt (Button oben und Claude).</small></div>
+        <?= $pw() ?>
+        <div class="save-bar"><button class="btn">Speichern</button></div>
+      </form>
+    </div>
+
+    <div class="edit-form" id="hub">
+      <h2>Hub-API (Admin-Dashboard)</h2>
+      <p>Schnittstelle nur zum <strong>Lesen</strong> für das externe Dashboard: Version, Kennzahlen, Protokoll, Admin-Zugänge und fehlgeschlagene Logins
+        (<code><?= e($hubUrl) ?>/health</code>, <code>/stats</code>, <code>/audit</code>, <code>/admins</code>, <code>/errors</code>).
+        Sie gibt <strong>keine</strong> Namen, E-Mail-Adressen, Kennungen, Passwörter oder Schlüssel heraus und kann nichts ändern. Details: <code>HUB_API.md</code>.
+        Status: <strong><?= hub_enabled() ? 'eingeschaltet' : 'ausgeschaltet' ?></strong><?= $hub['hub_token_created'] ? ' · Token erstellt am ' . e(date('d.m.Y, H:i', strtotime($hub['hub_token_created']))) : '' ?><?= hub_env_token() !== '' ? ' · zusätzlich Token aus der Umgebungsvariable <code>HUB_TOKEN</code> aktiv' : '' ?>.</p>
+      <?php if ($hubToken): ?>
+        <div class="flash flash-warn">
+          <p><strong>Neuer Token – wird nur jetzt angezeigt.</strong> Im Dashboard als <code>HUB_TOKEN</code> (serverseitig) eintragen. Nicht weitergeben, nicht in Git oder Chats posten.</p>
+          <p><input type="text" readonly value="<?= e($hubToken) ?>" onclick="this.select()" style="width:100%;font-family:monospace"></p>
+          <p><strong>Test:</strong></p>
+          <p><input type="text" readonly value="<?= e('curl -H "Authorization: Bearer ' . $hubToken . '" ' . $hubUrl . '/health') ?>" onclick="this.select()" style="width:100%;font-family:monospace"></p>
+        </div>
+      <?php endif; ?>
+      <form method="post">
+        <?= csrf_field() ?><input type="hidden" name="a" value="hub_settings">
+        <div class="field"><label><input type="checkbox" name="hub_enabled" value="1"<?= !empty($hub['hub_enabled']) ? ' checked' : '' ?>> Hub-API eingeschaltet</label></div>
+        <div class="field"><label><input type="checkbox" name="new_hub_token" value="1"> Neuen Token erstellen (der alte gilt dann nicht mehr)</label></div>
         <?= $pw() ?>
         <div class="save-bar"><button class="btn">Speichern</button></div>
       </form>

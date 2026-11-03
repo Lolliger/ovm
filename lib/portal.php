@@ -618,6 +618,7 @@ function login_route(?string $sub): void
         if (!csrf_check()) {
             $error = 'Your session expired. Please try again.';
         } elseif (rate_limited('portal-password', 10, 900)) {
+            audit_error('portal.login_rate_limited', 'portal');
             $error = 'Too many attempts. Please wait 15 minutes and try again.';
         } elseif (verify_account($account, (string) ($_POST['password'] ?? ''))) {
             if (!login_allowed($account)) {
@@ -630,6 +631,7 @@ function login_route(?string $sub): void
             // A handed-out code nobody has registered with yet: first step is the registration form.
             redirect_to(url('register') . '?code=' . rawurlencode(format_code($account)));
         } else {
+            audit_error('portal.login_failed', 'portal');
             usleep(300000);
             $error = 'Personal code or password is wrong.';
         }

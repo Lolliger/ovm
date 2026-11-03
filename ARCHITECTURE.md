@@ -175,6 +175,8 @@ flowchart TD
 | **Sicherheit** | Passwortwechsel, 2FA-Geräte hinzufügen und entfernen, Notfall-Codes, Backup-Export und -Import. | `admin/index.php` → `view_settings()`, `view_2fa()` |
 | **Update** | Nimmt eine Update-Zip entgegen (Passwort nötig), prüft alle Pfade, sichert die laufende Version und ersetzt die Programmdateien. `data/` und `uploads/` werden übersprungen. | `lib/updater.php` → `apply_update()`, `admin/index.php` → `view_update()` |
 | **Update von GitHub** | Lädt den Branch aus `lolliger/ovm` von codeload.github.com (fest im Code, Branch im Admin einstellbar) und installiert ihn über `apply_update()`. Update-Sperre (`data/update.lock`), Protokoll `data/update-log.json`, Sicherung zurückspielen. | `lib/deploy.php` → `github_fetch()`, `github_install()`, `restore_code_backup()` |
+| **Hub-API** | `/api/hub/{health,stats,audit,admins,errors}` + `Authorization: Bearer`. Nur GET, JSON, für das externe Admin-Dashboard; gibt keine Hashes, Schlüssel, Namen, E-Mails oder Kennungen aus. Token unter Admin → Update → Hub-API (nur SHA-256 in `data/deploy.json`) oder Umgebungsvariable `HUB_TOKEN`; 30 Anfragen/min pro IP. Siehe `HUB_API.md`. | `lib/hub.php` → `hub_handle()`; Route in `index.php` |
+| **Audit-Log** | `audit()` / `audit_error()` an den wichtigsten Admin-Aktionen und bei fehlgeschlagenen Logins (Admin, Portal, MCP, Hub). Ohne Personendaten und IPs. Fehler beim Schreiben werden verschluckt. | `lib/audit.php` (geladen von `lib/bootstrap.php`) |
 | **MCP-Endpunkt** | `/mcp/<schlüssel>` oder `/mcp` + `Authorization: Bearer`. JSON-RPC (MCP Streamable HTTP, nur JSON-Antworten). Tools: `status`, `check_github`, `install_update` (braucht `expected_version`, ältere Version nur mit `allow_older`), `list_backups`, `restore_backup`. Standardmäßig aus; Schlüssel nur als SHA-256 in `data/deploy.json`; 10 Fehlversuche/15 min pro IP. | `lib/mcp.php` → `mcp_handle()`; Route in `index.php` |
 
 ---
@@ -222,6 +224,7 @@ flowchart LR
 | `data/accounts.json` | Teilnehmer-Konten: Kennung → Passwort-Hash | `set_account_password()`, aufgeräumt von `delete_orphan_accounts()` | … kann sich niemand mehr ins Portal einloggen; im Admin „Neue Zugangsdaten senden“. |
 | `data/papers/` | Hochgeladene Position Papers (nicht öffentlich) | `store_paper()` | … zeigt der Download „File not found“. |
 | `data/auth.json` | Passwort-Hash, Session-Version `v`, 2FA-Geräte, Notfall-Codes | Admin | … ist die **Ersteinrichtung wieder offen** (siehe R3). |
+| `data/audit-log.json`, `data/error-log.json` | Audit-Log und fehlgeschlagene Logins für die Hub-API (je max. 500, neueste zuerst) | `audit()`, `audit_error()` | … beginnt das Protokoll neu, sonst keine Folgen. |
 | `data/ratelimit-*.json` | Zeitstempel der Versuche pro IP-Hash | `rate_limited()` | … ist das harmlos und wird neu angelegt. |
 | `data/purge-check` | Nur das Änderungsdatum zählt | `purge_registrations_daily()` | … läuft die Löschprüfung beim nächsten Aufruf erneut. |
 
