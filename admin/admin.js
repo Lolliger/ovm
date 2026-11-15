@@ -4,6 +4,11 @@
     var msg = e.target.getAttribute('data-confirm');
     if (msg && !confirm(msg)) e.preventDefault();
   });
+  // Buttons with their own question (forms with several actions).
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-confirm]');
+    if (b && !confirm(b.getAttribute('data-confirm'))) e.preventDefault();
+  });
 
   // Repeater rows (schedule, numbers, …)
   document.addEventListener('click', function (e) {

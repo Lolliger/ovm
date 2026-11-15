@@ -206,6 +206,9 @@
     "certificates_open": false,
     "cert_title": "Certificate of Participation",
     "cert_text": "has participated as {participation} at {conference}, held at the Oskar-von-Miller-Gymnasium in Munich from {dates}.",
+    "alloc_subject": "Your allocation for {conference}",
+    "alloc_text": "Hello,\n\nthe allocation for {conference} is done. You will represent:\n\nCountry:   {country}\nCommittee: {committee}\n\nTopics:\n{topics}\n\nYou can now find your allocation, the study guide and the upload for your position paper in the delegate area:\n{portal}\n(log in with your personal code {code} and your password)\n\nWe could not fulfil every wish – thank you for your understanding.\n\nIf you have any questions, write to us at {email}.\n\nSee you soon!\nYour OMUN team",
+    "resolution_notify_email": "",
     "cert_signers": [
       "Name | Secretary-General",
       "Name | Head of School"

@@ -45,6 +45,36 @@ $statuses = registration_statuses();
         <?php endforeach; ?>
       </details>
     <?php endif; ?>
+    <?php if (is_site_admin_account($account)): ?>
+      <form class="portal-card portal-admin" method="post" action="<?= e(portal_link('admin')) ?>">
+        <?= csrf_field() ?>
+        <div><h2>Website admin</h2><p class="muted">Edit the website, registrations and the allocation – without logging in again.</p></div>
+        <button class="btn" type="submit">Open admin area →</button>
+      </form>
+    <?php endif; ?>
+    <?php
+    $reviewer = res_can_review($account);
+    $resList = array_values(array_filter(res_reviewed_all(), fn ($x) => res_archive_visible($x['committee'], $x['res'], $account)));
+    ?>
+    <?php if ($resList): ?>
+      <div class="portal-card" id="resolutions">
+        <header><h2>Resolutions</h2></header>
+        <ul class="portal-list">
+          <?php foreach ($resList as $x): $link = res_public_link($x['committee'], $x['res']); $pending = ($x['res']['review'] ?? '') === 'pending'; ?>
+            <li>
+              <span><strong><?= e((($x['committee']['abbr'] ?? '') ?: $x['committee']['name']) . ' · Resolution ' . (int) ($x['res']['number'] ?? 1)) ?></strong>
+                <span class="muted"><?= e($x['res']['topic'] ?: 'No topic') ?> · <?= e($x['res']['outcome'] ?? '') ?></span>
+                <?php if ($pending): ?><span class="tag status-waitlist"><?= $reviewer ? 'Waiting for your review' : 'With the MUN Coordinator' ?></span><?php endif; ?></span>
+              <span class="portal-list-links">
+                <?php if ($reviewer): ?><a class="<?= $pending ? 'btn btn-small' : '' ?>" href="<?= e($link . '&view=review') ?>">Review</a><?php endif; ?>
+                <a href="<?= e($link) ?>" target="_blank">View / PDF</a>
+                <a href="<?= e($link . '&format=docx') ?>">Word</a>
+              </span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
     <?php if ($staff): ?>
       <p class="muted">This is a shared view-only account for the conference laptops. Its password is managed in the admin area.</p>
     <?php else: ?>
@@ -57,8 +87,11 @@ $statuses = registration_statuses();
     <?php foreach ($regs as $r): ?>
       <?php
       $status = $r['status'] ?? 'received';
-      $committee = committee_by_label((string) ($r['assigned_committee'] ?? ''));
-      $delegate = ($r['kind'] ?? 'delegate') === 'delegate' && empty($r['is_admin']);
+      $delegate = is_delegate_reg($r);
+      // Delegates see their allocation only once it has been released by the organisers.
+      $allocated = alloc_visible($r);
+      $committee = $allocated ? committee_by_label((string) ($r['assigned_committee'] ?? '')) : null;
+      $profile = team_profile($r);
       ?>
       <article class="portal-card">
         <header>
@@ -71,14 +104,14 @@ $statuses = registration_statuses();
             <span><strong>Your certificate is ready</strong>Certificate of participation – download as PDF</span><span aria-hidden="true">↓</span></a>
         <?php endif; ?>
         <dl class="facts">
-          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?><?= !empty($r['is_admin']) ? ' · <strong>Admin</strong> (chair rights in all committees)' : '' ?></dd></div>
-          <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($r['assigned_country'] ?? '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>
+          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['is_coordinator']) ? ' · <strong>MUN Coordinator</strong> (spectator in all committees, reviews resolutions)' : '' ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?><?= !empty($r['is_admin']) ? ' · <strong>Admin</strong> (chair rights in all committees)' : '' ?></dd></div>
+          <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($allocated ? ($r['assigned_country'] ?? '') : '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>
           <?php if (!in_array($r['kind'] ?? '', ['manager', 'staff'], true) || $committee): ?><div><dt>Committee</dt><dd>
             <?php if ($committee): ?>
               <a href="<?= e(main_origin() . url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
               <?php if (!empty($committee['study_guide'])): ?> · <a href="<?= e(media($committee['study_guide'])) ?>" download>Study guide ↓</a><?php endif; ?>
             <?php else: ?>
-              <?= e(committee_display((string) ($r['assigned_committee'] ?? '')) ?: 'Not allocated yet') ?>
+              <?= e(($allocated ? committee_display((string) ($r['assigned_committee'] ?? '')) : '') ?: 'Not allocated yet') ?>
             <?php endif; ?>
           </dd></div><?php endif; ?>
           <?php if (($r['grade'] ?? '') !== ''): ?><div><dt>Grade</dt><dd><?= e($r['grade']) ?></dd></div><?php endif; ?>
@@ -96,6 +129,8 @@ $statuses = registration_statuses();
           <?php endif; ?>
           <?php if ($status === 'cancelled'): ?>
             <p class="muted">This registration was cancelled.</p>
+          <?php elseif (!$committee): ?>
+            <p class="muted">You can hand in your position paper here once you have received your country and committee.</p>
           <?php elseif (papers_open()): ?>
             <?php if (c('portal.paper_info')): ?><div class="prose muted"><?= md(c('portal.paper_info')) ?></div><?php endif; ?>
             <?php if (c('portal.paper_deadline')): ?><p><strong>Deadline: <?= e(format_date(c('portal.paper_deadline'))) ?></strong></p><?php endif; ?>
@@ -104,11 +139,46 @@ $statuses = registration_statuses();
               <input type="hidden" name="a" value="paper">
               <input type="hidden" name="id" value="<?= e($r['id']) ?>">
               <input type="file" name="paper" accept=".pdf,.doc,.docx,.odt" required>
-              <button class="btn" type="submit"><?= empty($r['paper']) ? 'Upload' : 'Replace' ?></button>
+              <button class="btn" type="submit"><?= empty($r['paper']) ? 'Hand in position paper' : 'Replace position paper' ?></button>
             </form>
+            <p class="muted small">Once handed in, your paper can be read by the delegates and chairs of your committee. Please do not put your name on it – use your country.</p>
           <?php elseif (empty($r['paper'])): ?>
             <p class="muted"><?= c('portal.papers_open') ? 'The deadline for position papers has passed.' : 'Uploading position papers is not open yet.' ?></p>
           <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($committee && ($delegate || !empty($r['is_chair'])) && ($papers = committee_papers($committee['slug']))): ?>
+        <div class="paper">
+          <h3>Position papers of <?= e($committee['name']) ?></h3>
+          <ul class="portal-list">
+            <?php foreach ($papers as $p): ?>
+              <li><span><strong><?= e(trim((string) ($p['assigned_country'] ?? '')) ?: 'Delegation') ?></strong><?= $p['id'] === $r['id'] ? ' <span class="muted">(yours)</span>' : '' ?>
+                <span class="muted">handed in <?= e(date('j F Y', strtotime($p['paper']['uploaded']))) ?></span></span>
+                <a href="<?= e(portal_link('paper') . '?id=' . rawurlencode($p['id'])) ?>">Download ↓</a></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($profile): ?>
+        <div class="paper" id="profile">
+          <h3>Your profile on the team page</h3>
+          <form class="form profile-form" method="post" enctype="multipart/form-data" action="<?= e(portal_link()) ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="a" value="profile">
+            <input type="hidden" name="id" value="<?= e($r['id']) ?>">
+            <div class="profile-row">
+              <?php if (!empty($profile['photo'])): ?><img src="<?= e(media($profile['photo'])) ?>" alt="Your current photo"><?php endif; ?>
+              <div class="field"><label for="pf-photo-<?= e($r['id']) ?>">Photo</label>
+                <input id="pf-photo-<?= e($r['id']) ?>" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp">
+                <p class="hint"><strong>Black and white photos only</strong> (portrait format, JPG or PNG, up to 10 MB). Colour photos are converted to black and white automatically.</p></div>
+            </div>
+            <div class="field"><label for="pf-bio-<?= e($r['id']) ?>">Short introduction</label>
+              <textarea id="pf-bio-<?= e($r['id']) ?>" name="bio" rows="6"><?= e($profile['bio'] ?? '') ?></textarea>
+              <p class="hint">Shown publicly on the <a href="<?= e(main_origin() . url('team')) ?>" target="_blank">team page</a> next to “<?= e(plain_name((string) $profile['name'])) ?>”. An empty line starts a new paragraph; **bold**, *italic* and [links](https://…) work.</p></div>
+            <button class="btn" type="submit">Save profile</button>
+          </form>
         </div>
         <?php endif; ?>
       </article>

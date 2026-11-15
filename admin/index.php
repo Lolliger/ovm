@@ -4,6 +4,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/lib/bootstrap.php';
 require dirname(__DIR__) . '/lib/admin.php';
 require dirname(__DIR__) . '/lib/registration.php';
+require_once dirname(__DIR__) . '/lib/allocation.php';
 require dirname(__DIR__) . '/lib/totp.php';
 require dirname(__DIR__) . '/lib/updater.php';
 require dirname(__DIR__) . '/lib/deploy.php';
@@ -254,8 +255,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $r['admin_note'] = trim(mb_substr((string) ($_POST['admin_note'] ?? ''), 0, 2000));
                             $r['is_chair'] = !empty($_POST['is_chair']);
                             $r['is_manager'] = !empty($_POST['is_manager']);
+                            $r['is_coordinator'] = !empty($_POST['is_coordinator']);
                             $r['is_admin'] = !empty($_POST['is_admin']);
-                            if ($r['is_chair'] || $r['is_manager'] || $r['is_admin']) {
+                            if ($r['is_chair'] || $r['is_manager'] || $r['is_admin'] || $r['is_coordinator']) {
                                 unset($r['role_pending']);
                             }
                         }
@@ -267,31 +269,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect(admin_url(['s' => 'registrations', 'open' => $id]) . '#reg-' . rawurlencode($id));
 
             case 'alloc_save':
+            case 'alloc_compute':
+                // Save what is in the table first (manual changes, "fest" ticks) …
                 $countries = (array) ($_POST['country'] ?? []);
                 $committees = (array) ($_POST['committee'] ?? []);
-                $chairs = (array) ($_POST['chair'] ?? []);
-                $admins = (array) ($_POST['admin'] ?? []);
+                $fixed = (array) ($_POST['fixed'] ?? []);
                 $changed = 0;
-                update_json(REGISTRATIONS_FILE, function (array $regs) use ($countries, $committees, $chairs, $admins, &$changed) {
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($countries, $committees, $fixed, &$changed) {
                     foreach ($regs as &$r) {
-                        if (!array_key_exists($r['id'], $countries)) {
+                        if (!array_key_exists($r['id'], $countries) || !is_delegate_reg($r)) {
                             continue;
                         }
-                        $before = [$r['assigned_country'] ?? '', $r['assigned_committee'] ?? '', !empty($r['is_chair']), !empty($r['is_admin'])];
+                        $before = [$r['assigned_country'] ?? '', $r['assigned_committee'] ?? ''];
                         $r['assigned_country'] = trim(mb_substr((string) $countries[$r['id']], 0, 100));
                         $r['assigned_committee'] = trim(mb_substr((string) ($committees[$r['id']] ?? ''), 0, 150));
-                        $r['is_chair'] = !empty($chairs[$r['id']]);
-                        $r['is_admin'] = !empty($admins[$r['id']]);
-                        if ($r['is_chair'] || $r['is_admin']) {
-                            unset($r['role_pending']);
-                        }
-                        $changed += $before !== [$r['assigned_country'], $r['assigned_committee'], $r['is_chair'], $r['is_admin']] ? 1 : 0;
+                        $r['alloc_fixed'] = !empty($fixed[$r['id']]);
+                        $changed += $before !== [$r['assigned_country'], $r['assigned_committee']] ? 1 : 0;
                     }
                     return $regs;
                 });
-                audit('allocation.save', $changed . ' changed');
-                flash($changed . ' Zuteilung' . ($changed === 1 ? '' : 'en') . ' geändert.');
+                if ($action === 'alloc_save') {
+                    audit('allocation.save', $changed . ' changed');
+                    flash($changed . ' Zuteilung' . ($changed === 1 ? '' : 'en') . ' geändert.');
+                    redirect(admin_url(['s' => 'allocation']));
+                }
+                // … then let the algorithm place everyone who is not fixed or released.
+                $result = alloc_compute(alloc_delegates());
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($result) {
+                    foreach ($regs as &$r) {
+                        if (isset($result[$r['id']])) {
+                            $r['assigned_committee'] = $result[$r['id']]['committee'];
+                            $r['assigned_country'] = $result[$r['id']]['country'];
+                        }
+                    }
+                    return $regs;
+                });
+                $none = count(array_filter($result, fn ($x) => $x['committee'] === ''));
+                audit('allocation.compute', count($result) . ' delegates');
+                flash('Einteilung für ' . count($result) . ' Delegierte berechnet' . ($none ? ' – ' . $none . ' ohne Platz (zu wenige Länder in den Gremien)' : '') . '. Noch nichts verschickt: bitte prüfen, bei Bedarf ändern und dann herausgeben.', $none ? 'error' : 'ok');
                 redirect(admin_url(['s' => 'allocation']));
+
+            case 'alloc_mail_save':
+            case 'alloc_release':
+                $content['portal']['alloc_subject'] = trim(mb_substr((string) ($_POST['alloc_subject'] ?? ''), 0, 200));
+                $content['portal']['alloc_text'] = trim(mb_substr((string) ($_POST['alloc_text'] ?? ''), 0, 5000));
+                if ($content['portal']['alloc_subject'] !== (string) c('portal.alloc_subject') || $content['portal']['alloc_text'] !== (string) c('portal.alloc_text')) {
+                    save_content($content, 'Einteilung: E-Mail-Text');
+                }
+                if ($action === 'alloc_mail_save') {
+                    flash('E-Mail-Text gespeichert.');
+                    redirect(admin_url(['s' => 'allocation']) . '#release');
+                }
+                if ($content['portal']['alloc_subject'] === '' || $content['portal']['alloc_text'] === '') {
+                    flash('Bitte Betreff und Text der E-Mail ausfüllen.', 'error');
+                    redirect(admin_url(['s' => 'allocation']) . '#release');
+                }
+                set_time_limit(600);
+                [$sent, $failed] = alloc_release($content['portal']['alloc_subject'], $content['portal']['alloc_text']);
+                audit('allocation.release', $sent . ' sent, ' . $failed . ' failed');
+                flash($sent . ' E-Mail' . ($sent === 1 ? '' : 's') . ' mit der Einteilung verschickt; die Einteilung ist jetzt im Teilnehmer-Bereich sichtbar.'
+                    . ($failed ? ' ' . $failed . ' E-Mail(s) konnten nicht gesendet werden – diese Personen sehen ihre Einteilung trotzdem im Teilnehmer-Bereich; „herausgeben“ versucht es erneut.' : ''), $failed ? 'error' : 'ok');
+                redirect(admin_url(['s' => 'allocation']));
+
+            case 'team_save':
+                $committees = (array) ($_POST['committee'] ?? []);
+                $changed = 0;
+                $teamIds = array_column((array) ($content['team'] ?? []), 'id');
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($committees, $teamIds, &$changed) {
+                    foreach ($regs as &$r) {
+                        if (!array_key_exists($r['id'], $committees)) {
+                            continue;
+                        }
+                        $before = json_encode([$r['assigned_committee'] ?? '', !empty($r['is_chair']), !empty($r['is_coordinator']), !empty($r['is_admin']), !empty($r['is_site_admin']), $r['team_profile'] ?? '']);
+                        $r['assigned_committee'] = trim(mb_substr((string) $committees[$r['id']], 0, 150));
+                        $r['is_chair'] = !empty($_POST['chair'][$r['id']]);
+                        $r['is_coordinator'] = !empty($_POST['coordinator'][$r['id']]);
+                        $r['is_admin'] = !empty($_POST['admin'][$r['id']]);
+                        $r['is_site_admin'] = !empty($_POST['site_admin'][$r['id']]);
+                        $profile = (string) ($_POST['profile'][$r['id']] ?? '');
+                        $r['team_profile'] = in_array($profile, $teamIds, true) ? $profile : '';
+                        if ($r['is_chair'] || $r['is_admin'] || $r['is_coordinator']) {
+                            unset($r['role_pending']);
+                        }
+                        $changed += $before !== json_encode([$r['assigned_committee'], $r['is_chair'], $r['is_coordinator'], $r['is_admin'], $r['is_site_admin'], $r['team_profile']]) ? 1 : 0;
+                    }
+                    return $regs;
+                });
+                audit('allocation.team_save', $changed . ' changed');
+                flash($changed . ' Team-Zuordnung' . ($changed === 1 ? '' : 'en') . ' geändert.');
+                redirect(admin_url(['s' => 'allocation']) . '#team');
 
             case 'reg_confirm_role':
                 $id = (string) ($_POST['id'] ?? '');
@@ -1103,34 +1169,155 @@ function view_stats(): void
 
 function view_allocation(): void
 {
-    $regs = read_json(REGISTRATIONS_FILE);
-    usort($regs, fn ($a, $b) => [committee_display((string) ($a['assigned_committee'] ?? '')) ?: 'zzz', reg_display($a)] <=> [committee_display((string) ($b['assigned_committee'] ?? '')) ?: 'zzz', reg_display($b)]);
+    $all = read_json(REGISTRATIONS_FILE);
+    $delegates = alloc_delegates($all);
+    $team = array_values(array_filter($all, fn ($r) => !is_delegate_reg($r)));
+    usort($team, fn ($a, $b) => [committee_display((string) ($a['assigned_committee'] ?? '')) ?: 'zzz', reg_display($a)] <=> [committee_display((string) ($b['assigned_committee'] ?? '')) ?: 'zzz', reg_display($b)]);
+    $analysis = alloc_analysis($delegates);
+    $committees = c('committees', []);
+    $freeCodes = count(array_filter(codes(), fn ($c) => empty($c['reg'])));
+    $noCountries = array_filter($committees, fn ($cm) => !committee_countries($cm));
+    $seats = array_sum(array_map(fn ($cm) => count(committee_countries($cm)), $committees));
+
+    // Who sits where (to spot double bookings) and how well the wishes were met.
+    $bySeat = [];
+    $matches = array_fill_keys(array_keys(ALLOC_COSTS), 0);
+    $unplaced = 0;
+    foreach ($delegates as $r) {
+        if (alloc_complete($r)) {
+            $bySeat[alloc_key($r)][] = $r['id'];
+            $matches[alloc_match($r, reg_committee_slug($r), trim((string) $r['assigned_country']))]++;
+        } else {
+            $unplaced++;
+        }
+    }
+    $toSend = count(array_filter($delegates, fn ($r) => alloc_complete($r) && !alloc_is_sent($r)));
+    $wish = function (array $r): string {
+        $parts = [];
+        foreach (alloc_wishes($r) as $i => [$slug, $countries]) {
+            if ($slug !== '') {
+                $cm = committee_by_slug($slug);
+                $parts[] = ($i + 1) . '. ' . e(($cm['abbr'] ?? '') ?: ($cm['name'] ?? $slug)) . ($countries ? ': ' . e(implode(' / ', $countries)) : '');
+            }
+        }
+        if (($r['country_wishes'] ?? '') !== '') {
+            $parts[] = e($r['country_wishes']);
+        }
+        return $parts ? implode('<br>', $parts) : '–';
+    };
+    $allCountries = array_values(array_unique(array_merge(...array_map('committee_countries', $committees ?: [[]]))));
+    sort($allCountries);
     ?>
     <div class="page-title"><h1>Zuteilung</h1></div>
-    <p class="help">Land und Gremium für alle auf einmal ändern – auch nach der Bestätigung. Die Änderung gilt sofort (Teilnehmer-Bereich und Resolution Editor).
-      Die Liste der Gremien selbst (Namen, Abkürzungen, neue Gremien) bearbeitet ihr unter <a href="<?= e(admin_url(['s' => 'committees'])) ?>">Gremien</a>; Zuteilungen bleiben beim Umbenennen erhalten.</p>
-    <?php if (!$regs): ?><p class="empty">Noch keine Anmeldungen.</p><?php return; endif; ?>
-    <input type="search" class="filter" placeholder="Suchen (Kennung, Land, Gremium …)" data-filter=".alloc-table tbody tr">
+
+    <h2>Delegierte: Auswertung und Einteilung</h2>
+    <?php if (!$delegates): ?>
+      <p class="empty">Noch keine Anmeldungen von Delegierten.</p>
+    <?php else: ?>
+    <?php if ($freeCodes): ?>
+      <p class="flash flash-warn"><strong>Vorläufig:</strong> <?= $freeCodes ?> Kennung<?= $freeCodes === 1 ? ' ist' : 'en sind' ?> noch nicht eingelöst. Ihr könnt die Einteilung schon berechnen und ansehen – final wird sie, wenn alle Kennungen eingelöst sind. Für Nachzügler später einfach neue Kennungen ausgeben und noch einmal berechnen: bereits herausgegebene Einteilungen bleiben dabei unverändert.</p>
+    <?php else: ?>
+      <p class="flash flash-ok"><strong>Alle Kennungen sind eingelöst</strong> – die Einteilung kann final berechnet und herausgegeben werden.</p>
+    <?php endif; ?>
+    <?php if ($noCountries): ?>
+      <p class="flash flash-error">Ohne Länderliste (dort kann niemand eingeteilt werden): <?= e(implode(', ', array_column($noCountries, 'name'))) ?>. <a href="<?= e(admin_url(['s' => 'committees'])) ?>">Länder unter Gremien eintragen →</a></p>
+    <?php endif; ?>
+    <?php if ($seats < count($delegates)): ?>
+      <p class="flash flash-error">Es gibt <?= $seats ?> Plätze (Länder in allen Gremien) für <?= count($delegates) ?> Delegierte – <?= count($delegates) - $seats ?> zu wenig.</p>
+    <?php endif; ?>
+    <div class="summary">
+      <div><h3>Erstwünsche (1. Gremium + 1. Land)</h3><ul>
+        <li><span>Klar – niemand sonst will diesen Platz</span><strong><?= count(array_filter($analysis, fn ($a) => $a['state'] === 'clear')) ?></strong></li>
+        <li><span>Umkämpft – mehrere wollen denselben Platz</span><strong><?= count(array_filter($analysis, fn ($a) => $a['state'] === 'contested')) ?></strong></li>
+        <li><span>Ohne Länderwunsch</span><strong><?= count(array_filter($analysis, fn ($a) => $a['state'] === 'none')) ?></strong></li>
+      </ul></div>
+      <div><h3>Aktuelle Einteilung</h3><ul>
+        <?php foreach (ALLOC_COSTS as $k => [, $label]): if ($matches[$k]): ?><li><span><?= e($label) ?></span><strong><?= $matches[$k] ?></strong></li><?php endif; endforeach; ?>
+        <li><span>Noch nicht eingeteilt</span><strong><?= $unplaced ?></strong></li>
+      </ul></div>
+      <div><h3>Stand</h3><ul>
+        <li><span>Delegierte</span><strong><?= count($delegates) ?></strong></li>
+        <li><span>Plätze (Länder in allen Gremien)</span><strong><?= $seats ?></strong></li>
+        <li><span>Herausgegeben</span><strong><?= count(array_filter($delegates, 'alloc_is_sent')) ?></strong></li>
+        <li><span>Noch nicht mitgeteilt / geändert</span><strong><?= $toSend ?></strong></li>
+      </ul></div>
+    </div>
+    <p class="help"><strong>So geht’s:</strong> 1. „Einteilung berechnen“ verteilt alle Delegierten bestmöglich nach ihren Wünschen (bei Gleichstand gewinnt die frühere Anmeldung). 2. In der Tabelle prüfen und bei Bedarf Land oder Gremium von Hand ändern; ein Häkchen bei „fest“ schützt die Zeile vor dem nächsten Berechnen. 3. „Einteilung herausgeben“ verschickt die E-Mails und schaltet die Einteilung im Teilnehmer-Bereich frei – vorher sehen die Delegierten nichts davon.</p>
+    <input type="search" class="filter" placeholder="Suchen (Kennung, Land, Gremium …)" data-filter=".alloc-delegates tbody tr">
     <form method="post" class="alloc-form">
-      <?= csrf_field() ?><input type="hidden" name="a" value="alloc_save">
-      <div class="table-wrap"><table class="alloc-table">
-        <thead><tr><th>Kennung</th><th>Teilnahme</th><th>Wünsche</th><th>Land</th><th>Gremium</th><th>Chair</th><th>Admin</th></tr></thead>
+      <?= csrf_field() ?>
+      <div class="table-wrap"><table class="alloc-table alloc-delegates">
+        <thead><tr><th>Kennung</th><th>Wünsche</th><th>Erstwunsch</th><th>Gremium</th><th>Land</th><th>Ergebnis</th><th>fest</th><th>Mitgeteilt</th></tr></thead>
         <tbody>
-        <?php foreach ($regs as $r): $id = e($r['id']); ?>
-          <tr<?= ($r['status'] ?? '') === 'cancelled' ? ' class="cancelled"' : '' ?>>
-            <td><strong><?= e(reg_display($r)) ?></strong><?= ($r['status'] ?? '') === 'cancelled' ? ' <small>(abgesagt)</small>' : '' ?></td>
-            <td><?= e($r['role'] ?? '') ?><?= !empty($r['role_pending']) ? ' <small>(Bestätigung offen)</small>' : '' ?></td>
-            <td><small><?= e(implode(' / ', array_filter([$r['committee_1'] ?? '', $r['committee_2'] ?? '', $r['country_wishes'] ?? '']))) ?></small></td>
-            <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" aria-label="Land"></td>
+        <?php foreach ($delegates as $r): $id = e($r['id']); $a = $analysis[$r['id']]; $complete = alloc_complete($r); $double = $complete && count($bySeat[alloc_key($r)]) > 1; ?>
+          <tr>
+            <td><strong><?= e(reg_display($r)) ?></strong></td>
+            <td><small><?= $wish($r) ?></small></td>
+            <td><?= $a['state'] === 'clear' ? '<span class="st st-confirmed">klar</span>' : ($a['state'] === 'contested' ? '<span class="st st-waitlist">umkämpft (+' . $a['rivals'] . ')</span>' : '<small>–</small>') ?></td>
             <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
-            <td><input type="checkbox" name="chair[<?= $id ?>]" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?> aria-label="Chair"></td>
-            <td><input type="checkbox" name="admin[<?= $id ?>]" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?> aria-label="Admin (Chair-Rechte in allen Gremien)"></td>
+            <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" list="alloc-countries" aria-label="Land"><?= $double ? '<br><small class="danger">doppelt vergeben!</small>' : '' ?></td>
+            <td><small><?= $complete ? e(ALLOC_COSTS[alloc_match($r, reg_committee_slug($r), trim((string) $r['assigned_country']))][1]) : '–' ?></small></td>
+            <td><input type="checkbox" name="fixed[<?= $id ?>]" value="1"<?= !empty($r['alloc_fixed']) ? ' checked' : '' ?> aria-label="fest"></td>
+            <td><small><?= alloc_is_sent($r) ? e(date('d.m.Y', strtotime($r['released']['at']))) : (!empty($r['released']) ? '<span class="danger">geändert – noch nicht mitgeteilt</span>' : 'nein') ?></small></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table></div>
-      <div class="save-bar"><button class="btn">Alle Zuteilungen speichern</button></div>
+      <datalist id="alloc-countries"><?php foreach ($allCountries as $cn): ?><option value="<?= e($cn) ?>"><?php endforeach; ?></datalist>
+      <div class="save-bar">
+        <button class="btn" name="a" value="alloc_save">Änderungen speichern</button>
+        <button class="btn-ghost" name="a" value="alloc_compute" data-confirm="Einteilung jetzt berechnen? Alle Zeilen ohne „fest“ und ohne bereits herausgegebene Einteilung werden neu verteilt. Es wird noch nichts verschickt.">Einteilung berechnen</button>
+      </div>
     </form>
+
+    <details class="edit-form">
+      <summary><strong>Plätze pro Gremium</strong> (welche Länder sind vergeben, welche frei)</summary>
+      <?php foreach ($committees as $cm): $list = committee_countries($cm); ?>
+        <h3><?= e($cm['name']) ?> <small>(<?= count(array_filter($list, fn ($cn) => isset($bySeat[$cm['slug'] . '|' . mb_strtolower($cn)]))) ?> von <?= count($list) ?> vergeben)</small></h3>
+        <p><?php foreach ($list as $cn): $taken = isset($bySeat[$cm['slug'] . '|' . mb_strtolower($cn)]); ?><span class="st <?= $taken ? 'st-confirmed' : 'st-cancelled' ?>"><?= e($cn) ?></span> <?php endforeach; ?><?= $list ? '' : '<span class="muted">Keine Länder eingetragen.</span>' ?></p>
+      <?php endforeach; ?>
+    </details>
+
+    <form method="post" class="edit-form" id="release">
+      <?= csrf_field() ?>
+      <h2>Einteilung herausgeben</h2>
+      <p class="help">Verschickt an alle Delegierten mit vollständiger Einteilung (Gremium und Land), die sie noch nicht bekommen haben oder deren Einteilung sich seitdem geändert hat, eine E-Mail und schaltet Land, Gremium, Study Guide und Position-Paper-Abgabe im Teilnehmer-Bereich frei. Platzhalter: <code>{country}</code>, <code>{committee}</code>, <code>{topics}</code>, <code>{code}</code>, <code>{conference}</code>, <code>{portal}</code>, <code>{email}</code>.</p>
+      <div class="field"><label>Betreff<input name="alloc_subject" value="<?= e(c('portal.alloc_subject')) ?>"></label></div>
+      <div class="field"><label>Text der E-Mail<textarea name="alloc_text" rows="14"><?= e(c('portal.alloc_text')) ?></textarea></label></div>
+      <div class="save-bar">
+        <button class="btn-ghost" name="a" value="alloc_mail_save">Nur Text speichern</button>
+        <button class="btn" name="a" value="alloc_release"<?= $toSend ? '' : ' disabled' ?> data-confirm="Einteilung jetzt herausgeben? <?= $toSend ?> Delegierte bekommen eine E-Mail mit Land und Gremium.<?= $freeCodes ? ' Achtung: ' . $freeCodes . ' Kennung(en) sind noch nicht eingelöst.' : '' ?>">Einteilung herausgeben (<?= $toSend ?> E-Mail<?= $toSend === 1 ? '' : 's' ?>)</button>
+      </div>
+    </form>
+    <?php endif; ?>
+
+    <h2 id="team">Team: Chairs, Coordinators, Organisation</h2>
+    <p class="help">Gilt sofort. <strong>Chair</strong> = Chair-Rechte im gewählten Gremium. <strong>MUN Coordinator</strong> = sieht alle Gremien als Zuschauer und überarbeitet abgegebene Resolutionen, bevor sie freigegeben werden. <strong>Admin</strong> = Chair-Rechte in allen Gremien. <strong>Website-Admin</strong> = darf aus dem Teilnehmer-Bereich direkt in diesen Admin-Bereich wechseln (ohne Admin-Passwort; der Bestätigungscode der Zwei-Faktor-Anmeldung wird weiterhin abgefragt). <strong>Team-Profil</strong> = die Person kann Foto und Kurzvorstellung ihres Eintrags auf der Team-Seite im Teilnehmer-Bereich selbst bearbeiten.</p>
+    <?php if (!$team): ?><p class="empty">Noch keine Anmeldungen aus dem Team.</p><?php else: ?>
+    <form method="post" class="alloc-form">
+      <?= csrf_field() ?><input type="hidden" name="a" value="team_save">
+      <div class="table-wrap"><table class="alloc-table">
+        <thead><tr><th>Kennung</th><th>Teilnahme</th><th>Gremium</th><th>Chair</th><th>MUN Coordinator</th><th>Admin</th><th>Website-Admin</th><th>Team-Profil</th></tr></thead>
+        <tbody>
+        <?php foreach ($team as $r): $id = e($r['id']); ?>
+          <tr<?= ($r['status'] ?? '') === 'cancelled' ? ' class="cancelled"' : '' ?>>
+            <td><strong><?= e(reg_display($r)) ?></strong><br><small><?= e($r['email'] ?? '') ?></small></td>
+            <td><?= e($r['role'] ?? '') ?><?= !empty($r['role_pending']) ? ' <small>(Bestätigung offen)</small>' : '' ?><?= ($r['status'] ?? '') === 'cancelled' ? ' <small>(abgesagt)</small>' : '' ?></td>
+            <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
+            <td><input type="checkbox" name="chair[<?= $id ?>]" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?> aria-label="Chair"></td>
+            <td><input type="checkbox" name="coordinator[<?= $id ?>]" value="1"<?= !empty($r['is_coordinator']) ? ' checked' : '' ?> aria-label="MUN Coordinator"></td>
+            <td><input type="checkbox" name="admin[<?= $id ?>]" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?> aria-label="Admin"></td>
+            <td><input type="checkbox" name="site_admin[<?= $id ?>]" value="1"<?= !empty($r['is_site_admin']) ? ' checked' : '' ?> aria-label="Website-Admin"></td>
+            <td><select name="profile[<?= $id ?>]" aria-label="Team-Profil"><option value="">– keins –</option>
+              <?php foreach (c('team', []) as $m): ?><option value="<?= e($m['id']) ?>"<?= ($r['team_profile'] ?? '') === $m['id'] ? ' selected' : '' ?>><?= e(trim(str_replace('*', '', (string) $m['name']))) ?> (<?= e($m['group'] ?? '') ?>)</option><?php endforeach; ?>
+            </select></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table></div>
+      <div class="save-bar"><button class="btn">Team-Zuordnung speichern</button></div>
+    </form>
+    <?php endif; ?>
     <?php
 }
 
@@ -1208,6 +1395,7 @@ function view_registrations(): void
             <label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label>
             <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
             <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern)</label>
+            <label class="check-inline"><input type="checkbox" name="is_coordinator" value="1"<?= !empty($r['is_coordinator']) ? ' checked' : '' ?>> MUN Coordinator (sieht alle Gremien als Zuschauer, überarbeitet abgegebene Resolutionen und gibt sie frei)</label>
             <label class="check-inline"><input type="checkbox" name="is_admin" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?>> Admin (Chair-Rechte in allen Gremien, ohne Land/Gremium – kein Zugang zu diesem Admin-Bereich)</label>
             <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
             <button class="btn">Speichern</button>

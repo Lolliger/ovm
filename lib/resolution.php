@@ -20,6 +20,8 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/admin.php';
+require_once __DIR__ . '/allocation.php';
+require_once __DIR__ . '/review.php';
 
 const RES_DIR = DATA_DIR . '/resolutions';
 const RES_MAX_TEXT = 3000;
@@ -107,8 +109,10 @@ function res_archive_and_start_new(array $res, string $outcome): array
     $done['current'] = null;
     $done['outcome'] = $outcome;
     $done['archived'] = date('c');
+    $done['review'] = 'pending'; // waits for the MUN Coordinator, see lib/review.php
     $done['amendments'] = array_map(fn ($a) => in_array($a['status'], ['pending', 'floor'], true) ? array_merge($a, ['status' => 'obsolete']) : $a, $res['amendments']);
     write_json(res_archive_file($res['committee'], $done['id']), $done);
+    $GLOBALS['res_submitted'] = $done;
 
     $used = array_map(fn ($r) => $r['topic'] ?? '', array_merge(res_archive_list($res['committee']), [$res]));
     $fresh = res_default($cm + ['slug' => $res['committee']]);
@@ -144,7 +148,7 @@ function committee_members(array $committee): array
 {
     return array_values(array_filter(read_json(REGISTRATIONS_FILE), function ($r) use ($committee) {
         $cm = committee_by_label((string) ($r['assigned_committee'] ?? ''));
-        return $cm && $cm['slug'] === $committee['slug'] && ($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending']);
+        return $cm && $cm['slug'] === $committee['slug'] && ($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending']) && alloc_visible($r);
     }));
 }
 
@@ -193,12 +197,13 @@ function res_context(?string $slug): ?array
                 $offer($cm, 'admin', $r);
             }
         }
-        if (!empty($r['is_manager'])) {
+        if (!empty($r['is_manager']) || !empty($r['is_coordinator'])) {
+            // Conference managers and MUN Coordinators follow every committee as spectators.
             foreach (c('committees', []) as $cm) {
                 $offer($cm, 'viewer', $r);
             }
         }
-        if ($cm = committee_by_label((string) ($r['assigned_committee'] ?? ''))) {
+        if (alloc_visible($r) && ($cm = committee_by_label((string) ($r['assigned_committee'] ?? '')))) {
             $offer($cm, !empty($r['is_chair']) ? 'chair' : 'delegate', $r);
         }
     }
@@ -208,7 +213,7 @@ function res_context(?string $slug): ?array
     $pick = $slug !== null && isset($options[$slug]) ? $options[$slug] : reset($options);
     [$cm, $role, $reg] = $pick;
     $label = match ($role) {
-        'viewer' => $reg ? 'Conference manager (view only)' : (staff_accounts()[$account]['label'] ?? 'Laptop') . ' (view only)',
+        'viewer' => $reg ? (!empty($reg['is_coordinator']) ? 'MUN Coordinator (spectator)' : 'Conference manager (view only)') : (staff_accounts()[$account]['label'] ?? 'Laptop') . ' (view only)',
         'admin' => 'Chair',
         default => $reg ? reg_label($reg) : 'Chair',
     };
@@ -543,6 +548,9 @@ function res_handle_post(array $ctx): void
         }
         return $res;
     });
+    if (!empty($GLOBALS['res_submitted'])) {
+        res_notify_submitted($cm, $GLOBALS['res_submitted']);
+    }
     if ($flash) {
         res_flash($flash);
     }
@@ -711,7 +719,7 @@ function res_chair_action(array $res, string $a, callable $p, string &$flash): a
             }
             $outcome = in_array($p('outcome'), RES_OUTCOMES, true) ? $p('outcome') : 'Closed';
             $res = res_archive_and_start_new($res, $outcome);
-            $flash = 'Resolution saved as "' . $outcome . '". A new, empty resolution has been started.';
+            $flash = 'Resolution handed in (' . $outcome . '). The MUN Coordinator has been informed and will release it after the review. A new, empty resolution has been started.';
             break;
     }
     return res_normalize_floor($res);
@@ -1172,7 +1180,7 @@ function resolution_route(): void
     if ($view === 'print') {
         if (isset($_GET['res'])) {
             $res = res_archive_load($cm['slug'], (string) $_GET['res']);
-            if (!$res) {
+            if (!$res || !res_archive_visible($cm, $res, portal_account())) {
                 not_found();
                 return;
             }

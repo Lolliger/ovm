@@ -79,6 +79,36 @@
   });
 })();
 
+/* Registration form: the country choices follow the chosen committee */
+(function () {
+  var data = document.getElementById('committee-countries');
+  if (!data) return;
+  var countries = JSON.parse(data.textContent || '{}');
+  document.querySelectorAll('[data-wish]').forEach(function (wish) {
+    var committee = wish.querySelector('select:not([data-country])');
+    var selects = wish.querySelectorAll('select[data-country]');
+    var fill = function () {
+      var list = countries[committee.value] || [];
+      selects.forEach(function (sel) {
+        var keep = sel.value;
+        sel.innerHTML = '';
+        var first = document.createElement('option');
+        first.value = '';
+        first.textContent = !committee.value ? '– choose a committee first –' : (list.length ? '– please choose –' : '– countries not published yet –');
+        sel.appendChild(first);
+        list.forEach(function (c) {
+          var o = document.createElement('option');
+          o.textContent = c;
+          if (c === keep) o.selected = true;
+          sel.appendChild(o);
+        });
+      });
+    };
+    committee.addEventListener('change', fill);
+    fill();
+  });
+})();
+
 /* Registration form: chairs and conference managers get a shorter form */
 (function () {
   var select = document.querySelector('[data-role-select]');

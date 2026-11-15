@@ -9,6 +9,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/codes.php';
+require_once __DIR__ . '/audit.php';
 
 const LOGIN_TOKEN_TTL = 1800;       // link valid for 30 minutes
 const PORTAL_IDLE = 2 * 3600;       // logged out after 2 h without activity
@@ -279,7 +280,7 @@ function login_groups(string $account): array
         }
         if (!empty($r['is_chair']) || $kind === 'chair') {
             $groups[] = 'chair';
-        } elseif (!empty($r['is_manager']) || $kind === 'manager') {
+        } elseif (!empty($r['is_manager']) || !empty($r['is_coordinator']) || $kind === 'manager') {
             $groups[] = 'manager';
         } elseif ($kind === 'staff') {
             $groups[] = 'staff';
@@ -398,7 +399,7 @@ function store_paper(string $regId, array $file): ?string
         return 'The file could not be saved. Please try again later.';
     }
     $old = null;
-    update_json(REGISTRATIONS_FILE, function (array $regs) use ($regId, $stored, $file, &$old) {
+    update_json(REGISTRATIONS_FILE, function (array $regs) use ($regId, $stored, $file, $ext, &$old) {
         foreach ($regs as &$r) {
             if ($r['id'] === $regId) {
                 $old = $r;
@@ -419,14 +420,14 @@ function store_paper(string $regId, array $file): ?string
     return null;
 }
 
-function send_paper(array $reg): never
+function send_paper(array $reg, ?string $name = null): never
 {
     $path = paper_path($reg);
     if (!$path) {
         http_response_code(404);
         exit('File not found');
     }
-    $name = $reg['paper']['name'] ?: basename($path);
+    $name = $name ?: ($reg['paper']['name'] ?: basename($path));
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . str_replace('"', '', $name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
     header('Content-Length: ' . filesize($path));
@@ -678,8 +679,36 @@ function portal_route(?string $sub): void
                 send_paper($reg);
             }
         }
+        // Papers of the own committee: visible to its delegates and chairs once handed in.
+        foreach ($account ? read_json(REGISTRATIONS_FILE) : [] as $reg) {
+            if ($reg['id'] === ($_GET['id'] ?? '') && is_delegate_reg($reg) && alloc_visible($reg)
+                && reg_committee_slug($reg) !== '' && committee_access($account, reg_committee_slug($reg))) {
+                send_paper($reg, paper_public_name($reg));
+            }
+        }
         http_response_code(404);
         exit('File not found');
+    }
+    if ($sub === 'resolutions') {
+        resolutions_route();
+        return;
+    }
+    if ($sub === 'admin') {
+        // Website admins switch into the admin area without the admin password;
+        // the second factor (if set up) is still asked for there.
+        if (!$post || !csrf_check() || !is_site_admin_account($account)) {
+            redirect_to(portal_home());
+        }
+        $auth = auth_data();
+        if (totp_enabled()) {
+            $_SESSION['2fa'] = ['v' => $auth['v'] ?? null, 't' => time()];
+        } else {
+            $_SESSION['admin'] = true;
+            $_SESSION['pwv'] = $auth['v'] ?? null;
+            $_SESSION['last'] = time();
+        }
+        audit('admin.login', 'from delegate area: ' . format_code((string) $account));
+        redirect_to(main_origin() . url('admin/'));
     }
     if ($sub !== null) {
         not_found();
@@ -703,11 +732,30 @@ function portal_route(?string $sub): void
             $error = 'Registration not found.';
         } elseif (!papers_open()) {
             $error = 'Position papers can no longer be uploaded.';
+        } elseif (!alloc_visible(reset($own)) || reg_committee_slug(reset($own)) === '') {
+            $error = 'You can hand in your position paper once you have received your allocation.';
         } elseif ($err = store_paper($regId, $_FILES['paper'] ?? ['error' => UPLOAD_ERR_NO_FILE])) {
             $error = $err;
         } else {
-            $message = 'Thank you! Your position paper has been uploaded.';
+            notify_paper(reset($own));
+            $message = 'Thank you! Your position paper has been handed in. The delegates and chairs of your committee can now read it.';
         }
+    }
+    if ($post && ($_POST['a'] ?? '') === 'profile') {
+        $regId = (string) ($_POST['id'] ?? '');
+        $own = array_filter(active_regs($account), fn ($r) => $r['id'] === $regId);
+        if (!csrf_check()) {
+            $error = 'Your session expired. Please try again.';
+        } elseif (!$own) {
+            $error = 'Registration not found.';
+        } elseif ($err = save_team_profile(reset($own), (string) ($_POST['bio'] ?? ''), $_FILES['photo'] ?? null)) {
+            $error = $err;
+        } else {
+            redirect_to(portal_home() . '?saved=profile#profile');
+        }
+    }
+    if (($_GET['saved'] ?? '') === 'profile') {
+        $message = 'Your profile has been saved. It is now shown like this on the team page.';
     }
     $staff = is_staff_account($account);
     if ($post && ($_POST['a'] ?? '') === 'password') {

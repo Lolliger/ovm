@@ -185,25 +185,19 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
               <form method="post"><?= $hidden('status', 'settings') ?><input type="hidden" name="status" value="<?= $k ?>"><button class="<?= $res['status'] === $k ? 'btn btn-small' : 'btn-ghost' ?>"<?= $res['status'] === $k ? ' disabled' : '' ?>><?= e($label) ?></button></form>
             <?php endforeach; ?>
           </p>
-          <form method="post" class="res-new" data-confirm="Save this resolution as finished and start a new, empty one? The finished resolution stays available under “Previous resolutions”.">
+          <form method="post" class="res-new" data-confirm="Really hand in this resolution? This closes the debate and saves the resolution as finished – you cannot change it afterwards. The MUN Coordinator is informed by e-mail, reviews it and then releases it for everyone. A new, empty resolution is started for your committee.">
             <?= $hidden('res_new') ?>
             <strong>Resolution finished?</strong>
             <label>Result <select name="outcome"><?php foreach (RES_OUTCOMES as $o): ?><option><?= e($o) ?></option><?php endforeach; ?></select></label>
-            <button class="btn btn-small">Save &amp; start new resolution</button>
+            <button class="btn btn-small">Submit resolution</button>
+            <span class="muted small">Closes the debate and sends the resolution to the MUN Coordinator.</span>
           </form>
         </div>
       
-    <?php if ($archive): ?>
+    <?php if ($archiveItems = res_archive_items_html($cm, $archive, portal_account())): ?>
       <div class="res-panel res-archive">
         <h2>Previous resolutions</h2>
-        <ul>
-          <?php foreach (array_reverse($archive) as $old): ?>
-            <li><span class="tag"><?= e($old['outcome'] ?? 'Closed') ?></span>
-              <strong>Resolution <?= (int) ($old['number'] ?? 1) ?></strong> · <?= e($old['topic'] ?: 'No topic') ?>
-              <span class="muted"><?= e(date('j M Y, H:i', strtotime($old['archived']))) ?></span>
-              <a href="<?= e($self) ?>&amp;view=print&amp;res=<?= e($old['id']) ?>" target="_blank">View / PDF</a></li>
-          <?php endforeach; ?>
-        </ul>
+        <ul><?= $archiveItems ?></ul>
       </div>
     <?php endif; ?>
     </div>
@@ -293,17 +287,10 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
         </div>
       </div>
     <?php endif; ?>
-    <?php if ($archive): ?>
+    <?php if ($archiveItems = res_archive_items_html($cm, $archive, portal_account())): ?>
       <div class="res-panel res-archive">
         <h2>Previous resolutions</h2>
-        <ul>
-          <?php foreach (array_reverse($archive) as $old): ?>
-            <li><span class="tag"><?= e($old['outcome'] ?? 'Closed') ?></span>
-              <strong>Resolution <?= (int) ($old['number'] ?? 1) ?></strong> · <?= e($old['topic'] ?: 'No topic') ?>
-              <span class="muted"><?= e(date('j M Y, H:i', strtotime($old['archived']))) ?></span>
-              <a href="<?= e($self) ?>&amp;view=print&amp;res=<?= e($old['id']) ?>" target="_blank">View / PDF</a></li>
-          <?php endforeach; ?>
-        </ul>
+        <ul><?= $archiveItems ?></ul>
       </div>
     <?php endif; ?>
 <?php endif; ?>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/portal.php';
+require_once __DIR__ . '/allocation.php';
 
 /**
  * Fields of the public registration form: key => [label, required].
@@ -17,8 +18,12 @@ function registration_fields(): array
         'grade' => ['Grade', true],
         'experience' => ['MUN experience', false],
         'committee_1' => ['Committee (1st choice)', false],
+        'country_1a' => ['1st committee: country, 1st choice', false],
+        'country_1b' => ['1st committee: country, 2nd choice', false],
         'committee_2' => ['Committee (2nd choice)', false],
-        'country_wishes' => ['Country wishes', false],
+        'country_2a' => ['2nd committee: country, 1st choice', false],
+        'country_2b' => ['2nd committee: country, 2nd choice', false],
+        'country_wishes' => ['Country wishes (older registrations)', false],
         'diet' => ['Dietary requirements', false],
         'message' => ['Message', false],
     ];
@@ -84,7 +89,7 @@ function kind_needs_confirmation(string $kind): bool
 }
 
 /** Fields only delegates fill in (hidden for chairs and conference managers). */
-const DELEGATE_ONLY_FIELDS = ['grade', 'experience', 'committee_1', 'committee_2', 'country_wishes', 'diet', 'message'];
+const DELEGATE_ONLY_FIELDS = ['grade', 'experience', 'committee_1', 'country_1a', 'country_1b', 'committee_2', 'country_2a', 'country_2b', 'country_wishes', 'diet', 'message'];
 
 /**
  * Handles a POST to /register.
@@ -134,6 +139,25 @@ function handle_registration(): ?array
     }
     if ($kind === 'chair' && $values['committee_1'] === '' && c('committees')) {
         $errors[] = 'Please choose your committee.';
+    }
+    if ($kind === 'delegate') {
+        $values['country_wishes'] = ''; // replaced by the country choices per committee
+        foreach ([1, 2] as $n) {
+            $cm = committee_by_label($values["committee_$n"]);
+            $allowed = $cm ? committee_countries($cm) : [];
+            foreach (['a', 'b'] as $x) {
+                if ($values["country_{$n}$x"] !== '' && !in_array($values["country_{$n}$x"], $allowed, true)) {
+                    $errors[] = 'Please choose the countries for your ' . ($n === 1 ? '1st' : '2nd') . ' committee again – “' . $values["country_{$n}$x"] . '” is not available there.';
+                    $values["country_{$n}$x"] = '';
+                }
+            }
+            if ($values["country_{$n}a"] !== '' && $values["country_{$n}a"] === $values["country_{$n}b"]) {
+                $errors[] = 'Please choose two different countries for your ' . ($n === 1 ? '1st' : '2nd') . ' committee.';
+            }
+        }
+        if ($values['committee_1'] !== '' && $values['committee_1'] === $values['committee_2']) {
+            $errors[] = 'Please choose two different committees.';
+        }
     }
     if ($values['code'] !== '') {
         // Every attempt counts (not only wrong ones), so the limit cannot be used to tell valid codes apart.

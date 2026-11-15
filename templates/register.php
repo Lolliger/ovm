@@ -79,12 +79,27 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
       <fieldset data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>>
         <legend>Preferences</legend>
         <?php if ($committeeNames): ?>
-        <div class="row">
-          <div class="field"><label for="f-committee_1">Committee, 1st choice</label><?= $select('committee_1', $committeeNames) ?></div>
-          <div class="field"><label for="f-committee_2">Committee, 2nd choice</label><?= $select('committee_2', $committeeNames) ?></div>
+        <p class="hint">Choose two committees and, for each, the two countries you would most like to represent. We try to fulfil as many wishes as possible, but cannot guarantee any of them.</p>
+        <?php foreach ([1 => '1st', 2 => '2nd'] as $n => $nth): ?>
+        <div class="wish" data-wish>
+          <div class="field"><label for="f-committee_<?= $n ?>">Committee, <?= $nth ?> choice</label><?= $select('committee_' . $n, $committeeNames) ?></div>
+          <div class="row">
+            <?php foreach (['a' => '1st', 'b' => '2nd'] as $x => $xth): $name = "country_{$n}{$x}"; $cur = $v[$name] ?? ''; $chosen = committee_by_label($v['committee_' . $n] ?? ''); ?>
+            <div class="field"><label for="f-<?= $name ?>">Country, <?= $xth ?> choice</label>
+              <select id="f-<?= $name ?>" name="<?= $name ?>" data-country>
+                <option value="">– please choose –</option>
+                <?php foreach ($committees as $cm): if ($chosen && $chosen['slug'] !== $cm['slug']) continue; $label = trim(($cm['abbr'] ?? '') . ' – ' . $cm['name'], ' –'); ?>
+                  <optgroup label="<?= e($label) ?>">
+                    <?php foreach (committee_countries($cm) as $country): ?><option<?= $cur === $country && $chosen ? ' selected' : '' ?>><?= e($country) ?></option><?php endforeach; ?>
+                  </optgroup>
+                <?php endforeach; ?>
+              </select></div>
+            <?php endforeach; ?>
+          </div>
         </div>
+        <?php endforeach; ?>
+        <script type="application/json" id="committee-countries"><?= json_encode(array_combine($committeeNames, array_map('committee_countries', $committees)), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
         <?php endif; ?>
-        <div class="field"><label for="f-country_wishes">Country wishes</label><input id="f-country_wishes" name="country_wishes" placeholder="e.g. Brazil, Japan" value="<?= $val('country_wishes') ?>"></div>
         <div class="field"><label for="f-diet">Dietary requirements</label><input id="f-diet" name="diet" placeholder="e.g. vegetarian" value="<?= $val('diet') ?>"></div>
         <div class="field"><label for="f-message">Anything else?</label><textarea id="f-message" name="message" rows="4"><?= $val('message') ?></textarea></div>
       </fieldset>

@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="<?= e(url('assets/css/site.css')) ?>?v=<?= filemtime(ROOT . '/assets/css/site.css') ?>">
 </head>
 <body class="print-page">
-  <p class="print-actions"><button class="btn" onclick="window.print()">Print / save as PDF</button></p>
+  <p class="print-actions"><button class="btn" onclick="window.print()">Print / save as PDF</button><?php if (!empty($docx)): ?> <a class="btn-ghost" href="<?= e($docx) ?>">Download as Word file</a><?php endif; ?></p>
   <article class="res-paper print-paper">
     <?= res_document_html($res, $ctx['committee']) ?>
     <p class="print-meta">Resolution <?= (int) ($res['number'] ?? 1) ?> · <?= !empty($res['outcome']) ? e($res['outcome']) . ' · ' . e(date('j F Y', strtotime($res['archived']))) : 'Status: ' . e(status_label($res['status'])) ?> · Printed <?= e(date('j F Y, H:i')) ?></p>
