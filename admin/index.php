@@ -1236,6 +1236,7 @@ function view_allocation(): void
 {
     $all = read_json(REGISTRATIONS_FILE);
     $delegates = alloc_delegates($all);
+    $tests = alloc_delegates($all, true); // listed for allocation by hand, but never counted
     $team = array_values(array_filter($all, fn ($r) => !is_delegate_reg($r)));
     usort($team, fn ($a, $b) => [committee_display((string) ($a['assigned_committee'] ?? '')) ?: 'zzz', reg_display($a)] <=> [committee_display((string) ($b['assigned_committee'] ?? '')) ?: 'zzz', reg_display($b)]);
     $analysis = alloc_analysis($delegates);
@@ -1256,7 +1257,7 @@ function view_allocation(): void
             $unplaced++;
         }
     }
-    $toSend = count(array_filter($delegates, fn ($r) => alloc_complete($r) && !alloc_is_sent($r)));
+    $toSend = count(array_filter(array_merge($delegates, $tests), fn ($r) => alloc_complete($r) && !alloc_is_sent($r)));
     $wish = function (array $r): string {
         $parts = [];
         foreach (alloc_wishes($r) as $i => [$slug, $countries]) {
@@ -1276,7 +1277,7 @@ function view_allocation(): void
     <div class="page-title"><h1>Zuteilung</h1></div>
 
     <h2>Delegierte: Auswertung und Einteilung</h2>
-    <?php if (!$delegates): ?>
+    <?php if (!$delegates && !$tests): ?>
       <p class="empty">Noch keine Anmeldungen von Delegierten.</p>
     <?php else: ?>
     <?php if ($freeCodes): ?>
@@ -1314,15 +1315,15 @@ function view_allocation(): void
       <div class="table-wrap"><table class="alloc-table alloc-delegates">
         <thead><tr><th>Kennung</th><th>Wünsche</th><th>Erstwunsch</th><th>Gremium</th><th>Land</th><th>Ergebnis</th><th>fest</th><th>Mitgeteilt</th></tr></thead>
         <tbody>
-        <?php foreach ($delegates as $r): $id = e($r['id']); $a = $analysis[$r['id']]; $complete = alloc_complete($r); $double = $complete && count($bySeat[alloc_key($r)]) > 1; ?>
-          <tr>
+        <?php foreach (array_merge($delegates, $tests) as $r): $id = e($r['id']); $isTest = !empty($r['test']); $a = $analysis[$r['id']] ?? ['state' => 'none', 'rivals' => 0]; $complete = alloc_complete($r); $double = !$isTest && $complete && count($bySeat[alloc_key($r)]) > 1; ?>
+          <tr<?= $isTest ? ' class="cancelled"' : '' ?>>
             <td><strong><?= e(reg_display($r)) ?></strong></td>
             <td><small><?= $wish($r) ?></small></td>
             <td><?= $a['state'] === 'clear' ? '<span class="st st-confirmed">klar</span>' : ($a['state'] === 'contested' ? '<span class="st st-waitlist">umkämpft (+' . $a['rivals'] . ')</span>' : '<small>–</small>') ?></td>
             <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
             <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" list="alloc-countries" aria-label="Land"><?= $double ? '<br><small class="danger">doppelt vergeben!</small>' : '' ?></td>
-            <td><small><?= $complete ? e(ALLOC_COSTS[alloc_match($r, reg_committee_slug($r), trim((string) $r['assigned_country']))][1]) : '–' ?></small></td>
-            <td><input type="checkbox" name="fixed[<?= $id ?>]" value="1"<?= !empty($r['alloc_fixed']) ? ' checked' : '' ?> aria-label="fest"></td>
+            <td><small><?= $isTest ? 'Test – zählt nicht mit, von Hand zuteilen' : ($complete ? e(ALLOC_COSTS[alloc_match($r, reg_committee_slug($r), trim((string) $r['assigned_country']))][1]) : '–') ?></small></td>
+            <td><?php if (!$isTest): ?><input type="checkbox" name="fixed[<?= $id ?>]" value="1"<?= !empty($r['alloc_fixed']) ? ' checked' : '' ?> aria-label="fest"><?php endif; ?></td>
             <td><small><?= alloc_is_sent($r) ? e(date('d.m.Y', strtotime($r['released']['at']))) : (!empty($r['released']) ? '<span class="danger">geändert – noch nicht mitgeteilt</span>' : 'nein') ?></small></td>
           </tr>
         <?php endforeach; ?>
@@ -1564,7 +1565,7 @@ function view_codes(): void
     <?php $tests = array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => !empty($r['test']))); ?>
     <div class="edit-form" id="test">
       <h2>Test-Delegierte</h2>
-      <p class="help">Vier Delegierte zum Ausprobieren (Einteilung, Teilnehmer-Bereich, Position Papers, Resolution Editor): Kennungen <strong><?= e(implode(', ', array_map('format_code', TEST_CODES))) ?></strong> – beim Login geht auch z. B. <code>1234test</code>. Ohne E-Mail-Adresse, mit einem gemeinsamen, einfachen Passwort, das ihr hier festlegt. Sie sind in allen Listen mit „TEST“ markiert und zählen bei der Einteilung wie echte Delegierte mit – <strong>vor der echten Einteilung wieder löschen</strong>.</p>
+      <p class="help">Vier Delegierte zum Ausprobieren (Einteilung, Teilnehmer-Bereich, Position Papers, Resolution Editor): Kennungen <strong><?= e(implode(', ', array_map('format_code', TEST_CODES))) ?></strong> – beim Login geht auch z. B. <code>1234test</code>. Ohne E-Mail-Adresse, mit einem gemeinsamen, einfachen Passwort, das ihr hier festlegt. Sie sind in allen Listen mit „TEST“ markiert. Bei der Einteilung zählen sie <strong>nicht</strong> mit: Sie belegen keinen Platz und werden vom Algorithmus nicht verteilt. Unter Zuteilung stehen sie am Ende der Tabelle – dort Land und Gremium von Hand eintragen und mit „Einteilung herausgeben“ freischalten (ohne E-Mail). Vor der Konferenz wieder löschen, sonst erscheinen sie im Gremium (Roll Call, Position Papers).</p>
       <p><?= $tests ? '<span class="st st-waitlist">' . count($tests) . ' Test-Delegierte vorhanden</span>' : 'Zurzeit gibt es keine Test-Delegierten.' ?></p>
       <form method="post">
         <?= csrf_field() ?><input type="hidden" name="a" value="test_create">

@@ -106,11 +106,15 @@ function alloc_match(array $r, string $slug, string $country): string
     return $best;
 }
 
-/** Delegates that take part in the allocation (not cancelled), oldest registration first. */
-function alloc_delegates(?array $regs = null): array
+/**
+ * Delegates that take part in the allocation (not cancelled), oldest registration first.
+ * Test delegates do not count: they take no seat and are never placed by the algorithm.
+ * $tests = true returns only the test delegates (allocated by hand, to try out the delegate area).
+ */
+function alloc_delegates(?array $regs = null, bool $tests = false): array
 {
     $regs ??= read_json(REGISTRATIONS_FILE);
-    $list = array_values(array_filter($regs, fn ($r) => is_delegate_reg($r) && ($r['status'] ?? '') !== 'cancelled'));
+    $list = array_values(array_filter($regs, fn ($r) => is_delegate_reg($r) && ($r['status'] ?? '') !== 'cancelled' && !empty($r['test']) === $tests));
     usort($list, fn ($a, $b) => strcmp((string) ($a['created'] ?? ''), (string) ($b['created'] ?? '')));
     return $list;
 }
@@ -276,7 +280,7 @@ function alloc_release(string $subject, string $text): array
 {
     $sent = 0;
     $failed = 0;
-    foreach (alloc_delegates() as $r) {
+    foreach (array_merge(alloc_delegates(), alloc_delegates(null, true)) as $r) {
         if (!alloc_complete($r) || alloc_is_sent($r)) {
             continue;
         }
@@ -295,7 +299,9 @@ function alloc_release(string $subject, string $text): array
             }
             return $regs;
         });
-        $ok ? $sent++ : $failed++;
+        if (($r['email'] ?? '') !== '') {
+            $ok ? $sent++ : $failed++;
+        }
     }
     return [$sent, $failed];
 }
