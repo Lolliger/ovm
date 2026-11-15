@@ -10,6 +10,30 @@
     if (b && !confirm(b.getAttribute('data-confirm'))) e.preventDefault();
   });
 
+  // Zuteilung: the country choices follow the committee chosen in the same row.
+  var allocData = document.getElementById('alloc-countries');
+  if (allocData) {
+    var allocCountries = JSON.parse(allocData.textContent || '{}');
+    document.addEventListener('change', function (e) {
+      var row = e.target.closest('.alloc-delegates tr');
+      if (!row || !e.target.matches('select[name^="committee["]')) return;
+      var sel = row.querySelector('select[data-country]');
+      var list = allocCountries[e.target.value] || [];
+      var keep = sel.value;
+      sel.innerHTML = '';
+      var first = document.createElement('option');
+      first.value = '';
+      first.textContent = e.target.value ? '– noch keins –' : '– erst Gremium wählen –';
+      sel.appendChild(first);
+      list.forEach(function (c) {
+        var o = document.createElement('option');
+        o.textContent = c;
+        if (c === keep) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+  }
+
   // Repeater rows (schedule, numbers, …)
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('button');

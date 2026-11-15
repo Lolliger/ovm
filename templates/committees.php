@@ -15,6 +15,12 @@ require __DIR__ . '/_pagehead.php';
             <?php if (!empty($cm['topics'])): ?>
               <ol class="topics"><?php foreach ($cm['topics'] as $t): ?><li><?= e($t) ?></li><?php endforeach; ?></ol>
             <?php endif; ?>
+            <?php if ($countries = committee_countries($cm)): ?>
+              <details class="committee-countries">
+                <summary>Countries (<?= count($countries) ?>)</summary>
+                <ul class="country-list"><?php foreach ($countries as $cn): ?><li><?= e($cn) ?></li><?php endforeach; ?></ul>
+              </details>
+            <?php endif; ?>
           </div>
           <div class="committee-side">
             <?php if (!empty($cm['level'])): ?><span class="tag tag-<?= e(slugify($cm['level'])) ?>"><?= e($cm['level']) ?></span><?php endif; ?>

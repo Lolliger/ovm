@@ -13,6 +13,11 @@ require __DIR__ . '/_pagehead.php';
         <ol class="topics big"><?php foreach ($item['topics'] as $t): ?><li><?= e($t) ?></li><?php endforeach; ?></ol>
       <?php endif; ?>
       <?= md($item['description'] ?? '') ?>
+      <?php if ($countries = committee_countries($item)): ?>
+        <h2>Countries</h2>
+        <p class="muted">The <?= count($countries) ?> countries represented in this committee. When registering you can name the two you would most like to represent.</p>
+        <ul class="country-list"><?php foreach ($countries as $cn): ?><li><?= e($cn) ?></li><?php endforeach; ?></ul>
+      <?php endif; ?>
     </div>
     <dl class="facts">
       <?php if (!empty($item['level'])): ?><div><dt>Level</dt><dd><?= e($item['level']) ?></dd></div><?php endif; ?>

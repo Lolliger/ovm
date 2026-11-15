@@ -1134,6 +1134,21 @@ function view_item(string $s, array $def, string $id): void
 }
 
 /** Dropdown of all committees (value = slug), keeping an assignment whose committee no longer exists. */
+/** Country of a delegate: only the countries of the allocated committee can be chosen. */
+function country_select(string $name, string $slug, string $current): string
+{
+    $cm = $slug !== '' ? committee_by_slug($slug) : null;
+    $list = $cm ? committee_countries($cm) : [];
+    $h = '<select name="' . e($name) . '" data-country aria-label="Land"><option value="">' . ($cm ? '– noch keins –' : '– erst Gremium wählen –') . '</option>';
+    foreach ($list as $cn) {
+        $h .= '<option' . (mb_strtolower($cn) === mb_strtolower(trim($current)) ? ' selected' : '') . '>' . e($cn) . '</option>';
+    }
+    if (trim($current) !== '' && !in_array(mb_strtolower(trim($current)), array_map('mb_strtolower', $list), true)) {
+        $h .= '<option value="' . e($current) . '" selected>' . e($current) . ' (nicht in der Länderliste)</option>';
+    }
+    return $h . '</select>';
+}
+
 function committee_select(string $name, string $current): string
 {
     $sel = committee_by_label($current);
@@ -1271,8 +1286,6 @@ function view_allocation(): void
         }
         return $parts ? implode('<br>', $parts) : '–';
     };
-    $allCountries = array_values(array_unique(array_merge(...array_map('committee_countries', $committees ?: [[]]))));
-    sort($allCountries);
     ?>
     <div class="page-title"><h1>Zuteilung</h1></div>
 
@@ -1308,7 +1321,7 @@ function view_allocation(): void
         <li><span>Noch nicht mitgeteilt / geändert</span><strong><?= $toSend ?></strong></li>
       </ul></div>
     </div>
-    <p class="help"><strong>So geht’s:</strong> 1. „Einteilung berechnen“ verteilt alle Delegierten bestmöglich nach ihren Wünschen (bei Gleichstand gewinnt die frühere Anmeldung). 2. In der Tabelle prüfen und bei Bedarf Land oder Gremium von Hand ändern; ein Häkchen bei „fest“ schützt die Zeile vor dem nächsten Berechnen. 3. „Einteilung herausgeben“ verschickt die E-Mails und schaltet die Einteilung im Teilnehmer-Bereich frei – vorher sehen die Delegierten nichts davon.</p>
+    <p class="help"><strong>So geht’s:</strong> 1. „Einteilung berechnen“ verteilt alle Delegierten bestmöglich nach ihren Wünschen (bei Gleichstand gewinnt die frühere Anmeldung). 2. In der Tabelle prüfen und bei Bedarf Gremium oder Land von Hand ändern (zur Auswahl stehen die Länder des gewählten Gremiums); ein Häkchen bei „fest“ schützt die Zeile vor dem nächsten Berechnen. 3. „Einteilung herausgeben“ verschickt die E-Mails und schaltet die Einteilung im Teilnehmer-Bereich frei – vorher sehen die Delegierten nichts davon.</p>
     <input type="search" class="filter" placeholder="Suchen (Kennung, Land, Gremium …)" data-filter=".alloc-delegates tbody tr">
     <form method="post" class="alloc-form">
       <?= csrf_field() ?>
@@ -1321,7 +1334,7 @@ function view_allocation(): void
             <td><small><?= $wish($r) ?></small></td>
             <td><?= $a['state'] === 'clear' ? '<span class="st st-confirmed">klar</span>' : ($a['state'] === 'contested' ? '<span class="st st-waitlist">umkämpft (+' . $a['rivals'] . ')</span>' : '<small>–</small>') ?></td>
             <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
-            <td><input name="country[<?= $id ?>]" value="<?= e($r['assigned_country'] ?? '') ?>" list="alloc-countries" aria-label="Land"><?= $double ? '<br><small class="danger">doppelt vergeben!</small>' : '' ?></td>
+            <td><?= country_select('country[' . $r['id'] . ']', reg_committee_slug($r), (string) ($r['assigned_country'] ?? '')) ?><?= $double ? '<br><small class="danger">doppelt vergeben!</small>' : '' ?></td>
             <td><small><?= $isTest ? 'Test – zählt nicht mit, von Hand zuteilen' : ($complete ? e(ALLOC_COSTS[alloc_match($r, reg_committee_slug($r), trim((string) $r['assigned_country']))][1]) : '–') ?></small></td>
             <td><?php if (!$isTest): ?><input type="checkbox" name="fixed[<?= $id ?>]" value="1"<?= !empty($r['alloc_fixed']) ? ' checked' : '' ?> aria-label="fest"><?php endif; ?></td>
             <td><small><?= alloc_is_sent($r) ? e(date('d.m.Y', strtotime($r['released']['at']))) : (!empty($r['released']) ? '<span class="danger">geändert – noch nicht mitgeteilt</span>' : 'nein') ?></small></td>
@@ -1329,7 +1342,7 @@ function view_allocation(): void
         <?php endforeach; ?>
         </tbody>
       </table></div>
-      <datalist id="alloc-countries"><?php foreach ($allCountries as $cn): ?><option value="<?= e($cn) ?>"><?php endforeach; ?></datalist>
+      <script type="application/json" id="alloc-countries"><?= json_encode(array_combine(array_column($committees, 'slug'), array_map('committee_countries', $committees)), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
       <div class="save-bar">
         <button class="btn" name="a" value="alloc_save">Änderungen speichern</button>
         <button class="btn-ghost" name="a" value="alloc_compute" data-confirm="Einteilung jetzt berechnen? Alle Zeilen ohne „fest“ und ohne bereits herausgegebene Einteilung werden neu verteilt. Es wird noch nichts verschickt.">Einteilung berechnen</button>
