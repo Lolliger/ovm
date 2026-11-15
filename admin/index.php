@@ -464,9 +464,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'smtp_save':
             case 'smtp_test':
                 $old = is_file(SMTP_FILE) ? read_json(SMTP_FILE) : [];
-                $pass = (string) ($_POST['smtp_pass'] ?? '');
+                $pass = trim((string) ($_POST['smtp_pass'] ?? '')); // pasted passwords often carry a space or line break
                 $new = ['host' => trim((string) ($_POST['smtp_host'] ?? '')), 'port' => (int) ($_POST['smtp_port'] ?? 465) ?: 465,
-                    'user' => trim((string) ($_POST['smtp_user'] ?? '')), 'pass' => $pass !== '' ? $pass : (string) ($old['pass'] ?? '')];
+                    'user' => mb_strtolower(trim((string) ($_POST['smtp_user'] ?? ''))), 'pass' => $pass !== '' ? $pass : (string) ($old['pass'] ?? '')];
                 if ($new['host'] === '' && $new['user'] === '') {
                     @unlink(SMTP_FILE);
                     audit('smtp.remove');
@@ -477,8 +477,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 audit('smtp.save', $new['host']);
                 if ($action === 'smtp_test') {
                     $to = trim((string) ($_POST['smtp_to'] ?? ''));
-                    $err = !filter_var($to, FILTER_VALIDATE_EMAIL) ? 'Bitte eine gültige Empfänger-Adresse für die Test-Mail eingeben.'
-                        : (!smtp_settings() ? 'Bitte Server, Benutzername und Passwort ausfüllen.'
+                    $err = !filter_var($to, FILTER_VALIDATE_EMAIL) ? 'Bitte unten bei „Test-Mail an“ eine Adresse eingeben, an die die Test-Mail gehen soll.'
+                        : (!smtp_settings() ? 'Bitte Server, Benutzername und Passwort ausfüllen (das Passwort ist noch nicht gespeichert).'
                         : smtp_send(smtp_settings(), mail_from_address(), $to, ['To: ' . $to, 'Subject: OMUN Test-Mail', 'MIME-Version: 1.0', 'From: ' . mail_from_address(), 'Date: ' . date('r'),
                             'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . substr(strrchr(mail_from_address(), '@'), 1) . '>', 'Content-Type: text/plain; charset=UTF-8'],
                             "Diese Test-Mail kommt von der OMUN-Website über euer Postfach.\nWenn sie im Posteingang (nicht im Spam) angekommen ist, ist alles richtig eingerichtet."));
@@ -1652,7 +1652,7 @@ function view_settings(): void
     <form class="edit-form" method="post" id="smtp">
       <?= csrf_field() ?>
       <h2>E-Mail-Versand über ein Postfach</h2>
-      <p class="help"><strong>Damit E-Mails nicht im Spam landen:</strong> Ohne Postfach verschickt der Webserver die Mails selbst – unsigniert, und viele Anbieter (Gmail, Outlook) sortieren sie deshalb als Spam ein oder lehnen sie ab. Tragt hier ein echtes Postfach eurer Domain ein (bei Strato: Server <code>smtp.strato.de</code>, Port <code>465</code>, Benutzername = die E-Mail-Adresse des Postfachs, dazu dessen Passwort). Die Absender-Adresse unter <a href="<?= e(admin_url(['s' => 'portal'])) ?>">Teilnehmer-Bereich</a> muss dieses Postfach (oder ein Alias davon) sein – aktuell: <code><?= e(mail_from_address()) ?></code>. Das Passwort wird nur auf dem Server gespeichert und ist nicht im Inhalts-Backup enthalten.</p>
+      <p class="help"><strong>Damit E-Mails nicht im Spam landen:</strong> Ohne Postfach verschickt der Webserver die Mails selbst – unsigniert, und viele Anbieter (Gmail, Outlook) sortieren sie deshalb als Spam ein oder lehnen sie ab. Tragt hier ein echtes Postfach eurer Domain ein (bei Strato: Server <code>smtp.strato.de</code>, Port <code>465</code>, Benutzername = die E-Mail-Adresse des Postfachs, dazu dessen Passwort). Alle E-Mails der Website kommen dann von diesem Postfach (z. B. <code>noreply@omun.eu</code>); Antworten gehen an die Kontakt-Adresse der Website (<code><?= e((string) c('site.email')) ?></code>). Aktueller Absender: <code><?= e(mail_from_address()) ?></code>. Das Passwort wird nur auf dem Server gespeichert und ist nicht im Inhalts-Backup enthalten.</p>
       <p><?= smtp_settings() ? '<span class="st st-confirmed">Aktiv</span> E-Mails gehen über ' . e($smtp['host']) . '.' : '<span class="st st-cancelled">Nicht eingerichtet</span> E-Mails gehen über den einfachen Versand des Servers.' ?></p>
       <div class="field"><label>Mailserver (SMTP)<input name="smtp_host" value="<?= e($smtp['host'] ?? '') ?>" placeholder="smtp.strato.de"></label></div>
       <div class="field"><label>Port<input name="smtp_port" value="<?= e((string) ($smtp['port'] ?? 465)) ?>" inputmode="numeric"></label></div>

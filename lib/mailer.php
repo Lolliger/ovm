@@ -15,9 +15,17 @@ function mail_domain(): string
     return preg_replace('/^www\./', '', $host);
 }
 
-/** Sender address from the admin, otherwise noreply@<domain>. */
+/**
+ * Sender address. With a mailbox set up (SMTP) it is always that mailbox –
+ * mail servers refuse other senders. Otherwise the address from the admin,
+ * or noreply@<domain>.
+ */
 function mail_from_address(): string
 {
+    $box = (string) (smtp_settings()['user'] ?? '');
+    if (filter_var($box, FILTER_VALIDATE_EMAIL)) {
+        return $box;
+    }
     $a = trim((string) c('portal.mail_from'));
     return filter_var($a, FILTER_VALIDATE_EMAIL) && !preg_match('/[\r\n\s]/', $a) ? $a : 'noreply@' . mail_domain();
 }
@@ -88,7 +96,7 @@ function smtp_send(array $smtp, string $from, string $to, array $headers, string
     $port = (int) ($smtp['port'] ?? 465);
     $fp = @stream_socket_client(($port === 465 ? 'ssl://' : 'tcp://') . $smtp['host'] . ':' . $port, $errno, $errstr, 15);
     if (!$fp) {
-        return 'Keine Verbindung zu ' . $smtp['host'] . ':' . $port . ' (' . $errstr . ')';
+        return 'Keine Verbindung zu ' . $smtp['host'] . ':' . $port . ' (' . ($errstr ?: 'keine Antwort') . '). Servername und Port prüfen (Strato: smtp.strato.de, Port 465 – sonst 587 versuchen).';
     }
     stream_set_timeout($fp, 15);
     $read = function () use ($fp): string {
@@ -134,7 +142,8 @@ function smtp_send(array $smtp, string $from, string $to, array $headers, string
         ['MAIL FROM:<' . $from . '>', '250'], ['RCPT TO:<' . $to . '>', '25'], ['DATA', '354'], [$data, '250']] as $i => [$line, $expect]) {
         if ($err = $cmd($line, $expect)) {
             fclose($fp);
-            return ($i < 3 ? 'Anmeldung am Postfach fehlgeschlagen: ' : 'Mailserver: ') . $err;
+            return ($i < 3 ? 'Der Mailserver hat Benutzername oder Passwort nicht angenommen (bei Strato ist der Benutzername die vollständige E-Mail-Adresse des Postfachs, das Passwort das des Postfachs – nicht das des Kundenlogins). Antwort: '
+                : ($i === 3 ? 'Der Mailserver lässt ' . $from . ' nicht als Absender zu. Antwort: ' : ($i === 4 ? 'Der Mailserver nimmt die Empfänger-Adresse ' . $to . ' nicht an. Antwort: ' : 'Mailserver: '))) . $err;
         }
     }
     fwrite($fp, "QUIT\r\n");

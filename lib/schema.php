@@ -119,7 +119,7 @@ function schema(): array
                 ['key' => 'login_staff', 'label' => 'Login für Teilnahmearten „Ohne Rechte“ ein', 'type' => 'bool'],
                 ['key' => 'login_laptop', 'label' => 'Login für das Laptop-Konto „laptops“ ein', 'type' => 'bool'],
                 ['key' => 'login_closed_message', 'label' => 'Meldung, wenn der Login gerade aus ist', 'type' => 'text'],
-                ['key' => 'mail_from', 'label' => 'Absender-Adresse der E-Mails', 'type' => 'email', 'help' => 'z. B. noreply@omun.eu oder info@omun.eu. Am besten eine Adresse, für die es bei Strato ein echtes Postfach gibt. Leer = noreply@ + Domain.'],
+                ['key' => 'mail_from', 'label' => 'Absender-Adresse der E-Mails', 'type' => 'email', 'help' => 'Gilt nur, solange unter Sicherheit & Backup kein Postfach für den Versand eingerichtet ist – mit Postfach ist immer dieses der Absender. Leer = noreply@ + Domain.'],
                 ['key' => 'mail_from_name', 'label' => 'Absender-Name', 'type' => 'text', 'help' => 'z. B. „OMUN Team“. Leer = Kurzname der Website.'],
                 ['key' => 'confirm_email', 'label' => 'Bestätigungs-Mail nach der Anmeldung senden', 'type' => 'bool'],
                 ['key' => 'confirm_subject', 'label' => 'Betreff der Bestätigungs-Mail', 'type' => 'text'],
