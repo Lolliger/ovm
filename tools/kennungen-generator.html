@@ -67,9 +67,19 @@
     <p class="hint">Mehrere Spalten aus Excel (z. B. Name und Schule) bleiben zusammen in einer Zeile erhalten.</p>
     <div class="row" style="margin-top: 1rem">
       <div><label for="count">… oder Anzahl ohne Namen</label><input id="count" type="number" min="1" max="5000" value="50"></div>
-      <div style="flex: 1"><label for="existing">Schon vergebene Kennungen (optional, damit keine doppelt vorkommt)</label><input id="existing" placeholder="z. B. Inhalt der letzten kennungen-upload.txt"></div>
+      <div style="flex: 1"><label for="existing">Ältere Kennungen übernehmen (optional, einmalig)</label><input id="existing" placeholder="z. B. Inhalt einer früheren kennungen-upload.txt einfügen"></div>
     </div>
     <div class="actions"><button id="generate">Kennungen erzeugen</button></div>
+  </div>
+
+  <div class="card" id="memory">
+    <h2>Schon vergebene Kennungen</h2>
+    <p id="memory-info"></p>
+    <p class="hint">Jede erzeugte Kennung wird automatisch in diesem Browser auf diesem Computer gemerkt (nur die Kennungen, keine Namen), damit nie eine doppelt vergeben wird. In einem anderen Browser oder auf einem anderen Computer ist die Liste leer – dann die gespeicherte Liste dort oben unter „Ältere Kennungen übernehmen“ einfügen.</p>
+    <div class="actions">
+      <button id="mem-export" class="ghost">Gemerkte Kennungen herunterladen</button>
+      <button id="mem-clear" class="ghost">Liste leeren</button>
+    </div>
   </div>
 
   <div class="card" id="result" hidden>
@@ -118,10 +128,47 @@
   const today = () => new Date().toISOString().slice(0, 10);
   const esc = (s) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
+  // Codes handed out so far are remembered in this browser (localStorage) – codes only, never names.
+  const STORE = 'omun-kennungen-vergeben';
+  let storageOk = true;
+  function loadUsed() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(STORE) || '[]').filter(formatOk));
+    } catch (e) {
+      storageOk = false;
+      return new Set();
+    }
+  }
+  function saveUsed(set) {
+    try {
+      localStorage.setItem(STORE, JSON.stringify([...set]));
+    } catch (e) {
+      storageOk = false;
+    }
+    showMemory();
+  }
+  function showMemory() {
+    const n = loadUsed().size;
+    $('memory-info').innerHTML = storageOk
+      ? `<strong>${n}</strong> Kennung${n === 1 ? ' ist' : 'en sind'} gemerkt und ${n === 1 ? 'wird' : 'werden'} nicht noch einmal vergeben.`
+      : '<strong>Dieser Browser erlaubt das Speichern hier nicht.</strong> Bitte die Datei in Chrome, Edge oder Firefox öffnen – oder früher vergebene Kennungen oben von Hand einfügen.';
+    $('mem-export').disabled = $('mem-clear').disabled = !n;
+  }
+  showMemory();
+  $('mem-export').addEventListener('click', () => {
+    download(`kennungen-alle-vergebenen-${today()}.txt`, [...loadUsed()].map(format).join('\r\n') + '\r\n');
+  });
+  $('mem-clear').addEventListener('click', () => {
+    if (confirm('Liste der gemerkten Kennungen wirklich leeren? Danach könnte der Generator eine schon vergebene Kennung noch einmal erzeugen. Am besten vorher herunterladen.')) {
+      saveUsed(new Set());
+    }
+  });
+
   $('generate').addEventListener('click', () => {
     const names = $('names').value.split(/\r?\n/).map((l) => l.replace(/\t+/g, ', ').trim()).filter(Boolean);
     const count = names.length || Math.min(5000, Math.max(1, parseInt($('count').value, 10) || 0));
-    const used = new Set($('existing').value.split(/[\s,;]+/).map(normalize).filter(formatOk));
+    const used = loadUsed();
+    $('existing').value.split(/[\s,;]+/).map(normalize).filter(formatOk).forEach((c) => used.add(c));
     rows = [];
     while (rows.length < count) {
       const code = randomCode();
@@ -132,6 +179,8 @@
     $('rows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td class="code">${format(r.code)}</td><td>${esc(r.name)}</td></tr>`).join('');
     $('slips').innerHTML = rows.map((r) => `<div class="slip">OMUN – your personal code for registration and login:<strong>${format(r.code)}</strong>Register at omun.eu/register${r.name ? `<div class="name">${esc(r.name)}</div>` : ''}</div>`).join('');
     $('result-title').textContent = `${rows.length} Kennungen erzeugt` + (names.length ? ' (eine pro Name)' : '');
+    saveUsed(used);
+    $('existing').value = '';
     $('msg').textContent = '';
     $('result').hidden = false;
   });
