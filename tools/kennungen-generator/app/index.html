@@ -6,7 +6,7 @@
 <title>OMUN Kennungen-Generator</title>
 <!--
   Oberfläche des Programms „OMUN Kennungen“ (Mac: mac/main.swift, Windows: windows/OMUN-Kennungen.ps1).
-  Die Liste Kennung + Name liegt als OMUN-Kennungen.csv auf dem Schreibtisch; an die Website gehen nur die Kennungen.
+  Die Liste Kennung + Name liegt als OMUN-Kennungen.csv auf dem Schreibtisch (oder in einem im Programm gewählten Ordner); an die Website gehen nur die Kennungen.
   Gleiches Format wie lib/codes.php: 8 Zeichen aus CODE_CHARS, mind. 1 Buchstabe und 1 Ziffer.
 -->
 <style>
@@ -59,7 +59,7 @@
     <ol>
       <li>Einmalig: unten die <strong>Verbindung zur Website</strong> einrichten (Schlüssel aus dem Admin unter <em>Kennungen</em>).</li>
       <li>Namensliste einfügen (eine Person pro Zeile) <em>oder</em> nur eine Anzahl angeben und <strong>Kennungen erzeugen</strong>.</li>
-      <li>Kennung und Name stehen danach in der Liste <strong>OMUN-Kennungen.csv</strong> auf dem Schreibtisch, und die Kennungen sind auf der Website sofort freigeschaltet.</li>
+      <li>Kennung und Name stehen danach in der Liste <strong>OMUN-Kennungen.csv</strong> (auf dem Schreibtisch, solange ihr unten keinen anderen Speicherort wählt), und die Kennungen sind auf der Website sofort freigeschaltet.</li>
       <li>Jeder Person ihre Kennung geben (z. B. mit „Zettel drucken“).</li>
     </ol>
   </div>
@@ -90,7 +90,7 @@
     <h2>Liste der vergebenen Kennungen</h2>
     <p id="memory-info">Liste wird geladen …</p>
     <p class="hint" id="memory-hint"></p>
-    <div class="actions"><button id="reveal" class="ghost" hidden>Liste im Ordner zeigen</button></div>
+    <div class="actions"><button id="reveal" class="ghost" hidden>Liste im Ordner zeigen</button> <button id="move" class="ghost" hidden>Speicherort ändern …</button></div>
   </div>
 
   <div class="card" id="site">
@@ -138,6 +138,7 @@
    * answers under api/… (windows/OMUN-Kennungen.ps1). Actions:
    *   list → {file, rows}        add {rows} → {file, rows, added}
    *   settings → {site, key}     settings_set {site, key}
+   *   move → {file, rows, note} | {cancelled} | {error}   (asks for a folder and moves the list there)
    *   reveal, save {name, text}, print (Mac only; Windows uses the browser)
    */
   const mac = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.omun;
@@ -163,13 +164,14 @@
   function showList(error) {
     const n = listRows.length;
     $('reveal').hidden = !listFile;
+    $('move').hidden = !listFile;
     if (error) {
       $('memory-info').innerHTML = '<strong class="bad">Nicht gespeichert:</strong> ' + esc(error);
     } else if (listFile) {
       $('memory-info').innerHTML = `<strong>${n}</strong> Kennung${n === 1 ? '' : 'en'} in der Liste <code>${esc(listFile)}</code>.`;
       $('memory-hint').textContent = 'Jede neue Kennung wird sofort mit Name und Datum in diese Datei geschrieben und nie doppelt vergeben. Die Datei könnt ihr mit Excel oder Numbers öffnen – bitte nicht geöffnet lassen, während ihr Kennungen erzeugt. Sie enthält Namen und gehört nicht auf die Website.';
     } else {
-      $('memory-info').innerHTML = '<strong class="bad">Die Liste auf dem Schreibtisch ist nicht verbunden.</strong> Kennungen werden so nicht gespeichert.';
+      $('memory-info').innerHTML = '<strong class="bad">Die Liste der Kennungen ist nicht verbunden.</strong> Kennungen werden so nicht gespeichert.';
       $('memory-hint').textContent = 'Bitte diese Seite schließen und das Programm „OMUN Kennungen“ starten – nicht diese Datei direkt im Browser öffnen.';
     }
   }
@@ -279,6 +281,25 @@
 
   $('reveal').addEventListener('click', () => backend('reveal').catch(() => {}));
 
+  // Another folder for the list (e.g. the conference folder instead of the desktop).
+  $('move').addEventListener('click', async () => {
+    $('move').disabled = true;
+    try {
+      const d = await backend('move');
+      if (d.error) {
+        $('memory-info').innerHTML = '<strong class="bad">Speicherort nicht geändert:</strong> ' + esc(d.error);
+      } else if (!d.cancelled) {
+        listFile = d.file;
+        listRows = d.rows || [];
+        showList();
+        $('memory-info').innerHTML += ' <strong class="good">' + esc(d.note || '') + '</strong>';
+      }
+    } catch (e) {
+      showList('Die Verbindung zur Liste ist abgebrochen. Bitte das Programm neu starten.');
+    }
+    $('move').disabled = false;
+  });
+
   /* ---------- Generating ---------- */
   $('generate').addEventListener('click', async () => {
     $('generate').disabled = true;
@@ -303,7 +324,7 @@
     $('names').value = '';
     const saved = await saveRows(older.map((code) => ({ code, name: '' })).concat(rows));
     const sent = saved ? await publish(older.concat(rows.map((r) => r.code))) : '';
-    $('msg').textContent = saved ? 'In der Liste auf dem Schreibtisch gespeichert. ' + sent : 'NICHT gespeichert – bitte diese Kennungen nicht verwenden.';
+    $('msg').textContent = saved ? 'In der Liste gespeichert. ' + sent : 'NICHT gespeichert – bitte diese Kennungen nicht verwenden.';
     $('msg').className = 'msg' + (saved && !/NICHT/.test(sent) && siteReady() ? '' : ' bad');
     $('generate').disabled = false;
     $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });

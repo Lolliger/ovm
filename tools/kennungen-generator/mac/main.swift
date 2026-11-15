@@ -2,7 +2,7 @@
 //
 // A window that shows ../app/index.html and does for it what a web page may
 // not do itself: read and write the list of handed-out codes (code + name) in
-// a file on the desktop, keep the website key, save files and print.
+// a file on the desktop (or in a folder chosen in the app), keep the website key, save files and print.
 //
 // Build: ./build.sh   (needs the Xcode command line tools: xcode-select --install)
 
@@ -105,15 +105,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 replyHandler(["error": "Die Datei konnte nicht geschrieben werden: \(listURL.path) (ist sie gerade in Excel oder Numbers geöffnet?)"], nil)
             }
         case "settings":
-            let saved = (try? JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))) as? [String: Any] ?? [:]
+            let saved = readSettings()
             replyHandler(["site": saved["site"] as? String ?? "", "key": saved["key"] as? String ?? ""], nil)
         case "settings_set":
-            let settings = ["site": data["site"] as? String ?? "", "key": data["key"] as? String ?? ""]
-            if let json = try? JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted]) {
-                try? json.write(to: settingsURL, options: [.atomic])
-                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: settingsURL.path)
-            }
+            var settings = readSettings() // keeps the place of the list
+            settings["site"] = data["site"] as? String ?? ""
+            settings["key"] = data["key"] as? String ?? ""
+            writeSettings(settings)
             replyHandler(["ok": true], nil)
+        case "move":
+            let finish: (URL?) -> Void = { dir in
+                guard let dir = dir else { return replyHandler(["cancelled": true], nil) }
+                do {
+                    let note = try moveList(to: dir)
+                    replyHandler(["file": listURL.path, "rows": readList(), "note": note], nil)
+                } catch {
+                    replyHandler(["error": "Die Liste konnte nicht in diesen Ordner gelegt werden (\(error.localizedDescription)). Sie liegt weiter hier: \(listURL.path)"], nil)
+                }
+            }
+            #if SELFTEST
+            if let dir = ProcessInfo.processInfo.environment["OMUN_SELFTEST_DIR"] { return finish(URL(fileURLWithPath: dir)) }
+            #endif
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.message = "In welchem Ordner soll die Liste der Kennungen (\(listName)) liegen?"
+            panel.prompt = "Hier speichern"
+            panel.directoryURL = listURL.deletingLastPathComponent()
+            panel.beginSheetModal(for: window) { response in finish(response == .OK ? panel.url : nil) }
         case "reveal":
             if FileManager.default.fileExists(atPath: listURL.path) {
                 NSWorkspace.shared.activateFileViewerSelecting([listURL])

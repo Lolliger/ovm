@@ -2,7 +2,7 @@
 #
 # Opens ..\app\index.html in the browser and does for it what a web page may not
 # do itself: read and write the list of handed-out codes (code + name) in a file
-# on the desktop and keep the website key. Runs only on this computer
+# on the desktop (or in a folder chosen in the program) and keep the website key. Runs only on this computer
 # (127.0.0.1) and needs nothing but Windows itself (Windows PowerShell 5.1).
 #
 # Start: double-click "OMUN Kennungen.cmd". Stop: close the black window.
@@ -11,10 +11,29 @@ $ErrorActionPreference = 'Stop'
 $port = 8765
 $prefix = "http://127.0.0.1:$port/"
 $page = Join-Path $PSScriptRoot '..\app\index.html'
-$listFile = if ($env:OMUN_KENNUNGEN_FILE) { $env:OMUN_KENNUNGEN_FILE } else { Join-Path ([Environment]::GetFolderPath('Desktop')) 'OMUN-Kennungen.csv' }
+$listName = 'OMUN-Kennungen.csv'
 $settingsDir = Join-Path $env:APPDATA 'OMUN Kennungen'
 $settingsFile = Join-Path $settingsDir 'settings.json'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
+
+# settings.json: { site, key, list } - "list" is the path of the list if it was moved away from the desktop.
+function Get-Settings {
+    $s = @{ site = ''; key = ''; list = '' }
+    if (Test-Path -LiteralPath $settingsFile) {
+        $saved = [System.IO.File]::ReadAllText($settingsFile, $utf8) | ConvertFrom-Json
+        $s = @{ site = [string]$saved.site; key = [string]$saved.key; list = [string]$saved.list }
+    }
+    return $s
+}
+function Set-Settings($s) {
+    if (-not (Test-Path -LiteralPath $settingsDir)) { [void](New-Item -ItemType Directory -Path $settingsDir) }
+    [System.IO.File]::WriteAllText($settingsFile, (ConvertTo-Json $s), $utf8)
+}
+
+# Where the list is: on the desktop, unless another folder was chosen in the program.
+$listFile = Join-Path ([Environment]::GetFolderPath('Desktop')) $listName
+if ($env:OMUN_KENNUNGEN_FILE) { $listFile = $env:OMUN_KENNUNGEN_FILE }
+elseif ((Get-Settings).list) { $listFile = (Get-Settings).list }
 
 function Normalize-Code([string]$s) { return ($s.ToUpper() -replace '[^A-Z0-9]', '') }
 function Test-Code([string]$c) { return ($c -cmatch '^[A-HJ-NP-Z2-9]{8}$') -and ($c -match '\d') -and ($c -cmatch '[A-Z]') }
@@ -136,17 +155,44 @@ while ($listener.IsListening) {
                 }
             }
             'settings' {
-                $s = @{ site = ''; key = '' }
-                if (Test-Path -LiteralPath $settingsFile) {
-                    $saved = [System.IO.File]::ReadAllText($settingsFile, $utf8) | ConvertFrom-Json
-                    $s = @{ site = [string]$saved.site; key = [string]$saved.key }
-                }
-                Send-Json $context $s
+                $s = Get-Settings
+                Send-Json $context @{ site = $s.site; key = $s.key }
             }
             'settings_set' {
-                if (-not (Test-Path -LiteralPath $settingsDir)) { [void](New-Item -ItemType Directory -Path $settingsDir) }
-                [System.IO.File]::WriteAllText($settingsFile, (ConvertTo-Json @{ site = [string]$in.site; key = [string]$in.key }), $utf8)
+                $s = Get-Settings   # keeps the place of the list
+                $s.site = [string]$in.site; $s.key = [string]$in.key
+                Set-Settings $s
                 Send-Json $context @{ ok = $true }
+            }
+            'move' {
+                # Asks for a folder and moves the list there. A list that already lies there is never overwritten.
+                Add-Type -AssemblyName System.Windows.Forms
+                $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+                $dialog.Description = "In welchem Ordner soll die Liste der Kennungen ($listName) liegen?"
+                $dialog.SelectedPath = Split-Path $listFile
+                $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }
+                $chosen = $dialog.ShowDialog($owner)
+                $owner.Dispose()
+                if ($chosen -ne [System.Windows.Forms.DialogResult]::OK) { Send-Json $context @{ cancelled = $true }; continue }
+                $target = Join-Path $dialog.SelectedPath $listName
+                $note = 'Neue Kennungen werden ab jetzt hier gespeichert.'
+                try {
+                    if ([System.IO.Path]::GetFullPath($target) -ne [System.IO.Path]::GetFullPath($listFile)) {
+                        if (Test-Path -LiteralPath $target) {
+                            $note = 'In diesem Ordner lag schon eine Liste - sie wird ab jetzt verwendet. Die bisherige Liste liegt weiter am alten Ort.'
+                        } elseif (Test-Path -LiteralPath $listFile) {
+                            Move-Item -LiteralPath $listFile -Destination $target
+                            $note = 'Die Liste wurde in diesen Ordner verschoben.'
+                        } else {
+                            [System.IO.File]::WriteAllText($target, '', $utf8); Remove-Item -LiteralPath $target   # can we write here?
+                        }
+                    }
+                    $s = Get-Settings; $s.list = $target; Set-Settings $s
+                    $listFile = $target
+                    Send-Json $context @{ file = $listFile; rows = @(Get-List); note = $note }
+                } catch {
+                    Send-Json $context @{ error = "Die Liste konnte nicht in diesen Ordner gelegt werden. Sie liegt weiter hier: $listFile" }
+                }
             }
             'reveal' {
                 if (Test-Path -LiteralPath $listFile) { Start-Process explorer.exe "/select,`"$listFile`"" } else { Start-Process explorer.exe (Split-Path $listFile) }

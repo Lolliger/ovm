@@ -40,6 +40,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSDesktopFolderUsageDescription</key><string>Die Liste der vergebenen Kennungen (OMUN-Kennungen.csv) liegt auf dem Schreibtisch.</string>
+  <key>NSDocumentsFolderUsageDescription</key><string>Die Liste der vergebenen Kennungen (OMUN-Kennungen.csv) liegt in einem Ordner, den ihr im Programm gewählt habt.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>Die Liste der vergebenen Kennungen (OMUN-Kennungen.csv) liegt in einem Ordner, den ihr im Programm gewählt habt.</string>
 </dict></plist>
 PLIST
 

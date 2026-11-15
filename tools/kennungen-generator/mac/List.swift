@@ -1,13 +1,6 @@
-// OMUN Kennungen – the list of handed-out codes on the desktop and where the settings are kept.
+// OMUN Kennungen – the list of handed-out codes (on the desktop or in a chosen folder) and where the settings are kept.
 
 import Foundation
-
-let listURL: URL = {
-    if let custom = ProcessInfo.processInfo.environment["OMUN_KENNUNGEN_FILE"], !custom.isEmpty {
-        return URL(fileURLWithPath: custom)
-    }
-    return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/OMUN-Kennungen.csv")
-}()
 
 let settingsURL: URL = {
     if let custom = ProcessInfo.processInfo.environment["OMUN_KENNUNGEN_SETTINGS"], !custom.isEmpty {
@@ -17,6 +10,57 @@ let settingsURL: URL = {
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir.appendingPathComponent("settings.json")
 }()
+
+/// settings.json: { "site": …, "key": …, "list": "<path of the list, if it was moved away from the desktop>" }
+func readSettings() -> [String: Any] {
+    ((try? JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL))) as? [String: Any]) ?? [:]
+}
+
+func writeSettings(_ settings: [String: Any]) {
+    if let json = try? JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted]) {
+        try? json.write(to: settingsURL, options: [.atomic])
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: settingsURL.path)
+    }
+}
+
+let listName = "OMUN-Kennungen.csv"
+
+/// Where the list is: on the desktop, unless another folder was chosen in the app ("Speicherort ändern").
+var listURL: URL = {
+    if let custom = ProcessInfo.processInfo.environment["OMUN_KENNUNGEN_FILE"], !custom.isEmpty {
+        return URL(fileURLWithPath: custom)
+    }
+    if let chosen = readSettings()["list"] as? String, !chosen.isEmpty {
+        return URL(fileURLWithPath: chosen)
+    }
+    return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/" + listName)
+}()
+
+/// Moves the list into another folder and remembers it. A list that already lies there is
+/// never overwritten: it is used from then on and the old one stays where it was.
+/// Returns a sentence for the user.
+func moveList(to dir: URL) throws -> String {
+    let fm = FileManager.default
+    let target = dir.appendingPathComponent(listName)
+    var note = "Neue Kennungen werden ab jetzt hier gespeichert."
+    if target.standardizedFileURL.path != listURL.standardizedFileURL.path {
+        if fm.fileExists(atPath: target.path) {
+            note = "In diesem Ordner lag schon eine Liste – sie wird ab jetzt verwendet. Die bisherige Liste liegt unverändert am alten Ort."
+        } else if fm.fileExists(atPath: listURL.path) {
+            try fm.moveItem(at: listURL, to: target)
+            note = "Die Liste wurde in diesen Ordner verschoben."
+        } else {
+            // Nothing to move yet: make sure the folder can be written to before it is remembered.
+            try Data().write(to: target)
+            try fm.removeItem(at: target)
+        }
+    }
+    var settings = readSettings()
+    settings["list"] = target.path
+    writeSettings(settings)
+    listURL = target
+    return note
+}
 
 // MARK: - The list (CSV with ";", like Excel in German writes it)
 

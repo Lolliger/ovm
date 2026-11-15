@@ -2,7 +2,7 @@
 
 Das Programm erzeugt die persönlichen Kennungen, mit denen sich Teilnehmende auf der Website anmelden.
 
-- **Namen bleiben auf dem eigenen Computer.** Kennung, Name und Datum stehen in `OMUN-Kennungen.csv` auf dem Schreibtisch (mit Excel/Numbers zu öffnen).
+- **Namen bleiben auf dem eigenen Computer.** Kennung, Name und Datum stehen in `OMUN-Kennungen.csv` auf dem Schreibtisch (mit Excel/Numbers zu öffnen). Mit **Speicherort ändern …** im Programm zieht die Liste in einen anderen Ordner um; das Programm merkt sich den Ort.
 - **An die Website gehen nur die Kennungen** – sofort beim Erzeugen, wenn die Verbindung eingerichtet ist.
 - Keine Kennung wird doppelt vergeben: vor jedem Erzeugen liest das Programm die Liste neu.
 
@@ -24,7 +24,7 @@ Ohne Verbindung funktioniert das Programm trotzdem; die Kennungen lädt man dann
 
 - Mac-Zip bzw. den Ordner weitergeben – **nicht** die Datei `OMUN-Kennungen.csv` (sie enthält Namen) und nicht den Schlüssel.
 - Die neue Person erzeugt im Admin einen eigenen Schlüssel; der alte gilt dann nicht mehr.
-- Neues Jahr = neue Liste: die alte `OMUN-Kennungen.csv` vom Schreibtisch wegräumen (oder löschen, wenn sie nicht mehr gebraucht wird).
+- Neues Jahr = neue Liste: die alte `OMUN-Kennungen.csv` wegräumen oder mit **Speicherort ändern …** einen neuen, leeren Ordner wählen (oder löschen, wenn sie nicht mehr gebraucht wird).
 
 ## Für Entwickler
 
