@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OMUN Kennungen-Generator</title>
 <!--
-  Läuft komplett offline im Browser: Doppelklick auf die Datei genügt.
-  Es wird nichts hochgeladen oder gespeichert – Namen bleiben auf diesem Computer.
+  Start: Kennungen-Generator.command (Mac) / Kennungen-Generator.bat (Windows) im selben Ordner.
+  Läuft nur auf diesem Computer; Kennung + Name stehen in ~/Desktop/OMUN-Kennungen.csv (siehe kennungen-server.php).
+  Es wird nichts ins Internet geschickt.
   Gleiches Format wie lib/codes.php: 8 Zeichen aus CODE_CHARS, mind. 1 Buchstabe und 1 Ziffer.
 -->
 <style>
@@ -49,13 +50,13 @@
 <body>
 <main>
   <h1>Kennungen-Generator</h1>
-  <p class="lead">Erzeugt persönliche Kennungen für die OMUN-Anmeldung. Läuft nur in diesem Browser – nichts wird hochgeladen.</p>
+  <p class="lead">Erzeugt persönliche Kennungen für die OMUN-Anmeldung. Läuft nur auf diesem Computer – nichts wird hochgeladen.</p>
 
   <div class="card warn">
     <h2>So geht's</h2>
     <ol>
       <li>Namensliste einfügen (eine Person pro Zeile) <em>oder</em> nur eine Anzahl angeben.</li>
-      <li><strong>„Liste mit Namen“</strong> herunterladen und bei euch speichern – sie kommt <strong>nie</strong> auf die Website.</li>
+      <li>Kennung und Name werden automatisch in der Liste <strong>OMUN-Kennungen.csv</strong> auf dem Schreibtisch gespeichert – sie kommt <strong>nie</strong> auf die Website.</li>
       <li><strong>„Nur Kennungen“</strong> herunterladen und im Admin unter <em>Kennungen</em> hochladen.</li>
       <li>Jeder Person ihre Kennung geben (z. B. mit „Zettel drucken“).</li>
     </ol>
@@ -67,26 +68,22 @@
     <p class="hint">Mehrere Spalten aus Excel (z. B. Name und Schule) bleiben zusammen in einer Zeile erhalten.</p>
     <div class="row" style="margin-top: 1rem">
       <div><label for="count">… oder Anzahl ohne Namen</label><input id="count" type="number" min="1" max="5000" value="50"></div>
-      <div style="flex: 1"><label for="existing">Ältere Kennungen übernehmen (optional, einmalig)</label><input id="existing" placeholder="z. B. Inhalt einer früheren kennungen-upload.txt einfügen"></div>
+      <div style="flex: 1"><label for="existing">Ältere Kennungen in die Liste übernehmen (optional, einmalig)</label><input id="existing" placeholder="z. B. Inhalt einer früheren kennungen-upload.txt einfügen"></div>
     </div>
     <div class="actions"><button id="generate">Kennungen erzeugen</button></div>
   </div>
 
   <div class="card" id="memory">
-    <h2>Schon vergebene Kennungen</h2>
-    <p id="memory-info"></p>
-    <p class="hint">Jede erzeugte Kennung wird automatisch in diesem Browser auf diesem Computer gemerkt (nur die Kennungen, keine Namen), damit nie eine doppelt vergeben wird. In einem anderen Browser oder auf einem anderen Computer ist die Liste leer – dann die gespeicherte Liste dort oben unter „Ältere Kennungen übernehmen“ einfügen.</p>
-    <div class="actions">
-      <button id="mem-export" class="ghost">Gemerkte Kennungen herunterladen</button>
-      <button id="mem-clear" class="ghost">Liste leeren</button>
-    </div>
+    <h2>Liste der vergebenen Kennungen</h2>
+    <p id="memory-info">Liste wird geladen …</p>
+    <p class="hint" id="memory-hint"></p>
   </div>
 
   <div class="card" id="result" hidden>
     <h2 id="result-title"></h2>
     <div class="actions">
-      <button id="dl-names">Liste mit Namen (CSV, nur für euch)</button>
-      <button id="dl-upload" class="ghost">Nur Kennungen (für den Admin)</button>
+      <button id="dl-upload">Nur Kennungen (für den Admin)</button>
+      <button id="dl-names" class="ghost">Diese Kennungen mit Namen (CSV)</button>
       <button id="print" class="ghost">Zettel drucken</button>
     </div>
     <p class="msg" id="msg"></p>
@@ -128,47 +125,59 @@
   const today = () => new Date().toISOString().slice(0, 10);
   const esc = (s) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
-  // Codes handed out so far are remembered in this browser (localStorage) – codes only, never names.
-  const STORE = 'omun-kennungen-vergeben';
-  let storageOk = true;
-  function loadUsed() {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(STORE) || '[]').filter(formatOk));
-    } catch (e) {
-      storageOk = false;
-      return new Set();
-    }
-  }
-  function saveUsed(set) {
-    try {
-      localStorage.setItem(STORE, JSON.stringify([...set]));
-    } catch (e) {
-      storageOk = false;
-    }
-    showMemory();
-  }
-  function showMemory() {
-    const n = loadUsed().size;
-    $('memory-info').innerHTML = storageOk
-      ? `<strong>${n}</strong> Kennung${n === 1 ? ' ist' : 'en sind'} gemerkt und ${n === 1 ? 'wird' : 'werden'} nicht noch einmal vergeben.`
-      : '<strong>Dieser Browser erlaubt das Speichern hier nicht.</strong> Bitte die Datei in Chrome, Edge oder Firefox öffnen – oder früher vergebene Kennungen oben von Hand einfügen.';
-    $('mem-export').disabled = $('mem-clear').disabled = !n;
-  }
-  showMemory();
-  $('mem-export').addEventListener('click', () => {
-    download(`kennungen-alle-vergebenen-${today()}.txt`, [...loadUsed()].map(format).join('\r\n') + '\r\n');
-  });
-  $('mem-clear').addEventListener('click', () => {
-    if (confirm('Liste der gemerkten Kennungen wirklich leeren? Danach könnte der Generator eine schon vergebene Kennung noch einmal erzeugen. Am besten vorher herunterladen.')) {
-      saveUsed(new Set());
-    }
-  });
+  // The list of handed-out codes (code + name) lives in a file on this computer's desktop.
+  // The page reaches it through the small local helper (kennungen-server.php), which
+  // "Kennungen-Generator.command" / ".bat" starts. Nothing is stored in the browser.
+  let listFile = null;      // path of the file, null = helper not running
+  let listRows = [];        // [{code, name, date}]
+  try { localStorage.removeItem('omun-kennungen-vergeben'); } catch (e) { /* older versions stored codes here */ }
 
-  $('generate').addEventListener('click', () => {
+  function showList(error) {
+    const n = listRows.length;
+    if (error) {
+      $('memory-info').innerHTML = '<strong style="color:#b42318">Nicht gespeichert:</strong> ' + esc(error);
+    } else if (listFile) {
+      $('memory-info').innerHTML = `<strong>${n}</strong> Kennung${n === 1 ? '' : 'en'} in der Liste <code>${esc(listFile)}</code>.`;
+      $('memory-hint').textContent = 'Jede neue Kennung wird sofort mit Name und Datum in diese Datei geschrieben und nie doppelt vergeben. Die Datei könnt ihr mit Excel oder Numbers öffnen – bitte nicht geöffnet lassen, während ihr Kennungen erzeugt. Sie enthält Namen und gehört nicht auf die Website.';
+    } else {
+      $('memory-info').innerHTML = '<strong style="color:#b42318">Die Liste auf dem Schreibtisch ist nicht verbunden.</strong> Kennungen werden so nicht gespeichert.';
+      $('memory-hint').innerHTML = 'Bitte diese Seite schließen und den Generator über <strong>Kennungen-Generator.command</strong> (Mac) bzw. <strong>Kennungen-Generator.bat</strong> (Windows) im Ordner <code>tools</code> starten – nicht die HTML-Datei direkt öffnen.';
+    }
+  }
+
+  async function loadList() {
+    try {
+      const r = await fetch('api/list', { cache: 'no-store' });
+      const d = await r.json();
+      listFile = d.file;
+      listRows = d.rows;
+    } catch (e) {
+      listFile = null;
+      listRows = [];
+    }
+    showList();
+  }
+
+  async function saveRows(newRows) {
+    if (!listFile) return;
+    try {
+      const r = await fetch('api/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: newRows }) });
+      const d = await r.json();
+      if (d.error) return showList(d.error);
+      listRows = d.rows;
+      showList();
+    } catch (e) {
+      showList('Die Verbindung zur Liste ist abgebrochen. Bitte den Generator neu starten und diese Kennungen NICHT verwenden.');
+    }
+  }
+  loadList();
+  $('generate').addEventListener('click', async () => {
+    await loadList(); // the file may have changed since the page was opened
     const names = $('names').value.split(/\r?\n/).map((l) => l.replace(/\t+/g, ', ').trim()).filter(Boolean);
     const count = names.length || Math.min(5000, Math.max(1, parseInt($('count').value, 10) || 0));
-    const used = loadUsed();
-    $('existing').value.split(/[\s,;]+/).map(normalize).filter(formatOk).forEach((c) => used.add(c));
+    const used = new Set(listRows.map((r) => r.code));
+    const older = $('existing').value.split(/[\s,;]+/).map(normalize).filter(formatOk).filter((c) => !used.has(c));
+    older.forEach((c) => used.add(c));
     rows = [];
     while (rows.length < count) {
       const code = randomCode();
@@ -179,9 +188,9 @@
     $('rows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td class="code">${format(r.code)}</td><td>${esc(r.name)}</td></tr>`).join('');
     $('slips').innerHTML = rows.map((r) => `<div class="slip">OMUN – your personal code for registration and login:<strong>${format(r.code)}</strong>Register at omun.eu/register${r.name ? `<div class="name">${esc(r.name)}</div>` : ''}</div>`).join('');
     $('result-title').textContent = `${rows.length} Kennungen erzeugt` + (names.length ? ' (eine pro Name)' : '');
-    saveUsed(used);
     $('existing').value = '';
-    $('msg').textContent = '';
+    await saveRows(older.map((code) => ({ code, name: '' })).concat(rows));
+    $('msg').textContent = listFile ? 'In der Liste auf dem Schreibtisch gespeichert.' : '';
     $('result').hidden = false;
   });
 

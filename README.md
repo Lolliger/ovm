@@ -16,7 +16,7 @@ und werden über **/admin** gepflegt.
 | `lib/defaults.json` | Startinhalte beim allerersten Aufruf |
 | `data/` | **Live-Daten**: Inhalte, Passwort-Hash, Anmeldungen (per `.htaccess` gesperrt) |
 | `uploads/` | Hochgeladene Bilder und Dateien |
-| `tools/kennungen-generator.html` | Generator für die persönlichen Kennungen (Anmeldung ohne Namen). Lokal per Doppelklick im Browser öffnen, läuft offline; auf dem Server per `.htaccess` gesperrt |
+| `tools/Kennungen-Generator.command` / `.bat` | Generator für die persönlichen Kennungen (Anmeldung ohne Namen). Per Doppelklick starten (braucht PHP): öffnet `kennungen-generator.html` über den kleinen lokalen Helfer `kennungen-server.php`, der Kennung + Name in `OMUN-Kennungen.csv` auf dem Schreibtisch speichert. Läuft nur lokal; auf dem Server per `.htaccess` gesperrt |
 
 ## Auf Strato hochladen
 

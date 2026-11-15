@@ -1470,7 +1470,7 @@ function view_codes(): void
     ?>
     <div class="page-title"><h1>Kennungen</h1></div>
     <p class="help">Jede Person meldet sich mit einer persönlichen Kennung an, nicht mit ihrem Namen. Kennungen erzeugt ihr mit dem Generator
-      (<code>tools/kennungen-generator.html</code> im Projektordner, läuft offline im Browser) und tragt sie hier ein.
+      (im Projektordner unter <code>tools</code>: <code>Kennungen-Generator.command</code> auf dem Mac bzw. <code>.bat</code> unter Windows starten; läuft nur auf eurem Computer und führt die Liste Kennung + Name in <code>OMUN-Kennungen.csv</code> auf dem Schreibtisch) und tragt sie hier ein.
       <strong>Die Liste, wer welche Kennung bekommen hat, bleibt bei euch und kommt nie auf die Website.</strong></p>
     <div class="summary">
       <div><h3>Kennungen</h3><ul>
