@@ -5,6 +5,7 @@ require dirname(__DIR__) . '/lib/bootstrap.php';
 require dirname(__DIR__) . '/lib/admin.php';
 require dirname(__DIR__) . '/lib/registration.php';
 require_once dirname(__DIR__) . '/lib/allocation.php';
+require_once dirname(__DIR__) . '/lib/codes_api.php';
 require dirname(__DIR__) . '/lib/totp.php';
 require dirname(__DIR__) . '/lib/updater.php';
 require dirname(__DIR__) . '/lib/deploy.php';
@@ -250,8 +251,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($regs as &$r) {
                         if (($r['id'] ?? '') === $id) {
                             $r['status'] = $status;
-                            $r['assigned_country'] = trim(mb_substr((string) ($_POST['assigned_country'] ?? ''), 0, 100));
-                            $r['assigned_committee'] = trim(mb_substr((string) ($_POST['assigned_committee'] ?? ''), 0, 150));
+                            // Country: delegates only; committee: delegates and chairs (the form leaves the others out).
+                            if (isset($_POST['assigned_country'])) {
+                                $r['assigned_country'] = trim(mb_substr((string) $_POST['assigned_country'], 0, 100));
+                            }
+                            if (isset($_POST['assigned_committee'])) {
+                                $r['assigned_committee'] = trim(mb_substr((string) $_POST['assigned_committee'], 0, 150));
+                            }
                             $r['admin_note'] = trim(mb_substr((string) ($_POST['admin_note'] ?? ''), 0, 2000));
                             $r['is_chair'] = !empty($_POST['is_chair']);
                             $r['is_manager'] = !empty($_POST['is_manager']);
@@ -359,13 +365,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash($changed . ' Team-Zuordnung' . ($changed === 1 ? '' : 'en') . ' geändert.');
                 redirect(admin_url(['s' => 'allocation']) . '#team');
 
+            case 'reg_confirm':
             case 'reg_confirm_role':
                 $id = (string) ($_POST['id'] ?? '');
                 update_json(REGISTRATIONS_FILE, function (array $regs) use ($id) {
                     foreach ($regs as &$r) {
-                        if (($r['id'] ?? '') === $id && !empty($r['role_pending'])) {
+                        if (($r['id'] ?? '') !== $id) {
+                            continue;
+                        }
+                        $r['status'] = 'confirmed';
+                        if (!empty($r['role_pending'])) {
                             unset($r['role_pending']);
-                            $r['status'] = 'confirmed';
                             if (($r['kind'] ?? '') === 'manager') {
                                 $r['is_manager'] = true;
                             } else {
@@ -377,7 +387,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
                 audit('registration.confirm_role', 'id ' . $id);
                 flash('Bestätigt. Die Rechte gelten ab dem nächsten Seitenaufruf der Person.');
-                redirect(admin_url(['s' => 'registrations']));
+                redirect(admin_url(['s' => 'registrations']) . '#reg-' . rawurlencode($id));
 
             case 'staff_password':
                 $pw = (string) ($_POST['password'] ?? '');
@@ -422,6 +432,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . ($invalid ? ', ' . $invalid . ' Zeile' . ($invalid === 1 ? '' : 'n') . ' übersprungen (keine gültige Kennung – Namen werden nie übernommen)' : '') . '.',
                     $added || !$invalid ? 'ok' : 'error');
                 redirect(admin_url(['s' => 'codes']));
+
+            case 'test_create':
+                $pw = (string) ($_POST['password'] ?? '');
+                if (mb_strlen($pw) < 6) {
+                    flash('Bitte ein Passwort mit mindestens 6 Zeichen für die Test-Delegierten eingeben.', 'error');
+                } else {
+                    $n = create_test_delegates($pw);
+                    audit('test_delegates.create', $n . ' new');
+                    flash('Test-Delegierte sind bereit (' . $n . ' neu angelegt, Passwort für alle gesetzt): ' . implode(', ', array_map('format_code', TEST_CODES)) . '.');
+                }
+                redirect(admin_url(['s' => 'codes']) . '#test');
+
+            case 'test_delete':
+                $n = delete_test_delegates();
+                audit('test_delegates.delete', (string) $n);
+                flash($n . ' Test-Delegierte gelöscht.');
+                redirect(admin_url(['s' => 'codes']) . '#test');
+
+            case 'generator_key':
+                $_SESSION['generator_key'] = generator_new_key();
+                audit('generator.key_create');
+                redirect(admin_url(['s' => 'codes']) . '#generator');
+
+            case 'generator_key_remove':
+                generator_remove_key();
+                audit('generator.key_remove');
+                flash('Verbindung getrennt. Der Generator kann keine Kennungen mehr an die Website senden.');
+                redirect(admin_url(['s' => 'codes']) . '#generator');
+
+            case 'smtp_save':
+            case 'smtp_test':
+                $old = is_file(SMTP_FILE) ? read_json(SMTP_FILE) : [];
+                $pass = (string) ($_POST['smtp_pass'] ?? '');
+                $new = ['host' => trim((string) ($_POST['smtp_host'] ?? '')), 'port' => (int) ($_POST['smtp_port'] ?? 465) ?: 465,
+                    'user' => trim((string) ($_POST['smtp_user'] ?? '')), 'pass' => $pass !== '' ? $pass : (string) ($old['pass'] ?? '')];
+                if ($new['host'] === '' && $new['user'] === '') {
+                    @unlink(SMTP_FILE);
+                    audit('smtp.remove');
+                    flash('Postfach entfernt. E-Mails gehen wieder über den einfachen Versand des Servers.');
+                    redirect(admin_url(['s' => 'settings']) . '#smtp');
+                }
+                write_json(SMTP_FILE, $new);
+                audit('smtp.save', $new['host']);
+                if ($action === 'smtp_test') {
+                    $to = trim((string) ($_POST['smtp_to'] ?? ''));
+                    $err = !filter_var($to, FILTER_VALIDATE_EMAIL) ? 'Bitte eine gültige Empfänger-Adresse für die Test-Mail eingeben.'
+                        : (!smtp_settings() ? 'Bitte Server, Benutzername und Passwort ausfüllen.'
+                        : smtp_send(smtp_settings(), mail_from_address(), $to, ['To: ' . $to, 'Subject: OMUN Test-Mail', 'MIME-Version: 1.0', 'From: ' . mail_from_address(), 'Date: ' . date('r'),
+                            'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . substr(strrchr(mail_from_address(), '@'), 1) . '>', 'Content-Type: text/plain; charset=UTF-8'],
+                            "Diese Test-Mail kommt von der OMUN-Website über euer Postfach.\nWenn sie im Posteingang (nicht im Spam) angekommen ist, ist alles richtig eingerichtet."));
+                    flash($err === null ? 'Test-Mail an ' . $to . ' verschickt. Bitte nachsehen, ob sie im Posteingang (nicht im Spam) ankommt.' : 'Test fehlgeschlagen: ' . $err, $err === null ? 'ok' : 'error');
+                } else {
+                    flash('Postfach gespeichert. Am besten gleich eine Test-Mail schicken.');
+                }
+                redirect(admin_url(['s' => 'settings']) . '#smtp');
 
             case 'codes_delete':
                 $n = delete_unused_codes([(string) ($_POST['code'] ?? '')]);
@@ -1355,7 +1420,7 @@ function view_registrations(): void
     <?php if ($pending): ?>
       <div class="pending-box">
         <h2>Warten auf Bestätigung (<?= count($pending) ?>)</h2>
-        <p class="help">Chairs bekommen nach der Bestätigung Chair-Rechte für ihr gewähltes Gremium, Conference Manager können alle Resolutionen ansehen (nicht bearbeiten). Zugangsdaten haben sie schon per Mail bekommen. Nicht bestätigen = Anmeldung löschen oder auf „Abgesagt“ setzen.</p>
+        <p class="help">Team-Anmeldungen bestätigt ihr mit dem Knopf direkt an der Anmeldung; Delegierte gelten als bestätigt, sobald ihre Einteilung herausgegeben ist. Chairs bekommen nach der Bestätigung Chair-Rechte für ihr gewähltes Gremium, Conference Manager können alle Resolutionen ansehen (nicht bearbeiten). Zugangsdaten haben sie schon per Mail bekommen. Nicht bestätigen = Anmeldung löschen oder auf „Abgesagt“ setzen.</p>
         <ul>
           <?php foreach ($pending as $r): ?>
             <li>
@@ -1380,8 +1445,11 @@ function view_registrations(): void
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
             <strong><?= e(reg_display($r)) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['is_admin']) ? ' <span class="st st-paper">Admin</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
-            <span><?= e(implode(' · ', array_filter([$r['role'] ?? '', $r['email'] ?? '']))) ?><?= !empty($r['assigned_country']) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
+            <span><?= e(implode(' · ', array_filter([$r['role'] ?? '', $r['email'] ?? '']))) ?><?= !empty($r['assigned_country']) && is_delegate_reg($r) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
+            <?php if (!is_delegate_reg($r) && ($st === 'received' || !empty($r['role_pending']))): ?>
+              <form method="post" class="reg-confirm"><?= csrf_field() ?><input type="hidden" name="a" value="reg_confirm"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn btn-small">Bestätigen</button></form>
+            <?php endif; ?>
           </summary>
           <dl>
             <?php foreach ($fields as $k => [$label]): ?>
@@ -1391,8 +1459,8 @@ function view_registrations(): void
           <form method="post" class="reg-edit">
             <?= csrf_field() ?><input type="hidden" name="a" value="reg_update"><input type="hidden" name="id" value="<?= e($r['id']) ?>">
             <label>Status<select name="status"><?php foreach ($statuses as $key => [, $label]): ?><option value="<?= e($key) ?>"<?= $st === $key ? ' selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></label>
-            <label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label>
-            <label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label>
+            <?php if (is_delegate_reg($r)): ?><label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label><?php endif; ?>
+            <?php if (is_delegate_reg($r) || !empty($r['is_chair']) || ($r['kind'] ?? '') === 'chair'): ?><label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label><?php endif; ?>
             <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
             <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern)</label>
             <label class="check-inline"><input type="checkbox" name="is_coordinator" value="1"<?= !empty($r['is_coordinator']) ? ' checked' : '' ?>> MUN Coordinator (sieht alle Gremien als Zuschauer, überarbeitet abgegebene Resolutionen und gibt sie frei)</label>
@@ -1470,7 +1538,7 @@ function view_codes(): void
     ?>
     <div class="page-title"><h1>Kennungen</h1></div>
     <p class="help">Jede Person meldet sich mit einer persönlichen Kennung an, nicht mit ihrem Namen. Kennungen erzeugt ihr mit dem Generator
-      (im Projektordner unter <code>tools</code>: <code>Kennungen-Generator.command</code> auf dem Mac bzw. <code>.bat</code> unter Windows starten; läuft nur auf eurem Computer und führt die Liste Kennung + Name in <code>OMUN-Kennungen.csv</code> auf dem Schreibtisch) und tragt sie hier ein.
+      (Programm „OMUN Kennungen“ für Mac und Windows, im Projektordner unter <code>tools/kennungen-generator</code>; es führt die Liste Kennung + Name in <code>OMUN-Kennungen.csv</code> auf eurem Schreibtisch). Ist der Generator mit der Website verbunden (siehe unten), erscheinen neue Kennungen hier automatisch.
       <strong>Die Liste, wer welche Kennung bekommen hat, bleibt bei euch und kommt nie auf die Website.</strong></p>
     <div class="summary">
       <div><h3>Kennungen</h3><ul>
@@ -1479,6 +1547,33 @@ function view_codes(): void
         <li><span>Verwendet (angemeldet)</span><strong><?= count($codes) - count($free) ?></strong></li>
       </ul></div>
     </div>
+    <?php $newKey = $_SESSION['generator_key'] ?? null; unset($_SESSION['generator_key']); ?>
+    <div class="edit-form" id="generator">
+      <h2>Verbindung zum Kennungen-Generator</h2>
+      <p class="help">Mit einem Schlüssel schickt der Generator jede neue Kennung sofort an die Website – das Hochladen einer Datei entfällt. Übertragen werden nur die Kennungen, nie Namen. Im Generator unter „Verbindung zur Website“ die Adresse <code><?= e(site_origin() . url('')) ?></code> und den Schlüssel eintragen.</p>
+      <?php if ($newKey): ?>
+        <p class="flash flash-warn"><strong>Neuer Schlüssel (wird nur jetzt angezeigt):</strong><br><code style="font-size: 1rem; user-select: all"><?= e($newKey) ?></code><br>Bitte jetzt in den Generator kopieren. Ein früherer Schlüssel gilt nicht mehr.</p>
+      <?php endif; ?>
+      <p><?= generator_key_set() ? '<span class="st st-confirmed">Verbunden</span> Ein Schlüssel ist eingerichtet (seit ' . e(date('d.m.Y', strtotime((string) (read_json(GENERATOR_FILE)['created'] ?? 'now')))) . ').' : '<span class="st st-cancelled">Nicht verbunden</span> Noch kein Schlüssel.' ?></p>
+      <div class="save-bar">
+        <form method="post"<?= generator_key_set() ? ' data-confirm="Neuen Schlüssel erzeugen? Der bisherige gilt dann nicht mehr und muss im Generator ersetzt werden."' : '' ?>><?= csrf_field() ?><input type="hidden" name="a" value="generator_key"><button class="btn"><?= generator_key_set() ? 'Neuen Schlüssel erzeugen' : 'Schlüssel erzeugen' ?></button></form>
+        <?php if (generator_key_set()): ?><form method="post" data-confirm="Verbindung trennen?"><?= csrf_field() ?><input type="hidden" name="a" value="generator_key_remove"><button class="btn-ghost danger">Verbindung trennen</button></form><?php endif; ?>
+      </div>
+    </div>
+
+    <?php $tests = array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => !empty($r['test']))); ?>
+    <div class="edit-form" id="test">
+      <h2>Test-Delegierte</h2>
+      <p class="help">Vier Delegierte zum Ausprobieren (Einteilung, Teilnehmer-Bereich, Position Papers, Resolution Editor): Kennungen <strong><?= e(implode(', ', array_map('format_code', TEST_CODES))) ?></strong> – beim Login geht auch z. B. <code>1234test</code>. Ohne E-Mail-Adresse, mit einem gemeinsamen, einfachen Passwort, das ihr hier festlegt. Sie sind in allen Listen mit „TEST“ markiert und zählen bei der Einteilung wie echte Delegierte mit – <strong>vor der echten Einteilung wieder löschen</strong>.</p>
+      <p><?= $tests ? '<span class="st st-waitlist">' . count($tests) . ' Test-Delegierte vorhanden</span>' : 'Zurzeit gibt es keine Test-Delegierten.' ?></p>
+      <form method="post">
+        <?= csrf_field() ?><input type="hidden" name="a" value="test_create">
+        <div class="field"><label>Passwort für alle Test-Delegierten (mind. 6 Zeichen)<input name="password" required minlength="6" autocomplete="off"></label></div>
+        <div class="save-bar"><button class="btn"><?= $tests ? 'Passwort neu setzen' : 'Test-Delegierte anlegen' ?></button></div>
+      </form>
+      <?php if ($tests): ?><form method="post" data-confirm="Alle Test-Delegierten mit ihren Position Papers löschen?"><?= csrf_field() ?><input type="hidden" name="a" value="test_delete"><button class="btn-ghost danger">Test-Delegierte löschen</button></form><?php endif; ?>
+    </div>
+
     <form class="edit-form" method="post" enctype="multipart/form-data">
       <?= csrf_field() ?><input type="hidden" name="a" value="codes_add">
       <h2>Kennungen hinzufügen</h2>
@@ -1552,7 +1647,23 @@ function view_settings(): void
     ?>
     <div class="page-title"><h1>Sicherheit &amp; Backup</h1></div>
     <?php view_2fa(); ?>
-    <form class="edit-form" method="post">
+    <?php $smtp = is_file(SMTP_FILE) ? read_json(SMTP_FILE) : []; ?>
+    <form class="edit-form" method="post" id="smtp">
+      <?= csrf_field() ?>
+      <h2>E-Mail-Versand über ein Postfach</h2>
+      <p class="help"><strong>Damit E-Mails nicht im Spam landen:</strong> Ohne Postfach verschickt der Webserver die Mails selbst – unsigniert, und viele Anbieter (Gmail, Outlook) sortieren sie deshalb als Spam ein oder lehnen sie ab. Tragt hier ein echtes Postfach eurer Domain ein (bei Strato: Server <code>smtp.strato.de</code>, Port <code>465</code>, Benutzername = die E-Mail-Adresse des Postfachs, dazu dessen Passwort). Die Absender-Adresse unter <a href="<?= e(admin_url(['s' => 'portal'])) ?>">Teilnehmer-Bereich</a> muss dieses Postfach (oder ein Alias davon) sein – aktuell: <code><?= e(mail_from_address()) ?></code>. Das Passwort wird nur auf dem Server gespeichert und ist nicht im Inhalts-Backup enthalten.</p>
+      <p><?= smtp_settings() ? '<span class="st st-confirmed">Aktiv</span> E-Mails gehen über ' . e($smtp['host']) . '.' : '<span class="st st-cancelled">Nicht eingerichtet</span> E-Mails gehen über den einfachen Versand des Servers.' ?></p>
+      <div class="field"><label>Mailserver (SMTP)<input name="smtp_host" value="<?= e($smtp['host'] ?? '') ?>" placeholder="smtp.strato.de"></label></div>
+      <div class="field"><label>Port<input name="smtp_port" value="<?= e((string) ($smtp['port'] ?? 465)) ?>" inputmode="numeric"></label></div>
+      <div class="field"><label>Benutzername (E-Mail-Adresse des Postfachs)<input name="smtp_user" value="<?= e($smtp['user'] ?? '') ?>" autocomplete="off"></label></div>
+      <div class="field"><label>Passwort des Postfachs<input type="password" name="smtp_pass" autocomplete="new-password" placeholder="<?= !empty($smtp['pass']) ? 'gespeichert – leer lassen, um es zu behalten' : '' ?>"></label></div>
+      <div class="field"><label>Test-Mail an<input type="email" name="smtp_to" placeholder="eure eigene Adresse, z. B. bei Gmail"></label></div>
+      <div class="save-bar">
+        <button class="btn" name="a" value="smtp_save">Speichern</button>
+        <button class="btn-ghost" name="a" value="smtp_test">Speichern und Test-Mail senden</button>
+      </div>
+      <p class="help">Server und Benutzername leeren und speichern = Postfach wieder entfernen.</p>
+    </form>    <form class="edit-form" method="post">
       <?= csrf_field() ?><input type="hidden" name="a" value="password">
       <h2>Passwort ändern</h2>
       <div class="field"><label>Aktuelles Passwort<input type="password" name="current" autocomplete="current-password" required></label></div>

@@ -24,7 +24,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
   <div class="container split split-form">
     <div class="prose">
       <?php if ($result && $result['ok']): ?>
-        <div class="notice notice-ok" role="status"><?= md(c('registration.success_message')) ?></div>
+        <div class="notice notice-ok" role="status"><?= md(c('registration.success_message')) ?><p><strong>No e-mail from us within a few minutes?</strong> Please check your spam folder and mark our message as “not spam”.</p></div>
       <?php elseif (!registration_is_open()): ?>
         <div class="notice"><?= md(c('registration.closed_message')) ?></div>
       <?php else: ?>
@@ -65,7 +65,7 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
             <?php foreach (registration_role_defs() as $i => $d): if (!$d['open']) continue; ?><option data-kind="<?= e($d['kind']) ?>"<?= $d['popup'] !== '' ? ' data-popup="role-popup-' . $i . '"' : '' ?><?= ($v['role'] ?? '') === $d['name'] ? ' selected' : '' ?>><?= e($d['name']) ?></option><?php endforeach; ?>
           </select></div>
         <div class="field"><label for="f-email">E-mail *</label><input id="f-email" type="email" name="email" required autocomplete="email" value="<?= $val('email') ?>">
-          <p class="hint">For your confirmation, your allocation and if you forget your password.</p></div>
+          <p class="hint">For your confirmation, your allocation and if you forget your password. Our e-mails sometimes end up in the <strong>spam folder</strong> – please check there too.</p></div>
         <?php if ($committeeNames): ?>
         <div class="field" data-kinds="chair"<?= $kind === 'chair' ? '' : ' hidden' ?>><label for="f-chair_committee">Committee *</label>
           <select id="f-chair_committee" name="chair_committee"><option value="">– please choose –</option>

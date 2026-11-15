@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/codes.php';
 require_once __DIR__ . '/audit.php';
+require_once __DIR__ . '/allocation.php';
 
 const LOGIN_TOKEN_TTL = 1800;       // link valid for 30 minutes
 const PORTAL_IDLE = 2 * 3600;       // logged out after 2 h without activity
@@ -175,7 +176,7 @@ function delete_orphan_accounts(): void
 
 function credentials_block(array $vars): string
 {
-    return "\n\nYour login for the delegate area:\n"
+    return "\n\nYour login for the " . ($vars['area'] ?? 'delegate area') . ":\n"
         . "Website:       {$vars['portal']}\n"
         . "Personal code: {$vars['username']}\n"
         . "Password:      {$vars['password']}\n";
@@ -215,7 +216,11 @@ function send_confirmation(array $entry): bool
         'link' => $portal,
         'email' => c('site.email'),
     ];
-    $template = (string) c('portal.confirm_text');
+    // Chairs, team and other non-delegates get their own text.
+    $team = ($entry['kind'] ?? 'delegate') !== 'delegate';
+    $vars['role'] = (string) ($entry['role'] ?? '');
+    $vars['area'] = $team ? c('site.name', 'OMUN') . ' portal' : 'delegate area';
+    $template = (string) c($team ? 'portal.confirm_text_team' : 'portal.confirm_text');
     $body = fill_placeholders($template, $vars);
     if (!str_contains($template, '{code}') && !str_contains($template, '{username}')) {
         $body .= credentials_block($vars);
@@ -227,7 +232,7 @@ function send_confirmation(array $entry): bool
         }
     }
     $body .= "\n\n---\nYour details:\n" . implode("\n", $summary) . "\n";
-    return send_mail($entry['email'], fill_placeholders((string) c('portal.confirm_subject'), $vars), $body, c('site.email') ?: null);
+    return send_mail($entry['email'], fill_placeholders((string) c($team ? 'portal.confirm_subject_team' : 'portal.confirm_subject'), $vars), $body, c('site.email') ?: null);
 }
 
 /** New password + e-mail with the login details to the registration's address (button in the admin). */
@@ -239,8 +244,8 @@ function send_new_credentials(string $account): bool
     }
     $password = generate_password();
     set_account_password($account, $password);
-    $vars = ['portal' => login_url(), 'username' => format_code($account), 'password' => $password];
-    $body = "Hello,\n\nhere are your (new) login details for the " . c('site.name') . " delegate area."
+    $vars = ['portal' => login_url(), 'username' => format_code($account), 'password' => $password, 'area' => portal_label($account)];
+    $body = "Hello,\n\nhere are your (new) login details for the " . (portal_label($account) === 'delegate area' ? c('site.name') . ' delegate area' : portal_label($account)) . '.'
         . credentials_block($vars)
         . "\nAny previous password no longer works. You can change the password after logging in.\n";
     return send_mail($email, c('site.name') . ' – your login details', $body, c('site.email') ?: null);
@@ -257,7 +262,7 @@ function send_login_link(string $account): bool
     if (!$token) {
         return true; // one was just sent, don't flood the inbox
     }
-    $body = "Hello,\n\nuse this link to log in to your " . c('site.name') . " delegate area:\n\n"
+    $body = "Hello,\n\nuse this link to log in to your " . (portal_label($account) === 'delegate area' ? c('site.name') . ' delegate area' : portal_label($account)) . ":\n\n"
         . login_link($token) . "\n\nThe link can be used once and is valid for 30 minutes. "
         . "After logging in you can set a new password.\n"
         . "If you did not request it, you can ignore this e-mail – your password stays the same.\n";

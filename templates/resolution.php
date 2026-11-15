@@ -25,7 +25,7 @@ $hidden = fn (string $a, string $anchor = '') => csrf_field() . '<input type="hi
 ?>
 <section class="page-head res-pagehead">
   <div class="container">
-    <p class="kicker"><a href="<?= e(portal_link()) ?>">Delegate area</a> / <?= e($cm['name']) ?></p>
+    <p class="kicker"><a href="<?= e(portal_link()) ?>"><?= e(portal_label(portal_account(), true)) ?></a> / <?= e($cm['name']) ?></p>
     <div class="res-title">
       <h1>Resolution<?= $archive ? ' ' . (int) ($res['number'] ?? count($archive) + 1) : '' ?></h1>
       <span class="tag res-status" data-region="status"><?= $regions['status'] ?></span>

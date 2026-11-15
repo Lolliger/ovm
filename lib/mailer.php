@@ -44,6 +44,18 @@ function send_mail(string $to, string $subject, string $body, ?string $replyTo =
     }
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
+    $headers[] = 'Date: ' . date('r');
+    $headers[] = 'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . substr(strrchr($fromAddress, '@'), 1) . '>';
+    // With a mailbox set up in the admin the mail goes through the provider's
+    // mail server (signed, so it is far less likely to end up in spam).
+    $smtp = smtp_settings();
+    if ($smtp) {
+        $error = smtp_send($smtp, $fromAddress, $to, array_merge(['To: ' . $to, 'Subject: ' . $encodedSubject, 'MIME-Version: 1.0'], $headers), $body);
+        if ($error === null) {
+            return true;
+        }
+        audit_error('mail.smtp_failed', $error, 'system');
+    }
     if (PHP_SAPI === 'cli-server') {
         $dir = DATA_DIR . '/mail-outbox';
         if (!is_dir($dir)) {
@@ -57,4 +69,75 @@ function send_mail(string $to, string $subject, string $body, ?string $replyTo =
     }
     // "-f" sets the envelope sender, so the mail server does not replace it with a default address.
     return @mail($to, $encodedSubject, $body, implode("\r\n", $headers), '-f' . $fromAddress);
+}
+
+/* ---------- Sending through a mailbox (SMTP) ---------- */
+
+const SMTP_FILE = DATA_DIR . '/smtp.json';
+
+/** ['host', 'port', 'user', 'pass'] or [] if no mailbox is set up (admin → Sicherheit & Backup). */
+function smtp_settings(): array
+{
+    $s = is_file(SMTP_FILE) ? read_json(SMTP_FILE) : [];
+    return !empty($s['host']) && !empty($s['user']) && !empty($s['pass']) ? $s : [];
+}
+
+/** Sends one mail via SMTP (SSL on port 465, STARTTLS otherwise). Returns null or the error. */
+function smtp_send(array $smtp, string $from, string $to, array $headers, string $body): ?string
+{
+    $port = (int) ($smtp['port'] ?? 465);
+    $fp = @stream_socket_client(($port === 465 ? 'ssl://' : 'tcp://') . $smtp['host'] . ':' . $port, $errno, $errstr, 15);
+    if (!$fp) {
+        return 'Keine Verbindung zu ' . $smtp['host'] . ':' . $port . ' (' . $errstr . ')';
+    }
+    stream_set_timeout($fp, 15);
+    $read = function () use ($fp): string {
+        $out = '';
+        while (($line = fgets($fp, 1024)) !== false) {
+            $out .= $line;
+            if (strlen($line) < 4 || $line[3] === ' ') {
+                break;
+            }
+        }
+        return $out;
+    };
+    $cmd = function (?string $line, string $expect) use ($fp, $read): ?string {
+        if ($line !== null) {
+            fwrite($fp, $line . "\r\n");
+        }
+        $answer = $read();
+        return str_starts_with($answer, $expect) ? null : (trim($answer) ?: 'keine Antwort');
+    };
+    $helo = 'EHLO ' . (preg_replace('/[^a-z0-9.-]/i', '', mail_domain()) ?: 'localhost');
+    $steps = [[null, '220'], [$helo, '250']];
+    if ($port !== 465) {
+        $steps[] = ['STARTTLS', '220'];
+    }
+    foreach ($steps as [$line, $expect]) {
+        if ($err = $cmd($line, $expect)) {
+            fclose($fp);
+            return 'Mailserver: ' . $err;
+        }
+    }
+    if ($port !== 465) {
+        if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            fclose($fp);
+            return 'Verschlüsselung (STARTTLS) fehlgeschlagen';
+        }
+        if ($err = $cmd($helo, '250')) {
+            fclose($fp);
+            return 'Mailserver: ' . $err;
+        }
+    }
+    $data = implode("\r\n", $headers) . "\r\n\r\n" . preg_replace('/^\./m', '..', preg_replace('/\r\n|\r|\n/', "\r\n", $body)) . "\r\n.";
+    foreach ([['AUTH LOGIN', '334'], [base64_encode((string) $smtp['user']), '334'], [base64_encode((string) $smtp['pass']), '235'],
+        ['MAIL FROM:<' . $from . '>', '250'], ['RCPT TO:<' . $to . '>', '25'], ['DATA', '354'], [$data, '250']] as $i => [$line, $expect]) {
+        if ($err = $cmd($line, $expect)) {
+            fclose($fp);
+            return ($i < 3 ? 'Anmeldung am Postfach fehlgeschlagen: ' : 'Mailserver: ') . $err;
+        }
+    }
+    fwrite($fp, "QUIT\r\n");
+    fclose($fp);
+    return null;
 }

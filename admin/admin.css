@@ -295,6 +295,9 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .rank strong { font-variant-numeric: tabular-nums; }
 .flash-warn { background: #fffaeb; border-color: #fedf89; color: #93370d; }
 
+.reg summary .reg-confirm { grid-row: 2; grid-column: 2; justify-self: end; margin: 0; }
+.edit-form .save-bar form { margin: 0; }
+
 /* Switching old registrations to personal codes */
 .steps { margin: 0.75rem 0 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.9rem; }
 .steps li > form, .steps li > a { margin-top: 0.4rem; }

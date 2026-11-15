@@ -1,5 +1,5 @@
 <?php
-$kicker = e(c('conference.edition')) . ' · Delegate area';
+$kicker = e(c('conference.edition')) . ' · ' . e(portal_label($account, true));
 $heading = $staff ? 'Conference area' : 'Your registration';
 require __DIR__ . '/_pagehead.php';
 $statuses = registration_statuses();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Personal codes ("Kennungen"): every participant registers and logs in with a
  * code instead of their name. The organisers make the codes with
- * tools/kennungen-generator.html, hand them out and keep the list of who got
+ * the program in tools/kennungen-generator/, hand them out and keep the list of who got
  * which code outside this website – names and schools are never stored here.
  *
  * data/codes.json: { "K7QFM3XP": { "added": "2026-10-06T…", "reg": "<registration id>" | null } }
@@ -150,11 +150,54 @@ function delete_unused_codes(?array $only = null): int
     return $removed;
 }
 
+/** Codes of the test delegates (outside the generator's alphabet, so they never collide with real codes). */
+const TEST_CODES = ['1234TEST', '2345TEST', '3456TEST', '4567TEST'];
+
+/** Creates the test delegates (no e-mail address, one simple password for all). Returns how many were new. */
+function create_test_delegates(string $password): int
+{
+    $role = 'Delegate';
+    foreach (registration_role_defs() as $d) {
+        if ($d['kind'] === 'delegate') {
+            $role = $d['name'];
+            break;
+        }
+    }
+    $have = array_column(read_json(REGISTRATIONS_FILE), 'code');
+    $new = 0;
+    foreach (TEST_CODES as $code) {
+        if (!in_array($code, $have, true)) {
+            append_json(REGISTRATIONS_FILE, ['id' => bin2hex(random_bytes(6)), 'created' => date('c'), 'status' => 'received', 'test' => true,
+                'code' => $code, 'role' => $role, 'email' => '', 'grade' => '10', 'admin_note' => 'Test-Delegierte/r – vor der Konferenz löschen.']);
+            $new++;
+        }
+        set_account_password($code, $password);
+    }
+    return $new;
+}
+
+/** Removes the test delegates with their accounts and papers. */
+function delete_test_delegates(): int
+{
+    $n = 0;
+    update_json(REGISTRATIONS_FILE, function (array $regs) use (&$n) {
+        foreach ($regs as $r) {
+            if (!empty($r['test'])) {
+                delete_paper_file($r);
+                $n++;
+            }
+        }
+        return array_values(array_filter($regs, fn ($r) => empty($r['test'])));
+    });
+    delete_orphan_accounts();
+    return $n;
+}
+
 /** How a registration is shown: its code, or the name for old registrations without one. */
 function reg_display(array $r): string
 {
     if (($r['code'] ?? '') !== '') {
-        return format_code($r['code']);
+        return format_code($r['code']) . (!empty($r['test']) ? ' · TEST' : '');
     }
     $name = trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? ''));
     return $name !== '' ? $name . ' (ohne Kennung)' : '(ohne Kennung)';

@@ -47,6 +47,12 @@ if (($parts[0] ?? '') === 'api' && ($parts[1] ?? '') === 'hub' && count($parts) 
     exit;
 }
 
+// Kennungen-Generator → website (lib/codes_api.php): /api/codes
+if ($parts === ['api', 'codes']) {
+    require __DIR__ . '/lib/codes_api.php';
+    codes_api_handle();
+}
+
 function find_by_slug(string $list, string $slug): ?array
 {
     foreach (c($list, []) as $item) {

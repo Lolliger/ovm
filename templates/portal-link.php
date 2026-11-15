@@ -14,7 +14,7 @@ require __DIR__ . '/_pagehead.php';
       <form class="form" method="post" action="<?= e(url('login/link')) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="token" value="<?= e($token) ?>">
-        <p>Click the button to open your delegate area.</p>
+        <p>Click the button to log in.</p>
         <button class="btn" type="submit">Log in</button>
       </form>
     <?php endif; ?>

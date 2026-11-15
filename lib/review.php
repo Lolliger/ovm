@@ -78,7 +78,7 @@ function res_notify_submitted(array $cm, array $res): void
     $body = "Hello,\n\nthe chairs of {$cm['name']} have handed in a resolution:\n\n"
         . 'Resolution ' . (int) ($res['number'] ?? 1) . ': ' . ($res['topic'] ?: 'no topic') . "\n"
         . 'Result: ' . ($res['outcome'] ?? '') . "\n\n"
-        . "It is now waiting for the MUN Coordinator: revise it where needed and release it here (log in to the delegate area first):\n{$link}\n\n"
+        . "It is now waiting for the MUN Coordinator: revise it where needed and release it here (log in to the OMUN portal first):\n{$link}\n\n"
         . "Until it is released, only the chairs and the MUN Coordinator can see it.\n";
     foreach (array_unique(array_filter($to)) as $address) {
         send_mail($address, c('site.name') . ': resolution handed in – ' . (($cm['abbr'] ?? '') ?: $cm['name']), $body, c('site.email') ?: null);
@@ -232,7 +232,7 @@ function resolutions_route(): void
                 $a = (string) ($_POST['a'] ?? '');
                 $by = $account ? format_code($account) : 'admin';
                 update_json(res_archive_file($cm['slug'], $res['id']), fn (array $r) => res_review_action($r, $a, fn (string $k) => (string) ($_POST[$k] ?? ''), $by));
-                res_flash(['release' => 'Released. Everyone in the delegate area can now read and download this resolution.',
+                res_flash(['release' => 'Released. All delegates and chairs can now read and download this resolution.',
                     'unrelease' => 'Taken back. Only the chairs and you can see this resolution again.'][$a] ?? 'Saved.');
             } catch (RuntimeException $ex) {
                 res_flash($ex->getMessage(), 'error');

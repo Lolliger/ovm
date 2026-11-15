@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMUN Kennungen-Generator</title>
+<!--
+  Oberfläche des Programms „OMUN Kennungen“ (Mac: mac/main.swift, Windows: windows/OMUN-Kennungen.ps1).
+  Die Liste Kennung + Name liegt als OMUN-Kennungen.csv auf dem Schreibtisch; an die Website gehen nur die Kennungen.
+  Gleiches Format wie lib/codes.php: 8 Zeichen aus CODE_CHARS, mind. 1 Buchstabe und 1 Ziffer.
+-->
+<style>
+  :root { --ink: #1f044a; --muted: #5d6b80; --line: #d5dce6; --bg: #f4f6fa; --accent: #046bd2; --ok: #12784a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: #1b2433; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 56rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-family: Georgia, serif; font-weight: 600; color: var(--ink); margin: 0 0 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+  .lead { color: var(--muted); margin: 0 0 1.5rem; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+  label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.35rem; }
+  textarea, input { width: 100%; font: inherit; padding: 0.55rem 0.7rem; border: 1px solid #b9c5d3; border-radius: 0.5rem; background: #fff; }
+  textarea { min-height: 9rem; resize: vertical; }
+  input[type=number] { width: 8rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: flex-end; }
+  .hint { color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0; }
+  button { font: 600 0.95rem/1.2 inherit; padding: 0.7rem 1.2rem; border-radius: 0.5rem; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+  td.code { font: 600 1rem ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.05em; }
+  .msg { margin: 0.75rem 0 0; font-weight: 600; color: var(--ok); }
+  .warn { background: #fff7e6; border-color: #f0c36d; }
+  .bad { color: #b42318; }
+  .good { color: var(--ok); }
+  code { font-size: 0.85em; word-break: break-all; }
+  ol { margin: 0; padding-left: 1.2rem; }
+  /* Printable slips: one per person, to cut out and hand over. */
+  .slips { display: none; }
+  @media print {
+    body { background: #fff; }
+    main > *:not(.slips) { display: none !important; }
+    .slips { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .slip { border: 1px dashed #999; padding: 6mm; break-inside: avoid; font-size: 10.5pt; }
+    .slip strong { display: block; font: 700 16pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.08em; margin: 2mm 0; color: #000; }
+    .slip .name { font-size: 9pt; color: #555; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>OMUN Kennungen</h1>
+  <p class="lead">Erzeugt persönliche Kennungen für die Anmeldung. Namen bleiben auf diesem Computer – an die Website gehen nur die Kennungen.</p>
+
+  <div class="card warn">
+    <h2>So geht's</h2>
+    <ol>
+      <li>Einmalig: unten die <strong>Verbindung zur Website</strong> einrichten (Schlüssel aus dem Admin unter <em>Kennungen</em>).</li>
+      <li>Namensliste einfügen (eine Person pro Zeile) <em>oder</em> nur eine Anzahl angeben und <strong>Kennungen erzeugen</strong>.</li>
+      <li>Kennung und Name stehen danach in der Liste <strong>OMUN-Kennungen.csv</strong> auf dem Schreibtisch, und die Kennungen sind auf der Website sofort freigeschaltet.</li>
+      <li>Jeder Person ihre Kennung geben (z. B. mit „Zettel drucken“).</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <label for="names">Namensliste (optional, eine Person pro Zeile – z. B. aus Excel kopiert)</label>
+    <textarea id="names" placeholder="Max Mustermann&#10;Erika Musterfrau"></textarea>
+    <p class="hint">Mehrere Spalten aus Excel (z. B. Name und Schule) bleiben zusammen in einer Zeile erhalten.</p>
+    <div class="row" style="margin-top: 1rem">
+      <div><label for="count">… oder Anzahl ohne Namen</label><input id="count" type="number" min="1" max="5000" value="50"></div>
+      <div style="flex: 1"><label for="existing">Ältere Kennungen in die Liste übernehmen (optional, einmalig)</label><input id="existing" placeholder="z. B. Inhalt einer früheren kennungen-upload.txt einfügen"></div>
+    </div>
+    <div class="actions"><button id="generate">Kennungen erzeugen</button></div>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <h2 id="result-title"></h2>
+    <p class="msg" id="msg"></p>
+    <div class="actions">
+      <button id="print">Zettel drucken</button>
+      <button id="dl-names" class="ghost">Diese Kennungen mit Namen speichern (CSV)</button>
+      <button id="dl-upload" class="ghost">Nur diese Kennungen speichern (TXT)</button>
+    </div>
+    <table><thead><tr><th>#</th><th>Kennung</th><th>Name</th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+
+  <div class="card" id="memory">
+    <h2>Liste der vergebenen Kennungen</h2>
+    <p id="memory-info">Liste wird geladen …</p>
+    <p class="hint" id="memory-hint"></p>
+    <div class="actions"><button id="reveal" class="ghost" hidden>Liste im Ordner zeigen</button></div>
+  </div>
+
+  <div class="card" id="site">
+    <h2>Verbindung zur Website</h2>
+    <p id="site-info">Noch nicht eingerichtet.</p>
+    <div class="row">
+      <div style="flex: 1 1 14rem"><label for="site-url">Adresse der Website</label><input id="site-url" placeholder="https://omun.eu" autocomplete="off" spellcheck="false"></div>
+      <div style="flex: 2 1 18rem"><label for="site-key">Schlüssel (Admin → Kennungen → „Schlüssel erzeugen“)</label><input id="site-key" type="password" placeholder="omun_…" autocomplete="off" spellcheck="false"></div>
+    </div>
+    <p class="hint">Der Schlüssel wird nur auf diesem Computer gespeichert. Für eine Weitergabe des Programms (z. B. an das Team im nächsten Jahr) erzeugt die neue Person im Admin einfach einen eigenen Schlüssel.</p>
+    <div class="actions">
+      <button id="site-save">Speichern und Verbindung testen</button>
+      <button id="site-sync" class="ghost" hidden>Alle Kennungen der Liste an die Website senden</button>
+    </div>
+  </div>
+
+  <div class="slips" id="slips"></div>
+</main>
+<script>
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I
+  const $ = (id) => document.getElementById(id);
+  let rows = [];
+
+  const normalize = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const format = (c) => c.slice(0, 4) + '-' + c.slice(4);
+  const formatOk = (c) => /^[A-HJ-NP-Z2-9]{8}$/.test(c) && /\d/.test(c) && /[A-Z]/.test(c);
+  const csvCell = (v) => /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  const today = () => new Date().toISOString().slice(0, 10);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+  function randomCode() {
+    // crypto.getRandomValues: cryptographically secure; 256 is a multiple of 32, so no bias.
+    const bytes = new Uint8Array(8);
+    let code;
+    do {
+      crypto.getRandomValues(bytes);
+      code = Array.from(bytes, (b) => CHARS[b % 32]).join('');
+    } while (!formatOk(code));
+    return code;
+  }
+
+  /*
+   * The program around this page reads and writes the files on this computer:
+   * Mac: the app answers messages (mac/main.swift); Windows: a local helper
+   * answers under api/… (windows/OMUN-Kennungen.ps1). Actions:
+   *   list → {file, rows}        add {rows} → {file, rows, added}
+   *   settings → {site, key}     settings_set {site, key}
+   *   reveal, save {name, text}, print (Mac only; Windows uses the browser)
+   */
+  const mac = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.omun;
+  async function backend(action, data) {
+    if (mac) return await mac.postMessage({ action, data: data || {} });
+    const r = await fetch('api/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+    return await r.json();
+  }
+
+  async function saveFile(name, text) {
+    if (mac) return await backend('save', { name, text: '﻿' + text });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/plain;charset=utf-8' }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  /* ---------- The list on the desktop ---------- */
+  let listFile = null; // null = the program around this page is not running
+  let listRows = [];   // [{code, name, date}]
+
+  function showList(error) {
+    const n = listRows.length;
+    $('reveal').hidden = !listFile;
+    if (error) {
+      $('memory-info').innerHTML = '<strong class="bad">Nicht gespeichert:</strong> ' + esc(error);
+    } else if (listFile) {
+      $('memory-info').innerHTML = `<strong>${n}</strong> Kennung${n === 1 ? '' : 'en'} in der Liste <code>${esc(listFile)}</code>.`;
+      $('memory-hint').textContent = 'Jede neue Kennung wird sofort mit Name und Datum in diese Datei geschrieben und nie doppelt vergeben. Die Datei könnt ihr mit Excel oder Numbers öffnen – bitte nicht geöffnet lassen, während ihr Kennungen erzeugt. Sie enthält Namen und gehört nicht auf die Website.';
+    } else {
+      $('memory-info').innerHTML = '<strong class="bad">Die Liste auf dem Schreibtisch ist nicht verbunden.</strong> Kennungen werden so nicht gespeichert.';
+      $('memory-hint').textContent = 'Bitte diese Seite schließen und das Programm „OMUN Kennungen“ starten – nicht diese Datei direkt im Browser öffnen.';
+    }
+  }
+
+  async function loadList() {
+    try {
+      const d = await backend('list');
+      listFile = d.file;
+      listRows = d.rows || [];
+    } catch (e) {
+      listFile = null;
+      listRows = [];
+    }
+    showList();
+  }
+
+  async function saveRows(newRows) {
+    if (!listFile) return false;
+    try {
+      const d = await backend('add', { rows: newRows });
+      if (d.error) { showList(d.error); return false; }
+      listRows = d.rows;
+      showList();
+      return true;
+    } catch (e) {
+      showList('Die Verbindung zur Liste ist abgebrochen. Bitte das Programm neu starten und diese Kennungen NICHT verwenden.');
+      return false;
+    }
+  }
+
+  /* ---------- The website ---------- */
+  let site = { site: '', key: '' };
+  const siteUrl = () => site.site.replace(/\/+$/, '') + '/api/codes';
+  const siteReady = () => /^https?:\/\//.test(site.site) && site.key !== '';
+
+  async function siteCall(codes) {
+    const opts = { headers: { Authorization: 'Bearer ' + site.key } };
+    if (codes) Object.assign(opts, { method: 'POST', body: JSON.stringify({ codes }) }, { headers: { Authorization: 'Bearer ' + site.key, 'Content-Type': 'application/json' } });
+    let r;
+    try {
+      r = await fetch(siteUrl(), opts);
+    } catch (e) {
+      throw new Error('Die Website ist nicht erreichbar (Internetverbindung? Adresse richtig?).');
+    }
+    let d = {};
+    try { d = await r.json(); } catch (e) { /* not our API */ }
+    if (!r.ok) throw new Error(d.error || `Die Website antwortet mit einem Fehler (${r.status}). Läuft dort schon die aktuelle Version?`);
+    return d;
+  }
+
+  function showSite(html, cls) {
+    $('site-info').innerHTML = html;
+    $('site-info').className = cls || '';
+    $('site-sync').hidden = !siteReady();
+  }
+
+  async function testSite() {
+    if (!siteReady()) return showSite('Noch nicht eingerichtet: Kennungen müssen dann im Admin von Hand hochgeladen werden.');
+    try {
+      const d = await siteCall();
+      showSite(`<strong>Verbunden mit ${esc(site.site)}.</strong> Dort sind ${d.total} Kennungen bekannt, ${d.free} davon noch frei. Neue Kennungen werden sofort freigeschaltet.`, 'good');
+    } catch (e) {
+      showSite('<strong>Keine Verbindung:</strong> ' + esc(e.message), 'bad');
+    }
+  }
+
+  /** Sends codes to the website; returns a sentence for the result line. */
+  async function publish(codes) {
+    if (!siteReady()) return 'Die Website ist nicht verbunden – diese Kennungen dort bitte noch freischalten (Verbindung einrichten oder im Admin hochladen).';
+    try {
+      const d = await siteCall(codes.map(format));
+      showSite(`<strong>Verbunden mit ${esc(site.site)}.</strong> Dort sind ${d.total} Kennungen bekannt, ${d.free} davon noch frei.`, 'good');
+      return `Auf der Website freigeschaltet: ${d.added} neu` + (d.known ? `, ${d.known} waren schon bekannt` : '') + '.';
+    } catch (e) {
+      showSite('<strong>Senden fehlgeschlagen:</strong> ' + esc(e.message) + ' Mit „Alle Kennungen der Liste an die Website senden“ könnt ihr es später nachholen.', 'bad');
+      return 'NICHT an die Website gesendet: ' + e.message;
+    }
+  }
+
+  async function start() {
+    await loadList();
+    try {
+      site = Object.assign(site, await backend('settings'));
+    } catch (e) { /* no program around the page */ }
+    $('site-url').value = site.site || 'https://omun.eu';
+    $('site-key').value = site.key || '';
+    await testSite();
+  }
+  start();
+
+  $('site-save').addEventListener('click', async () => {
+    site = { site: $('site-url').value.trim(), key: $('site-key').value.trim() };
+    if (site.site && !/^https?:\/\//.test(site.site)) site.site = 'https://' + site.site;
+    $('site-url').value = site.site;
+    try { await backend('settings_set', site); } catch (e) { /* shown by the list card */ }
+    showSite('Verbindung wird geprüft …');
+    await testSite();
+  });
+
+  $('site-sync').addEventListener('click', async () => {
+    await loadList();
+    if (!listRows.length) return showSite('Die Liste ist noch leer.');
+    showSite('Wird gesendet …');
+    const text = await publish(listRows.map((r) => r.code));
+    if (!/NICHT/.test(text)) showSite('<strong>' + esc(text) + '</strong>', 'good');
+  });
+
+  $('reveal').addEventListener('click', () => backend('reveal').catch(() => {}));
+
+  /* ---------- Generating ---------- */
+  $('generate').addEventListener('click', async () => {
+    $('generate').disabled = true;
+    await loadList(); // the file may have changed since the page was opened
+    const names = $('names').value.split(/\r?\n/).map((l) => l.replace(/\t+/g, ', ').trim()).filter(Boolean);
+    const count = names.length || Math.min(5000, Math.max(1, parseInt($('count').value, 10) || 0));
+    const used = new Set(listRows.map((r) => r.code));
+    const older = $('existing').value.split(/[\s,;]+/).map(normalize).filter(formatOk).filter((c) => !used.has(c));
+    older.forEach((c) => used.add(c));
+    rows = [];
+    while (rows.length < count) {
+      const code = randomCode();
+      if (used.has(code)) continue;
+      used.add(code);
+      rows.push({ code, name: names[rows.length] || '' });
+    }
+    $('rows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td class="code">${format(r.code)}</td><td>${esc(r.name)}</td></tr>`).join('');
+    $('slips').innerHTML = rows.map((r) => `<div class="slip">OMUN – your personal code for registration and login:<strong>${format(r.code)}</strong>Register at ${esc((site.site || 'https://omun.eu').replace(/^https?:\/\//, '').replace(/\/+$/, ''))}/register${r.name ? `<div class="name">${esc(r.name)}</div>` : ''}</div>`).join('');
+    $('result-title').textContent = `${rows.length} Kennungen erzeugt` + (names.length ? ' (eine pro Name)' : '');
+    $('result').hidden = false;
+    $('existing').value = '';
+    $('names').value = '';
+    const saved = await saveRows(older.map((code) => ({ code, name: '' })).concat(rows));
+    const sent = saved ? await publish(older.concat(rows.map((r) => r.code))) : '';
+    $('msg').textContent = saved ? 'In der Liste auf dem Schreibtisch gespeichert. ' + sent : 'NICHT gespeichert – bitte diese Kennungen nicht verwenden.';
+    $('msg').className = 'msg' + (saved && !/NICHT/.test(sent) && siteReady() ? '' : ' bad');
+    $('generate').disabled = false;
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  $('dl-names').addEventListener('click', () => {
+    saveFile(`kennungen-mit-namen-NICHT-HOCHLADEN-${today()}.csv`, ['Kennung;Name', ...rows.map((r) => format(r.code) + ';' + csvCell(r.name))].join('\r\n') + '\r\n');
+  });
+  $('dl-upload').addEventListener('click', () => {
+    saveFile(`kennungen-upload-${today()}.txt`, rows.map((r) => format(r.code)).join('\r\n') + '\r\n');
+  });
+  $('print').addEventListener('click', () => (mac ? backend('print') : window.print()));
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# Not part of the update zip for the web server (git archive / GitHub download)
+/tools/kennungen-generator/dist export-ignore

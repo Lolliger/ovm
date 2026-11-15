@@ -124,6 +124,8 @@ function schema(): array
                 ['key' => 'confirm_email', 'label' => 'Bestätigungs-Mail nach der Anmeldung senden', 'type' => 'bool'],
                 ['key' => 'confirm_subject', 'label' => 'Betreff der Bestätigungs-Mail', 'type' => 'text'],
                 ['key' => 'confirm_text', 'label' => 'Text der Bestätigungs-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {code} (persönliche Kennung), {conference}, {portal} (Adresse des Login), {email} (Kontakt-E-Mail). Namen werden nicht mehr gespeichert: {first_name} wird durch die Kennung ersetzt, {last_name} bleibt leer. Das Passwort hat die Person selbst gewählt, es steht nicht in der Mail. Fehlt {code} im Text, werden die Login-Angaben automatisch angehängt. Die Formular-Angaben stehen immer unten.'],
+                ['key' => 'confirm_subject_team', 'label' => 'Betreff der Bestätigungs-Mail für alle, die keine Delegierten sind', 'type' => 'text'],
+                ['key' => 'confirm_text_team', 'label' => 'Text der Bestätigungs-Mail für alle, die keine Delegierten sind (Chairs, Team, Presse …)', 'type' => 'textarea', 'help' => 'Platzhalter wie oben, zusätzlich {role} (Teilnahmeart).'],
                 ['key' => 'intro', 'label' => 'Text oben im Teilnehmer-Bereich', 'type' => 'markdown'],
                 ['key' => 'papers_open', 'label' => 'Position Papers können hochgeladen werden', 'type' => 'bool'],
                 ['key' => 'paper_deadline', 'label' => 'Abgabefrist Position Papers', 'type' => 'date', 'help' => 'Nach diesem Tag ist kein Upload mehr möglich. Leer = keine Frist.'],

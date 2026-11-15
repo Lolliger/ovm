@@ -277,16 +277,20 @@ function alloc_release(string $subject, string $text): array
     $sent = 0;
     $failed = 0;
     foreach (alloc_delegates() as $r) {
-        if (!alloc_complete($r) || alloc_is_sent($r) || ($r['email'] ?? '') === '') {
+        if (!alloc_complete($r) || alloc_is_sent($r)) {
             continue;
         }
         $vars = alloc_mail_vars($r);
-        $ok = send_mail($r['email'], fill_placeholders($subject, $vars), fill_placeholders($text, $vars), c('site.email') ?: null);
+        // No address (test delegates): released without an e-mail.
+        $ok = ($r['email'] ?? '') === '' || send_mail($r['email'], fill_placeholders($subject, $vars), fill_placeholders($text, $vars), c('site.email') ?: null);
         // Visible in the delegate area even if the mail could not be sent.
         update_json(REGISTRATIONS_FILE, function (array $regs) use ($r, $ok) {
             foreach ($regs as &$x) {
                 if ($x['id'] === $r['id']) {
                     $x['released'] = ['at' => date('c'), 'key' => $ok ? alloc_key($x) : ''];
+                    if (($x['status'] ?? 'received') === 'received') {
+                        $x['status'] = 'confirmed'; // releasing the allocation confirms the delegate
+                    }
                 }
             }
             return $regs;
@@ -294,6 +298,25 @@ function alloc_release(string $subject, string $text): array
         $ok ? $sent++ : $failed++;
     }
     return [$sent, $failed];
+}
+
+/**
+ * What the logged-in area is called: "delegate area" for delegates,
+ * "OMUN portal" for everyone else (chairs, team, coordinators, laptops).
+ */
+function portal_label(?string $account, bool $capital = false): string
+{
+    $delegate = true;
+    if ($account && is_staff_account($account)) {
+        $delegate = false;
+    }
+    foreach ($account ? registrations_for($account) : [] as $r) {
+        if (!is_delegate_reg($r)) {
+            $delegate = false;
+        }
+    }
+    $name = $account && !$delegate ? c('site.name', 'OMUN') . ' portal' : 'delegate area';
+    return $capital ? ucfirst($name) : $name;
 }
 
 /* ---------- Who may see what in the delegate area ---------- */
@@ -354,7 +377,7 @@ function notify_paper(array $reg): void
     }
     $cm = committee_by_slug($slug);
     $country = trim((string) ($reg['assigned_country'] ?? '')) ?: 'A delegation';
-    $body = "Hello,\n\n{$country} has handed in a position paper for {$cm['name']}.\n\nYou can read all position papers of your committee in the delegate area:\n" . login_url() . "\n";
+    $body = "Hello,\n\n{$country} has handed in a position paper for {$cm['name']}.\n\nYou can read all position papers of your committee in the OMUN portal:\n" . login_url() . "\n";
     foreach (read_json(REGISTRATIONS_FILE) as $r) {
         if (!empty($r['is_chair']) && reg_committee_slug($r) === $slug && ($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending']) && ($r['email'] ?? '') !== '') {
             send_mail($r['email'], c('site.name') . ': position paper from ' . $country . ' (' . (($cm['abbr'] ?? '') ?: $cm['name']) . ')', $body, c('site.email') ?: null);

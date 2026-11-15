@@ -13,7 +13,7 @@ $view = res_public_link($cm, $res);
 ?>
 <section class="page-head res-pagehead">
   <div class="container">
-    <p class="kicker"><a href="<?= e(portal_link()) ?>">Delegate area</a> / <?= e($cm['name']) ?> / Review</p>
+    <p class="kicker"><a href="<?= e(portal_link()) ?>"><?= e(portal_label(portal_account(), true)) ?></a> / <?= e($cm['name']) ?> / Review</p>
     <div class="res-title">
       <h1>Resolution <?= (int) ($res['number'] ?? 1) ?></h1>
       <span class="tag <?= $released ? 'status-confirmed' : 'status-waitlist' ?>"><?= $released ? 'Released' : 'Waiting for release' ?></span>
@@ -31,11 +31,11 @@ $view = res_public_link($cm, $res);
     <?php if ($flash): ?><div class="notice notice-<?= $flash[0] === 'error' ? 'error' : 'ok' ?>" role="status"><?= e($flash[1]) ?></div><?php endif; ?>
     <div class="notice">
       <?php if ($released): ?>
-        <p><strong>This resolution is released.</strong> Everyone who is logged in to the delegate area – from every committee – can read it and download it as PDF and Word file. You can still correct it; changes are visible immediately.</p>
+        <p><strong>This resolution is released.</strong> Everyone who is logged in – from every committee – can read it and download it as PDF and Word file. You can still correct it; changes are visible immediately.</p>
         <form method="post" data-confirm="Take the release back? Delegates will no longer see this resolution until you release it again."><?= $hidden('unrelease') ?><button class="btn-ghost">Take release back</button></form>
       <?php else: ?>
         <p><strong>Not released yet.</strong> Only the chairs of this committee and you can see this resolution. Correct spelling and wording where needed, then release it: afterwards delegates and chairs of all committees can read it and download it as PDF and Word file.</p>
-        <form method="post" data-confirm="Finish the review and release this resolution for everyone in the delegate area?"><?= $hidden('release') ?><button class="btn">Finish and release</button></form>
+        <form method="post" data-confirm="Finish the review and release this resolution for all delegates and chairs?"><?= $hidden('release') ?><button class="btn">Finish and release</button></form>
       <?php endif; ?>
     </div>
 

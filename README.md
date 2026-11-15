@@ -16,7 +16,7 @@ und werden über **/admin** gepflegt.
 | `lib/defaults.json` | Startinhalte beim allerersten Aufruf |
 | `data/` | **Live-Daten**: Inhalte, Passwort-Hash, Anmeldungen (per `.htaccess` gesperrt) |
 | `uploads/` | Hochgeladene Bilder und Dateien |
-| `tools/Kennungen-Generator.command` / `.bat` | Generator für die persönlichen Kennungen (Anmeldung ohne Namen). Per Doppelklick starten (braucht PHP): öffnet `kennungen-generator.html` über den kleinen lokalen Helfer `kennungen-server.php`, der Kennung + Name in `OMUN-Kennungen.csv` auf dem Schreibtisch speichert. Läuft nur lokal; auf dem Server per `.htaccess` gesperrt |
+| `tools/kennungen-generator/` | Programm „OMUN Kennungen“ für Mac und Windows: erzeugt die persönlichen Kennungen, führt die Liste Kennung + Name auf dem eigenen Schreibtisch und schaltet neue Kennungen über `/api/codes` sofort auf der Website frei. Anleitung und Weitergabe: `tools/kennungen-generator/README.md`. Auf dem Server per `.htaccess` gesperrt; `dist/` ist nicht Teil der Update-Zip |
 
 ## Auf Strato hochladen
 

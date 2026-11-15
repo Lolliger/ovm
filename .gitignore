@@ -6,3 +6,4 @@
 !/uploads/.htaccess
 .DS_Store
 .env
+/tools/kennungen-generator/dist/*.app
