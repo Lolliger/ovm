@@ -211,10 +211,17 @@
     "alloc_subject": "Your allocation for {conference}",
     "alloc_text": "Hello,\n\nthe allocation for {conference} is done. You will represent:\n\nCountry:   {country}\nCommittee: {committee}\n\nTopics:\n{topics}\n\nYou can now find your allocation, the study guide and the upload for your position paper in the delegate area:\n{portal}\n(log in with your personal code {code} and your password)\n\nWe could not fulfil every wish – thank you for your understanding.\n\nIf you have any questions, write to us at {email}.\n\nSee you soon!\nYour OMUN team",
     "resolution_notify_email": "",
+    "gallery_open": true,
+    "gallery_intro": "Share your photos of the conference with everyone – so that in the end we have a collection from every perspective. Only people who are logged in can see them; they are not public.",
+    "gallery_mail_subject": "Thank you for {conference} – the official photos are online",
+    "gallery_mail_text": "Dear delegates, chairs and members of the OMUN team,\n\nthank you for making {conference} what it was: for your speeches, your resolutions, your patience in long debates and all the moments in between. It was a pleasure to welcome you.\n\nThe photos of our official photographer are now online in the OMUN portal, together with the photos you have shared yourselves:\n{gallery}\n\nLog in with your personal code {code} and your password. You may download the photos for your own use.\n\nIf you have any questions or feedback, write to us at {email}.\n\nWe hope to see you again next year!\nYour OMUN team",
     "cert_signers": [
       "Name | Secretary-General",
       "Name | Head of School"
     ]
+  },
+  "committees_page": {
+    "intro": "Every delegate represents one country in one committee. Levels help you pick: Beginner committees are perfect for your first conference."
   },
   "committees": [
     {

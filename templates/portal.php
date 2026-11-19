@@ -45,6 +45,14 @@ $statuses = registration_statuses();
         <?php endforeach; ?>
       </details>
     <?php endif; ?>
+    <?php if (gallery_viewer($account)): ?>
+      <?php $galCount = count(gallery_photos('community')); $galOfficial = gallery_official_released() ? count(gallery_photos('official')) : 0; ?>
+      <a class="portal-res portal-gallery-link" href="<?= e(gallery_link()) ?>">
+        <span class="kicker">Photo gallery</span>
+        <strong><?= $galOfficial ? 'The official photos are online' : 'Share your conference photos' ?></strong>
+        <span><?= $galCount ?> photo<?= $galCount === 1 ? '' : 's' ?> from participants<?= $galOfficial ? ' · ' . $galOfficial . ' official photo' . ($galOfficial === 1 ? '' : 's') : '' ?><?= !$staff && gallery_uploads_open() ? ' – add your own →' : ' →' ?></span>
+      </a>
+    <?php endif; ?>
     <?php if (is_site_admin_account($account)): ?>
       <form class="portal-card portal-admin" method="post" action="<?= e(portal_link('admin')) ?>">
         <?= csrf_field() ?>
@@ -158,6 +166,40 @@ $statuses = registration_statuses();
                 <a href="<?= e(portal_link('paper') . '?id=' . rawurlencode($p['id'])) ?>">Download ↓</a></li>
             <?php endforeach; ?>
           </ul>
+        </div>
+        <?php endif; ?>
+
+        <?php $isChair = $committee && !empty($r['is_chair']) && committee_chair_access($account, $committee['slug']); ?>
+        <?php if ($committee && ($delegate || $isChair) && (($reports = research_reports($committee['slug'])) || $isChair)): ?>
+        <div class="paper" id="reports-<?= e($committee['slug']) ?>">
+          <h3>Research reports</h3>
+          <?php if ($reports): ?>
+          <ul class="portal-list">
+            <?php foreach ($reports as $rep): ?>
+              <li><span><strong><?= e($rep['title']) ?></strong><span class="muted"><?= e(strtoupper(pathinfo($rep['file'], PATHINFO_EXTENSION))) ?> · <?= e(date('j F Y', strtotime($rep['uploaded']))) ?></span></span>
+                <span class="portal-list-links"><a href="<?= e(report_url($rep)) ?>" download>Download ↓</a>
+                <?php if ($isChair): ?>
+                  <form method="post" action="<?= e(portal_link()) ?>" data-confirm="Remove “<?= e($rep['title']) ?>”? It disappears from the portal and from Downloads."><?= csrf_field() ?><input type="hidden" name="a" value="report_delete"><input type="hidden" name="committee" value="<?= e($committee['slug']) ?>"><input type="hidden" name="report" value="<?= e($rep['id']) ?>"><button class="btn-link" type="submit">Remove</button></form>
+                <?php endif; ?></span></li>
+            <?php endforeach; ?>
+          </ul>
+          <?php elseif ($isChair): ?>
+            <p class="muted">No research report uploaded yet.</p>
+          <?php endif; ?>
+          <?php if ($isChair): ?>
+            <form class="form report-form" method="post" enctype="multipart/form-data" action="<?= e(portal_link()) ?>">
+              <?= csrf_field() ?>
+              <input type="hidden" name="a" value="report_upload">
+              <input type="hidden" name="committee" value="<?= e($committee['slug']) ?>">
+              <div class="field"><label for="rep-title-<?= e($r['id']) ?>">Title</label>
+                <input id="rep-title-<?= e($r['id']) ?>" name="title" required maxlength="150" list="rep-topics-<?= e($r['id']) ?>" placeholder="e.g. the topic of the report">
+                <datalist id="rep-topics-<?= e($r['id']) ?>"><?php foreach ($committee['topics'] ?? [] as $t): ?><option value="<?= e($t) ?>"><?php endforeach; ?></datalist></div>
+              <div class="field"><label for="rep-file-<?= e($r['id']) ?>">File (PDF or Word, up to 20 MB)</label>
+                <input id="rep-file-<?= e($r['id']) ?>" type="file" name="report" accept=".pdf,.doc,.docx,.odt" required></div>
+              <button class="btn" type="submit">Upload research report</button>
+            </form>
+            <p class="muted small">Once uploaded, the report is shown to the delegates of <?= e($committee['name']) ?> here in the portal and is published under <a href="<?= e(main_origin() . url('downloads')) ?>" target="_blank">Downloads</a> and on the committee page.</p>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
 

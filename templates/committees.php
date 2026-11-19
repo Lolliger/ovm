@@ -1,6 +1,6 @@
 <?php
 $kicker = e(c('conference.edition'));
-$lead = 'Every delegate represents one country in one committee. Levels help you pick: Beginner committees are perfect for your first conference.';
+$lead = trim((string) c('committees_page.intro'));
 require __DIR__ . '/_pagehead.php';
 ?>
 <section class="section">

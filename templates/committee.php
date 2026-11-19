@@ -27,6 +27,13 @@ require __DIR__ . '/_pagehead.php';
           <a href="<?= e(media($item['study_guide'])) ?>" download>Download (<?= e(file_meta($item['study_guide'])) ?>)</a>
         <?php else: ?>Coming soon<?php endif; ?>
       </dd></div>
+      <?php if ($reports = research_reports($item['slug'])): ?>
+        <div><dt>Research reports</dt><dd>
+          <?php foreach ($reports as $rep): ?>
+            <a href="<?= e(report_url($rep)) ?>" download><?= e($rep['title']) ?></a> <span class="muted">(<?= e(file_meta('uploads/research-reports/' . $rep['file'])) ?>)</span><br>
+          <?php endforeach; ?>
+        </dd></div>
+      <?php endif; ?>
       <div><dd><a class="btn" href="<?= e(url('register')) ?>">Register for this committee</a></dd></div>
     </dl>
   </div>

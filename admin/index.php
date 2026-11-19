@@ -175,6 +175,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Gespeichert.');
                 redirect(admin_url(['s' => $s, 'i' => $item['id']]));
 
+            case 'save_page':
+                // Texts of a list page itself (e.g. the intro above the committees).
+                $page = $schema[$s]['page'] ?? null;
+                if (!$page) {
+                    redirect(admin_url());
+                }
+                $errors = [];
+                $in = $_POST['p'] ?? [];
+                foreach ($page['fields'] as $f) {
+                    $content[$page['key']][$f['key']] = field_value($f, $in[$f['key']] ?? '', 'p_' . $f['key'], $errors);
+                }
+                save_content($content, $schema[$s]['label'] . ': Seitentext');
+                audit('content.save', $schema[$s]['label'] . ': Seitentext');
+                foreach ($errors as $er) {
+                    flash($er, 'error');
+                }
+                flash('Gespeichert.');
+                redirect(admin_url(['s' => $s]));
+
+            case 'report_upload':
+                $err = store_report((string) ($_POST['committee'] ?? ''), (string) ($_POST['title'] ?? ''), $_FILES['report'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'admin');
+                flash($err ? 'Research Report nicht gespeichert: ' . $err : 'Research Report hochgeladen. Er steht jetzt im Teilnehmer-Bereich des Gremiums, unter Downloads und auf der Gremien-Seite.', $err ? 'error' : 'ok');
+                redirect(admin_url(['s' => 'committees']) . '#reports');
+
+            case 'report_delete':
+                flash(delete_report((string) ($_POST['report'] ?? '')) ? 'Research Report gelöscht.' : 'Nicht gefunden.');
+                redirect(admin_url(['s' => 'committees']) . '#reports');
+
+            case 'gallery_upload':
+                @set_time_limit(300);
+                [$ok, $errs] = gallery_store_uploads('official', 'admin');
+                if (!empty($_POST['ajax'])) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['ok' => !$errs, 'errors' => $errs]);
+                    exit;
+                }
+                foreach ($errs as $er) {
+                    flash($er, 'error');
+                }
+                if ($ok) {
+                    flash($ok . ' Foto' . ($ok === 1 ? '' : 's') . ' hochgeladen.');
+                }
+                redirect(admin_url(['s' => 'photos']));
+
+            case 'gallery_delete':
+                gallery_delete((string) ($_POST['id'] ?? ''));
+                flash('Foto gelöscht.');
+                redirect(admin_url(['s' => 'photos', 'album' => (string) ($_POST['album'] ?? 'official')]) . '#photos');
+
+            case 'gallery_delete_album':
+                $album = in_array($_POST['album'] ?? '', GALLERY_ALBUMS, true) ? $_POST['album'] : '';
+                $n = $album ? gallery_delete_album($album) : 0;
+                audit('gallery.delete_album', $album . ': ' . $n);
+                flash($n . ' Foto' . ($n === 1 ? '' : 's') . ' gelöscht.');
+                redirect(admin_url(['s' => 'photos', 'album' => $album]));
+
+            case 'gallery_hide':
+                gallery_hide();
+                audit('gallery.hide');
+                flash('Das offizielle Album ist im Teilnehmer-Bereich wieder ausgeblendet.');
+                redirect(admin_url(['s' => 'photos']));
+
+            case 'gallery_mail_save':
+            case 'gallery_release':
+            case 'gallery_release_silent':
+                $content['portal']['gallery_mail_subject'] = trim(mb_substr((string) ($_POST['gallery_mail_subject'] ?? ''), 0, 200));
+                $content['portal']['gallery_mail_text'] = trim(mb_substr((string) ($_POST['gallery_mail_text'] ?? ''), 0, 8000));
+                if ($content['portal']['gallery_mail_subject'] !== (string) c('portal.gallery_mail_subject') || $content['portal']['gallery_mail_text'] !== (string) c('portal.gallery_mail_text')) {
+                    save_content($content, 'Fotogalerie: Abschieds-Mail');
+                }
+                if ($action === 'gallery_mail_save') {
+                    flash('E-Mail-Text gespeichert.');
+                    redirect(admin_url(['s' => 'photos']) . '#release');
+                }
+                if (!gallery_photos('official')) {
+                    flash('Bitte zuerst die Fotos des Fotografen hochladen.', 'error');
+                    redirect(admin_url(['s' => 'photos']));
+                }
+                $mail = $action === 'gallery_release';
+                if ($mail && ($content['portal']['gallery_mail_subject'] === '' || $content['portal']['gallery_mail_text'] === '')) {
+                    flash('Bitte Betreff und Text der E-Mail ausfüllen.', 'error');
+                    redirect(admin_url(['s' => 'photos']) . '#release');
+                }
+                [$sent, $failed] = gallery_release($mail, $content['portal']['gallery_mail_subject'], $content['portal']['gallery_mail_text']);
+                audit('gallery.release', $mail ? $sent . ' sent, ' . $failed . ' failed' : 'without mail');
+                flash('Das offizielle Album ist jetzt im Teilnehmer-Bereich sichtbar.' . ($mail ? ' ' . $sent . ' Abschieds-Mail' . ($sent === 1 ? '' : 's') . ' verschickt.' : '')
+                    . ($failed ? ' ' . $failed . ' E-Mail(s) konnten nicht gesendet werden – nochmal „Freigeben und E-Mail senden“ drücken schickt sie nur an diese Personen.' : ''), $failed ? 'error' : 'ok');
+                redirect(admin_url(['s' => 'photos']));
+
             case 'delete_item':
             case 'move_item':
                 $list = $content[$s] ?? [];
@@ -785,6 +874,14 @@ if ($s === 'history_download') {
     exit;
 }
 
+if ($s === 'gallery_photo') {
+    $p = gallery_photo((string) ($_GET['id'] ?? ''));
+    $p ? gallery_send($p, (string) ($_GET['size'] ?? 'f'), isset($_GET['download'])) : not_found_admin();
+}
+if ($s === 'gallery_zip') {
+    in_array($_GET['album'] ?? '', GALLERY_ALBUMS, true) ? gallery_zip($_GET['album']) : not_found_admin();
+}
+
 if ($s === 'certificate') {
     foreach (read_json(REGISTRATIONS_FILE) as $r) {
         if (($r['id'] ?? '') === ($_GET['id'] ?? '')) {
@@ -851,6 +948,12 @@ admin_page($s, $schema);
 
 /* ================================================================== */
 
+function not_found_admin(): never
+{
+    http_response_code(404);
+    exit('Nicht gefunden');
+}
+
 function admin_head(string $title): void
 {
     ?>
@@ -908,7 +1011,7 @@ function admin_login_page(string $mode, string $error): void
 function admin_page(string $s, array $schema): void
 {
     $regCount = count(read_json(REGISTRATIONS_FILE));
-    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung', 'stats' => 'Besucher', 'codes' => 'Kennungen'];
+    $titles = ['' => 'Übersicht', 'registrations' => 'Anmeldungen', 'media' => 'Dateien & Bilder', 'history' => 'Versionen', 'settings' => 'Sicherheit & Backup', 'update' => 'Update', 'resolutions' => 'Resolutionen', 'allocation' => 'Zuteilung', 'stats' => 'Besucher', 'codes' => 'Kennungen', 'photos' => 'Fotogalerie (Portal)'];
     $title = $schema[$s]['label'] ?? $titles[$s] ?? 'Übersicht';
     admin_head($title);
     ?>
@@ -928,6 +1031,7 @@ function admin_page(string $s, array $schema): void
     <a href="<?= e(admin_url(['s' => 'stats'])) ?>"<?= $s === 'stats' ? ' class="active"' : '' ?>>Besucher</a>
     <a href="<?= e(admin_url(['s' => 'allocation'])) ?>"<?= $s === 'allocation' ? ' class="active"' : '' ?>>Zuteilung</a>
     <a href="<?= e(admin_url(['s' => 'resolutions'])) ?>"<?= $s === 'resolutions' ? ' class="active"' : '' ?>>Resolutionen</a>
+    <a href="<?= e(admin_url(['s' => 'photos'])) ?>"<?= $s === 'photos' ? ' class="active"' : '' ?>>Fotogalerie <span class="count"><?= count(gallery_photos('community')) + count(gallery_photos('official')) ?></span></a>
     <p class="nav-label">Inhalte</p>
     <?php foreach ($schema as $key => $def): ?>
       <a href="<?= e(admin_url(['s' => $key])) ?>"<?= $s === $key ? ' class="active"' : '' ?>><?= e($def['label']) ?></a>
@@ -970,6 +1074,8 @@ function admin_page(string $s, array $schema): void
         view_update();
     } elseif ($s === 'resolutions') {
         view_resolutions();
+    } elseif ($s === 'photos') {
+        view_gallery();
     } else {
         view_dashboard($schema, $regCount);
     }
@@ -1060,6 +1166,16 @@ function view_list(string $s, array $def): void
       <h1><?= e($def['label']) ?></h1>
       <?php if ($link = public_link($s)): ?><a href="<?= e($link) ?>" target="_blank">Auf der Website ansehen ↗</a><?php endif; ?>
     </div>
+    <?php if (!empty($def['page'])): $pageData = c($def['page']['key'], []); ?>
+      <form class="edit-form panel" method="post" action="<?= e(admin_url(['s' => $s])) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="a" value="save_page">
+        <?php foreach ($def['page']['fields'] as $f): ?>
+          <?= field_html($f, $pageData[$f['key']] ?? '', 'p[' . $f['key'] . ']', 'p_' . $f['key'], 'p-' . $f['key']) ?>
+        <?php endforeach; ?>
+        <button class="btn" type="submit">Text speichern</button>
+      </form>
+    <?php endif; ?>
     <p><a class="btn" href="<?= e(admin_url(['s' => $s, 'i' => 'new'])) ?>">+ Neuer Eintrag</a></p>
     <?php if (!$list): ?>
       <p class="empty">Noch keine Einträge. Dieser Bereich wird auf der Website erst angezeigt, wenn es Einträge gibt.</p>
@@ -1089,6 +1205,42 @@ function view_list(string $s, array $def): void
       <?php endforeach; ?>
     </ul>
     <?php endif; ?>
+    <?php if ($s === 'committees') {
+        view_reports();
+    } ?>
+    <?php
+}
+
+/** Research reports of all committees (uploaded by the chairs in the portal). */
+function view_reports(): void
+{
+    $reports = research_reports();
+    ?>
+    <div class="panel" id="reports">
+      <h2>Research Reports</h2>
+      <p class="help">Die Chairs laden die Research Reports ihres Gremiums im Teilnehmer-Bereich hoch. Sie erscheinen dann bei den Delegierten des Gremiums im Teilnehmer-Bereich, öffentlich unter <a href="<?= e(url('downloads')) ?>" target="_blank">Downloads</a> und auf der Seite des Gremiums. Hier könnt ihr sie auch selbst hochladen oder löschen.</p>
+      <?php if ($reports): ?>
+        <ul class="item-list">
+          <?php foreach ($reports as $rep): $cm = committee_by_slug($rep['committee']); ?>
+            <li><span class="item-title"><?= e((($cm['abbr'] ?? '') ?: $cm['name']) . ': ' . $rep['title']) ?>
+              <small><?= e(date('d.m.Y H:i', strtotime($rep['uploaded']))) ?> · <?= e(human_size((int) $rep['size'])) ?> · <?= e(str_starts_with((string) $rep['by'], 'portal:') ? 'von ' . substr($rep['by'], 7) : 'im Admin') ?></small></span>
+              <a class="btn-ghost" href="<?= e(report_url($rep)) ?>" target="_blank">Öffnen</a>
+              <form method="post" class="inline" data-confirm="„<?= e($rep['title']) ?>“ löschen? Er verschwindet auch aus Downloads."><?= csrf_field() ?><input type="hidden" name="a" value="report_delete"><input type="hidden" name="report" value="<?= e($rep['id']) ?>"><button class="icon danger" title="Löschen">✕</button></form></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php else: ?>
+        <p class="empty">Noch keine Research Reports.</p>
+      <?php endif; ?>
+      <?php if (c('committees', [])): ?>
+      <form method="post" enctype="multipart/form-data" class="row-fields">
+        <?= csrf_field() ?><input type="hidden" name="a" value="report_upload">
+        <label>Gremium<select name="committee"><?php foreach (c('committees', []) as $cm): ?><option value="<?= e($cm['slug']) ?>"><?= e(trim(($cm['abbr'] ?? '') . ' – ' . $cm['name'], ' –')) ?></option><?php endforeach; ?></select></label>
+        <label>Titel (z. B. Thema)<input name="title" required maxlength="150"></label>
+        <label>Datei (PDF/Word, max. 20 MB)<input type="file" name="report" accept=".pdf,.doc,.docx,.odt" required></label>
+        <button class="btn">Hochladen</button>
+      </form>
+      <?php endif; ?>
+    </div>
     <?php
 }
 
@@ -1985,5 +2137,79 @@ function view_resolutions(): void
       </div>
       <button class="btn">Passwort ändern</button>
     </form>
+    <?php
+}
+
+/** Photo gallery in the portal: the photographer's album (release + farewell e-mail) and moderation of everyone's photos. */
+function view_gallery(): void
+{
+    $state = gallery_state();
+    $released = !empty($state['released']);
+    $official = gallery_photos('official');
+    $community = gallery_photos('community');
+    $recipients = gallery_recipients();
+    $mailed = count(array_filter(array_keys($recipients), fn ($e) => isset($state['mailed'][sha1($e)])));
+    $album = ($_GET['album'] ?? '') === 'community' ? 'community' : 'official';
+    $photos = $album === 'official' ? $official : $community;
+    ?>
+    <div class="page-title"><h1>Fotogalerie im Teilnehmer-Bereich</h1><a href="<?= e(gallery_link()) ?>" target="_blank">Im Teilnehmer-Bereich ansehen ↗</a></div>
+    <p class="help">Die Galerie liegt im Teilnehmer-Bereich und ist nur für Eingeloggte sichtbar (alle Teilnahmearten und jeder Status) – nicht öffentlich wie die Galerie der Website.
+      <strong>Everyone’s photos</strong>: Hier kann jede/r eigene Fotos hochladen, das Album ist sofort online (<?= c('portal.gallery_open', true) ? 'Hochladen gerade erlaubt' : 'Hochladen gerade <strong>aus</strong>' ?>; Schalter unter <a href="<?= e(admin_url(['s' => 'portal'])) ?>">Teilnehmer-Bereich</a>).
+      <strong>Official photos</strong>: die Bilder des Fotografen – erst sichtbar, wenn ihr sie freigebt. Beim Hochladen werden alle Fotos verkleinert und Kameradaten (z. B. GPS-Ort) entfernt.</p>
+
+    <div class="panel">
+      <h2>Offizielles Album <span class="badge"><?= $released ? 'sichtbar seit ' . e(date('d.m.Y H:i', strtotime($state['released']))) : 'noch verborgen' ?></span></h2>
+      <form method="post" enctype="multipart/form-data" action="<?= e(admin_url(['s' => 'photos'])) ?>" data-batch-upload>
+        <?= csrf_field() ?><input type="hidden" name="a" value="gallery_upload">
+        <label>Fotos des Fotografen hochladen (JPG/PNG, beliebig viele auf einmal)<input type="file" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple required></label>
+        <p><button class="btn">Hochladen</button> <span class="help" data-progress><?= count($official) ?> Foto<?= count($official) === 1 ? '' : 's' ?> im offiziellen Album<?= $released ? '' : ' – für Teilnehmende noch unsichtbar' ?>.</span></p>
+      </form>
+    </div>
+
+    <form method="post" class="panel" id="release">
+      <?= csrf_field() ?>
+      <h2>Freigeben und Abschieds-Mail</h2>
+      <p class="help">„Freigeben und E-Mail senden“ macht das offizielle Album sichtbar und schickt die Mail an alle Anmeldungen mit E-Mail-Adresse (außer Abgesagten und Test-Delegierten), jede Adresse nur einmal: <strong><?= count($recipients) ?></strong> Empfänger<?= $mailed ? ', davon <strong>' . $mailed . '</strong> schon verschickt – nochmal drücken schickt nur an die übrigen' : '' ?>.
+        Platzhalter: {gallery} (Link zu den Fotos), {portal}, {code}, {conference}, {email}.</p>
+      <label>Betreff<input name="gallery_mail_subject" value="<?= e(c('portal.gallery_mail_subject')) ?>" maxlength="200"></label>
+      <label>Text<textarea name="gallery_mail_text" rows="14"><?= e(c('portal.gallery_mail_text')) ?></textarea></label>
+      <p class="actions-row">
+        <button class="btn-ghost" name="a" value="gallery_mail_save">Text speichern</button>
+        <?php if ($official && $released && $recipients && $mailed >= count($recipients)): ?>
+          <span class="help">Die Abschieds-Mail ist an alle verschickt.</span>
+        <?php elseif ($official): ?>
+          <button class="btn" name="a" value="gallery_release" data-confirm="Offizielles Album freigeben und die Abschieds-Mail an <?= count($recipients) - $mailed ?> Empfänger senden?"><?= $mailed ? 'Abschieds-Mail an die übrigen senden' : 'Freigeben und E-Mail senden' ?></button>
+          <?php if (!$released): ?><button class="btn-ghost" name="a" value="gallery_release_silent" data-confirm="Offizielles Album ohne E-Mail freigeben?">Nur freigeben (ohne E-Mail)</button><?php endif; ?>
+        <?php else: ?>
+          <span class="help">Freigeben geht, sobald Fotos im offiziellen Album sind.</span>
+        <?php endif; ?>
+        <?php if ($released): ?><button class="btn-ghost" name="a" value="gallery_hide" formnovalidate data-confirm="Offizielles Album im Teilnehmer-Bereich wieder ausblenden?">Wieder ausblenden</button><?php endif; ?>
+      </p>
+    </form>
+
+    <div class="panel" id="photos">
+      <nav class="range-tabs gallery-tabs">
+        <a href="<?= e(admin_url(['s' => 'photos', 'album' => 'official'])) ?>#photos"<?= $album === 'official' ? ' class="active"' : '' ?>>Official photos (<?= count($official) ?>)</a>
+        <a href="<?= e(admin_url(['s' => 'photos', 'album' => 'community'])) ?>#photos"<?= $album === 'community' ? ' class="active"' : '' ?>>Everyone’s photos (<?= count($community) ?>)</a>
+      </nav>
+      <?php if (!$photos): ?>
+        <p class="empty">Noch keine Fotos.</p>
+      <?php else: ?>
+        <div class="actions-row">
+          <a class="btn-ghost" href="<?= e(admin_url(['s' => 'gallery_zip', 'album' => $album])) ?>">Alle als ZIP herunterladen</a>
+          <form method="post" class="inline" data-confirm="Wirklich ALLE <?= count($photos) ?> Fotos dieses Albums löschen? Das lässt sich nicht rückgängig machen."><?= csrf_field() ?><input type="hidden" name="a" value="gallery_delete_album"><input type="hidden" name="album" value="<?= e($album) ?>"><button class="btn-ghost danger">Ganzes Album löschen</button></form>
+        </div>
+        <ul class="admin-gallery">
+          <?php foreach ($photos as $p): ?>
+            <li>
+              <a href="<?= e(admin_url(['s' => 'gallery_photo', 'id' => $p['id']])) ?>" target="_blank"><img src="<?= e(admin_url(['s' => 'gallery_photo', 'id' => $p['id'], 'size' => 't'])) ?>" alt="" loading="lazy"></a>
+              <small><?= e(date('d.m. H:i', strtotime($p['at']))) ?></small>
+              <form method="post" data-confirm="Dieses Foto löschen?"><?= csrf_field() ?><input type="hidden" name="a" value="gallery_delete"><input type="hidden" name="album" value="<?= e($album) ?>"><input type="hidden" name="id" value="<?= e($p['id']) ?>"><button class="icon danger" title="Löschen">✕</button></form>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+    <script src="<?= e(url('assets/js/upload.js')) ?>?v=<?= filemtime(ROOT . '/assets/js/upload.js') ?>" defer></script>
     <?php
 }

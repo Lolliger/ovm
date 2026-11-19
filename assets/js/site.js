@@ -142,3 +142,9 @@
     d.addEventListener('close', function () { document.documentElement.classList.remove('dialog-open'); });
   });
 })();
+
+// Forms that ask before they do something (e.g. remove a file).
+document.addEventListener('submit', function (e) {
+  var msg = e.target.getAttribute && e.target.getAttribute('data-confirm');
+  if (msg && !confirm(msg)) e.preventDefault();
+});

@@ -11,6 +11,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/codes.php';
 require_once __DIR__ . '/audit.php';
 require_once __DIR__ . '/allocation.php';
+require_once __DIR__ . '/reports.php';
+require_once __DIR__ . '/gallery.php';
 
 const LOGIN_TOKEN_TTL = 1800;       // link valid for 30 minutes
 const PORTAL_IDLE = 2 * 3600;       // logged out after 2 h without activity
@@ -339,6 +341,18 @@ function portal_account(): ?string
     return $p['account'];
 }
 
+/** Where to go after logging in: back to the gallery if a link to it was opened while logged out (e.g. from the farewell e-mail). */
+function portal_after_login(): string
+{
+    $page = $_SESSION['after_login'] ?? '';
+    unset($_SESSION['after_login']);
+    return match ($page) {
+        'gallery' => gallery_link(),
+        'gallery?album=official' => gallery_link('official'),
+        default => portal_home(),
+    };
+}
+
 function portal_login(string $account): void
 {
     start_session();
@@ -631,7 +645,7 @@ function login_route(?string $sub): void
                 $error = login_closed_message();
             } else {
                 portal_login($account);
-                redirect_to(portal_home());
+                redirect_to(portal_after_login());
             }
         } elseif (empty((codes()[$account] ?? ['reg' => 'x'])['reg'])) {
             // A handed-out code nobody has registered with yet: first step is the registration form.
@@ -698,6 +712,10 @@ function portal_route(?string $sub): void
         resolutions_route();
         return;
     }
+    if ($sub === 'gallery') {
+        gallery_route($account);
+        return;
+    }
     if ($sub === 'admin') {
         // Website admins switch into the admin area without the admin password;
         // the second factor (if set up) is still asked for there.
@@ -746,6 +764,21 @@ function portal_route(?string $sub): void
             $message = 'Thank you! Your position paper has been handed in. The delegates and chairs of your committee can now read it.';
         }
     }
+    if ($post && in_array($_POST['a'] ?? '', ['report_upload', 'report_delete'], true)) {
+        // Research reports: the chairs of a committee (and conference admins).
+        $slug = (string) ($_POST['committee'] ?? '');
+        if (!csrf_check()) {
+            $error = 'Your session expired. Please try again.';
+        } elseif ($slug === '' || !committee_chair_access($account, $slug)) {
+            $error = 'Only the chairs of this committee can manage its research reports.';
+        } elseif ($_POST['a'] === 'report_delete') {
+            $message = delete_report((string) ($_POST['report'] ?? ''), $slug, 'portal:' . format_code($account)) ? 'The research report has been removed.' : 'Research report not found.';
+        } elseif ($err = store_report($slug, (string) ($_POST['title'] ?? ''), $_FILES['report'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'portal:' . format_code($account))) {
+            $error = $err;
+        } else {
+            $message = 'Thank you! The research report is now available to the delegates of your committee and under Downloads on the website.';
+        }
+    }
     if ($post && ($_POST['a'] ?? '') === 'profile') {
         $regId = (string) ($_POST['id'] ?? '');
         $own = array_filter(active_regs($account), fn ($r) => $r['id'] === $regId);
@@ -789,7 +822,7 @@ function portal_host_route(array $parts): void
         array_shift($parts); // old links like conference.omun.eu/portal/paper
         $first = $parts[0] ?? '';
     }
-    if (count($parts) <= 1 && in_array($first, ['', 'paper', 'logout', 'resolution'], true)) {
+    if (count($parts) <= 1 && in_array($first, ['', 'paper', 'logout', 'resolution', 'resolutions', 'gallery', 'certificate', 'admin'], true)) {
         portal_route($first === '' ? null : $first);
         return;
     }

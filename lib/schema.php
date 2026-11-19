@@ -136,6 +136,10 @@ function schema(): array
                 ['key' => 'alloc_subject', 'label' => 'Einteilung: Betreff der E-Mail', 'type' => 'text', 'help' => 'Wird mit „Einteilung herausgeben“ unter Zuteilung verschickt (dort auch änderbar).'],
                 ['key' => 'alloc_text', 'label' => 'Einteilung: Text der E-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {country}, {committee}, {topics} (Themen des Gremiums), {code}, {conference}, {portal}, {email}.'],
                 ['key' => 'resolution_notify_email', 'label' => 'Abgegebene Resolutionen melden an', 'type' => 'email', 'help' => 'Bekommt eine E-Mail, wenn Chairs eine Resolution abgeben – zusätzlich zu allen MUN Coordinators. Leer = Kontakt-E-Mail der Website.'],
+                ['key' => 'gallery_open', 'label' => 'Fotogalerie: Teilnehmende können Fotos hochladen', 'type' => 'bool', 'help' => 'Die Galerie im Teilnehmer-Bereich („Everyone’s photos“) ist für alle Eingeloggten sichtbar. Ausschalten = keine neuen Fotos mehr, die vorhandenen bleiben sichtbar. Fotos verwalten und das offizielle Album freigeben: Admin → Fotogalerie.'],
+                ['key' => 'gallery_intro', 'label' => 'Fotogalerie: Text über den Fotos', 'type' => 'markdown'],
+                ['key' => 'gallery_mail_subject', 'label' => 'Fotogalerie: Betreff der Abschieds-Mail', 'type' => 'text', 'help' => 'Wird beim Freigeben des offiziellen Albums verschickt (Admin → Fotogalerie, dort auch änderbar).'],
+                ['key' => 'gallery_mail_text', 'label' => 'Fotogalerie: Text der Abschieds-Mail', 'type' => 'textarea', 'help' => 'Platzhalter: {gallery} (Link zu den offiziellen Fotos), {portal} (Login), {code} (persönliche Kennung), {conference}, {email} (Kontakt-E-Mail).'],
                 ['key' => 'cert_signers', 'label' => 'Zertifikat: Unterschriften (eine pro Zeile, „Name | Funktion“)', 'type' => 'lines'],
             ],
         ],
@@ -144,6 +148,10 @@ function schema(): array
             'type' => 'list',
             'title_field' => 'name',
             'slug_from' => 'name',
+            // Texts of the page itself (above the list), stored under committees_page.
+            'page' => ['key' => 'committees_page', 'fields' => [
+                ['key' => 'intro', 'label' => 'Text oben auf der Seite „Committees“ (über der Liste der Gremien)', 'type' => 'textarea', 'help' => 'Erscheint unter der Überschrift. Leer = kein Text.'],
+            ]],
             'fields' => [
                 ['key' => 'name', 'label' => 'Name', 'type' => 'text'],
                 ['key' => 'abbr', 'label' => 'Abkürzung', 'type' => 'text'],
@@ -186,7 +194,7 @@ function schema(): array
             ],
         ],
         'gallery' => [
-            'label' => 'Galerie',
+            'label' => 'Galerie (öffentlich)',
             'type' => 'list',
             'title_field' => 'caption',
             'fields' => [

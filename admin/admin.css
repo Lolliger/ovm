@@ -304,3 +304,21 @@ form.inline { display: flex; gap: 0.25rem; margin: 0; }
 .steps .inline-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
 .steps .inline-confirm input { width: 9rem; }
 .code-list code { font-size: 1rem; letter-spacing: 0.05em; }
+
+/* Gremien: Seitentext + Research Reports; Fotogalerie */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 0.75rem; padding: 1.1rem 1.25rem 1.25rem; margin: 1rem 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.panel h2 { margin: 0; }
+.panel .item-list { margin: 0; }
+.panel label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 500; }
+.panel.edit-form { max-width: none; }
+.row-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+.row-fields label { flex: 1 1 12rem; }
+.actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0; }
+.gallery-tabs { align-self: flex-start; }
+.admin-gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.6rem; }
+.admin-gallery li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.25rem; }
+.admin-gallery a { grid-column: 1 / -1; display: block; aspect-ratio: 1; border-radius: 0.5rem; overflow: hidden; background: var(--line); }
+.admin-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.admin-gallery small { color: var(--muted); font-size: 0.75rem; }
+.admin-gallery form { margin: 0; }
+.panel > .btn, .panel > form > .btn { align-self: flex-start; }
