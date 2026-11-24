@@ -44,13 +44,38 @@ function is_delegate_reg(array $r): bool
         && empty($r['is_manager']) && empty($r['is_coordinator']);
 }
 
+/** Conference manager (not chair, admin or MUN Coordinator). */
+function is_cm_reg(array $r): bool
+{
+    return (($r['kind'] ?? '') === 'manager' || !empty($r['is_manager']))
+        && empty($r['is_chair']) && empty($r['is_admin']) && empty($r['is_coordinator']);
+}
+
+/**
+ * Conference manager whom the admin has allowed to take part as a delegate as
+ * well (Zuteilung → Team, "auch Delegierte/r"). They hand in their wishes in the
+ * portal and are allocated together with all other delegates, without any
+ * priority. In their own committee they are a delegate, in all others they keep
+ * the conference manager's view-only access.
+ */
+function is_cm_delegate(array $r): bool
+{
+    return !empty($r['cm_delegate']) && is_cm_reg($r);
+}
+
+/** Takes a seat in the allocation: delegates and conference managers who are also delegates. */
+function sits_as_delegate(array $r): bool
+{
+    return is_delegate_reg($r) || is_cm_delegate($r);
+}
+
 /**
  * May the allocation (committee, country) of this registration be shown and
  * used? Delegates: only once it has been released. Everyone else: always.
  */
 function alloc_visible(array $r): bool
 {
-    return !is_delegate_reg($r) || !empty($r['released']);
+    return !sits_as_delegate($r) || !empty($r['released']);
 }
 
 /** Committee slug of a registration's allocation, '' if none. */
@@ -114,9 +139,22 @@ function alloc_match(array $r, string $slug, string $country): string
 function alloc_delegates(?array $regs = null, bool $tests = false): array
 {
     $regs ??= read_json(REGISTRATIONS_FILE);
-    $list = array_values(array_filter($regs, fn ($r) => is_delegate_reg($r) && ($r['status'] ?? '') !== 'cancelled' && !empty($r['test']) === $tests));
-    usort($list, fn ($a, $b) => strcmp((string) ($a['created'] ?? ''), (string) ($b['created'] ?? '')));
+    $list = array_values(array_filter($regs, fn ($r) => sits_as_delegate($r) && ($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending']) && !empty($r['test']) === $tests));
+    usort($list, fn ($a, $b) => strcmp(alloc_order_time($a), alloc_order_time($b)));
     return $list;
+}
+
+/**
+ * When someone counts as registered as a delegate (ties go to the earlier one).
+ * Conference managers: when they handed in their wishes – not their (often much
+ * earlier) team registration, so they get no advantage over other delegates.
+ */
+function alloc_order_time(array $r): string
+{
+    if (is_cm_delegate($r)) {
+        return (string) ($r['wishes_at'] ?? '9999');
+    }
+    return (string) ($r['created'] ?? '');
 }
 
 /**
@@ -359,7 +397,7 @@ function committee_chair_access(?string $account, string $slug): bool
 /** Position papers handed in by the delegates of a committee. */
 function committee_papers(string $slug): array
 {
-    $list = array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => !empty($r['paper']) && is_delegate_reg($r)
+    $list = array_values(array_filter(read_json(REGISTRATIONS_FILE), fn ($r) => !empty($r['paper']) && sits_as_delegate($r)
         && alloc_visible($r) && reg_committee_slug($r) === $slug && ($r['status'] ?? '') !== 'cancelled'));
     usort($list, fn ($a, $b) => strcasecmp((string) ($a['assigned_country'] ?? ''), (string) ($b['assigned_country'] ?? '')));
     return $list;
@@ -470,4 +508,67 @@ function is_site_admin_account(?string $account): bool
         }
     }
     return false;
+}
+
+/* ---------- Conference managers who are also delegates: wishes in the portal ---------- */
+
+/** "GA1 – General Assembly First Committee" – how committees are named in the wish fields (as in the registration form). */
+function committee_wish_label(array $cm): string
+{
+    return trim(($cm['abbr'] ?? '') . ' – ' . $cm['name'], ' –');
+}
+
+/** Can the wishes still be changed? Until the allocation has been released. */
+function cm_wishes_open(array $r): bool
+{
+    return is_cm_delegate($r) && empty($r['released']) && ($r['status'] ?? '') !== 'cancelled';
+}
+
+/**
+ * Saves the committee and country wishes of a conference manager who is also a
+ * delegate (same rules as the registration form). Returns error messages (English).
+ */
+function cm_save_wishes(string $regId, array $in): array
+{
+    $v = [];
+    foreach (['committee_1', 'country_1a', 'country_1b', 'committee_2', 'country_2a', 'country_2b'] as $k) {
+        $v[$k] = trim(mb_substr((string) ($in[$k] ?? ''), 0, 150));
+    }
+    $errors = [];
+    foreach ([1, 2] as $n) {
+        $cm = committee_by_label($v["committee_$n"]);
+        if ($v["committee_$n"] !== '' && !$cm) {
+            $errors[] = 'Please choose your ' . ($n === 1 ? '1st' : '2nd') . ' committee again.';
+            continue;
+        }
+        $allowed = $cm ? committee_countries($cm) : [];
+        foreach (['a', 'b'] as $x) {
+            if ($v["country_{$n}$x"] !== '' && !in_array($v["country_{$n}$x"], $allowed, true)) {
+                $errors[] = 'Please choose the countries for your ' . ($n === 1 ? '1st' : '2nd') . ' committee again – “' . $v["country_{$n}$x"] . '” is not available there.';
+            }
+        }
+        if ($v["country_{$n}a"] !== '' && $v["country_{$n}a"] === $v["country_{$n}b"]) {
+            $errors[] = 'Please choose two different countries for your ' . ($n === 1 ? '1st' : '2nd') . ' committee.';
+        }
+    }
+    if ($v['committee_1'] === '') {
+        $errors[] = 'Please choose at least your 1st committee.';
+    } elseif ($v['committee_1'] === $v['committee_2']) {
+        $errors[] = 'Please choose two different committees.';
+    }
+    if ($errors) {
+        return $errors;
+    }
+    $ok = false;
+    update_json(REGISTRATIONS_FILE, function (array $regs) use ($regId, $v, &$ok) {
+        foreach ($regs as &$r) {
+            if ($r['id'] === $regId && cm_wishes_open($r)) {
+                $r = array_merge($r, $v);
+                $r['wishes_at'] = date('c');
+                $ok = true;
+            }
+        }
+        return $regs;
+    });
+    return $ok ? [] : ['Your wishes can no longer be changed – the allocation has already been released.'];
 }

@@ -700,7 +700,7 @@ function portal_route(?string $sub): void
         }
         // Papers of the own committee: visible to its delegates and chairs once handed in.
         foreach ($account ? read_json(REGISTRATIONS_FILE) : [] as $reg) {
-            if ($reg['id'] === ($_GET['id'] ?? '') && is_delegate_reg($reg) && alloc_visible($reg)
+            if ($reg['id'] === ($_GET['id'] ?? '') && sits_as_delegate($reg) && alloc_visible($reg)
                 && reg_committee_slug($reg) !== '' && committee_access($account, reg_committee_slug($reg))) {
                 send_paper($reg, paper_public_name($reg));
             }
@@ -763,6 +763,23 @@ function portal_route(?string $sub): void
             notify_paper(reset($own));
             $message = 'Thank you! Your position paper has been handed in. The delegates and chairs of your committee can now read it.';
         }
+    }
+    if ($post && ($_POST['a'] ?? '') === 'wishes') {
+        // Conference managers who may also take part as delegates hand in their wishes here.
+        $regId = (string) ($_POST['id'] ?? '');
+        $own = array_values(array_filter(active_regs($account), fn ($r) => $r['id'] === $regId && cm_wishes_open($r)));
+        if (!csrf_check()) {
+            $error = 'Your session expired. Please try again.';
+        } elseif (!$own) {
+            $error = 'Delegate wishes cannot be handed in for this registration (or the allocation has already been released).';
+        } elseif ($errs = cm_save_wishes($regId, $_POST)) {
+            $error = implode(' ', $errs);
+        } else {
+            redirect_to(portal_home() . '?saved=wishes#wishes');
+        }
+    }
+    if (($_GET['saved'] ?? '') === 'wishes') {
+        $message = 'Your wishes have been saved. You will be allocated together with all other delegates.';
     }
     if ($post && in_array($_POST['a'] ?? '', ['report_upload', 'report_delete'], true)) {
         // Research reports: the chairs of a committee (and conference admins).
@@ -897,6 +914,8 @@ function certificate_vars(array $reg): array
     $cmName = $cm ? 'the ' . preg_replace('/^the\s+/i', '', $cm['name']) : '';
     if (!empty($reg['is_chair']) && $cm) {
         $part = 'Chair of ' . $cmName;
+    } elseif (is_cm_delegate($reg) && $country !== '' && !empty($reg['released'])) {
+        $part = 'Conference Manager and Delegate of ' . $country . ($cm ? ' in ' . $cmName : '');
     } elseif (!empty($reg['is_manager']) || $kind === 'manager') {
         $part = 'Conference Manager';
     } elseif ($kind === 'delegate' && $country !== '') {

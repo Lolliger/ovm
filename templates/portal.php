@@ -95,7 +95,7 @@ $statuses = registration_statuses();
     <?php foreach ($regs as $r): ?>
       <?php
       $status = $r['status'] ?? 'received';
-      $delegate = is_delegate_reg($r);
+      $delegate = sits_as_delegate($r); // delegates and conference managers who also take part as delegates
       // Delegates see their allocation only once it has been released by the organisers.
       $allocated = alloc_visible($r);
       $committee = $allocated ? committee_by_label((string) ($r['assigned_committee'] ?? '')) : null;
@@ -112,9 +112,9 @@ $statuses = registration_statuses();
             <span><strong>Your certificate is ready</strong>Certificate of participation – download as PDF</span><span aria-hidden="true">↓</span></a>
         <?php endif; ?>
         <dl class="facts">
-          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['is_coordinator']) ? ' · <strong>MUN Coordinator</strong> (spectator in all committees, reviews resolutions)' : '' ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?><?= !empty($r['is_admin']) ? ' · <strong>Admin</strong> (chair rights in all committees)' : '' ?></dd></div>
+          <div><dt>Participation as</dt><dd><?= e($r['role']) ?><?= !empty($r['is_coordinator']) ? ' · <strong>MUN Coordinator</strong> (spectator in all committees, reviews resolutions)' : '' ?><?= !empty($r['role_pending']) ? ' <span class="muted">– waiting for confirmation by the organisers</span>' : '' ?><?= !empty($r['is_admin']) ? ' · <strong>Admin</strong> (chair rights in all committees)' : '' ?><?= is_cm_delegate($r) ? ' · <strong>also as a delegate</strong> (delegate in your own committee, view only in all others)' : '' ?></dd></div>
           <?php if ($delegate): ?><div><dt>Country</dt><dd><?= e(($allocated ? ($r['assigned_country'] ?? '') : '') ?: 'Not allocated yet') ?></dd></div><?php endif; ?>
-          <?php if (!in_array($r['kind'] ?? '', ['manager', 'staff'], true) || $committee): ?><div><dt>Committee</dt><dd>
+          <?php if ($delegate || !in_array($r['kind'] ?? '', ['manager', 'staff'], true) || $committee): ?><div><dt>Committee</dt><dd>
             <?php if ($committee): ?>
               <a href="<?= e(main_origin() . url('committees/' . $committee['slug'])) ?>"><?= e($committee['name']) ?></a>
               <?php if (!empty($committee['study_guide'])): ?> · <a href="<?= e(media($committee['study_guide'])) ?>" download>Study guide ↓</a><?php endif; ?>
@@ -125,6 +125,40 @@ $statuses = registration_statuses();
           <?php if (($r['grade'] ?? '') !== ''): ?><div><dt>Grade</dt><dd><?= e($r['grade']) ?></dd></div><?php endif; ?>
           <div><dt>Registered on</dt><dd><?= e(format_date($r['created'])) ?></dd></div>
         </dl>
+
+        <?php if (is_cm_delegate($r)): $wishCms = c('committees', []); $wishNames = array_map('committee_wish_label', $wishCms); ?>
+        <div class="paper" id="wishes">
+          <h3>Your wishes as a delegate</h3>
+          <?php if (cm_wishes_open($r)): ?>
+            <p class="muted">Choose two committees and, for each, the two countries you would most like to represent. You will be allocated together with all other delegates – we cannot guarantee any wish.<?= !empty($r['wishes_at']) ? ' Last saved ' . e(date('j F Y, H:i', strtotime($r['wishes_at']))) . '.' : '' ?></p>
+            <form class="form wish-form" method="post" action="<?= e(portal_link()) ?>#wishes">
+              <?= csrf_field() ?>
+              <input type="hidden" name="a" value="wishes">
+              <input type="hidden" name="id" value="<?= e($r['id']) ?>">
+              <?php foreach ([1 => '1st', 2 => '2nd'] as $n => $nth): $curCm = (string) ($r['committee_' . $n] ?? ''); $chosen = committee_by_label($curCm); ?>
+              <div class="wish" data-wish>
+                <div class="field"><label for="w-<?= e($r['id']) ?>-c<?= $n ?>">Committee, <?= $nth ?> choice</label>
+                  <select id="w-<?= e($r['id']) ?>-c<?= $n ?>" name="committee_<?= $n ?>"<?= $n === 1 ? ' required' : '' ?>><option value="">– please choose –</option>
+                    <?php foreach ($wishNames as $o): ?><option<?= $chosen && committee_wish_label($chosen) === $o ? ' selected' : '' ?>><?= e($o) ?></option><?php endforeach; ?>
+                  </select></div>
+                <div class="row">
+                  <?php foreach (['a' => '1st', 'b' => '2nd'] as $x => $xth): $name = "country_{$n}{$x}"; $cur = (string) ($r[$name] ?? ''); ?>
+                  <div class="field"><label for="w-<?= e($r['id']) ?>-<?= $name ?>">Country, <?= $xth ?> choice</label>
+                    <select id="w-<?= e($r['id']) ?>-<?= $name ?>" name="<?= $name ?>" data-country><option value="">– please choose –</option>
+                      <?php if ($chosen): foreach (committee_countries($chosen) as $country): ?><option<?= $cur === $country ? ' selected' : '' ?>><?= e($country) ?></option><?php endforeach; endif; ?>
+                    </select></div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+              <?php endforeach; ?>
+              <script type="application/json" id="committee-countries"><?= json_encode(array_combine($wishNames, array_map('committee_countries', $wishCms)), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+              <button class="btn" type="submit"><?= empty($r['wishes_at']) ? 'Save my wishes' : 'Update my wishes' ?></button>
+            </form>
+          <?php else: ?>
+            <p class="muted">Your allocation has been released – see country and committee above.</p>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
 
         <?php if ($delegate): ?>
         <div class="paper">

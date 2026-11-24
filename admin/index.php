@@ -372,7 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $changed = 0;
                 update_json(REGISTRATIONS_FILE, function (array $regs) use ($countries, $committees, $fixed, &$changed) {
                     foreach ($regs as &$r) {
-                        if (!array_key_exists($r['id'], $countries) || !is_delegate_reg($r)) {
+                        if (!array_key_exists($r['id'], $countries) || !sits_as_delegate($r)) {
                             continue;
                         }
                         $before = [$r['assigned_country'] ?? '', $r['assigned_committee'] ?? ''];
@@ -428,25 +428,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'team_save':
                 $committees = (array) ($_POST['committee'] ?? []);
+                $rows = (array) ($_POST['row'] ?? []);
                 $changed = 0;
                 $teamIds = array_column((array) ($content['team'] ?? []), 'id');
-                update_json(REGISTRATIONS_FILE, function (array $regs) use ($committees, $teamIds, &$changed) {
+                update_json(REGISTRATIONS_FILE, function (array $regs) use ($committees, $rows, $teamIds, &$changed) {
                     foreach ($regs as &$r) {
-                        if (!array_key_exists($r['id'], $committees)) {
+                        if (!array_key_exists($r['id'], $rows) && !array_key_exists($r['id'], $committees)) {
                             continue;
                         }
-                        $before = json_encode([$r['assigned_committee'] ?? '', !empty($r['is_chair']), !empty($r['is_coordinator']), !empty($r['is_admin']), !empty($r['is_site_admin']), $r['team_profile'] ?? '']);
-                        $r['assigned_committee'] = trim(mb_substr((string) $committees[$r['id']], 0, 150));
+                        $before = json_encode([$r['assigned_committee'] ?? '', !empty($r['is_chair']), !empty($r['is_coordinator']), !empty($r['is_admin']), !empty($r['is_site_admin']), $r['team_profile'] ?? '', !empty($r['cm_delegate'])]);
+                        $wasCmDelegate = is_cm_delegate($r);
+                        // Conference managers who are also delegates get their committee from the delegate allocation, not from here.
+                        if (array_key_exists($r['id'], $committees)) {
+                            $r['assigned_committee'] = trim(mb_substr((string) $committees[$r['id']], 0, 150));
+                        }
                         $r['is_chair'] = !empty($_POST['chair'][$r['id']]);
                         $r['is_coordinator'] = !empty($_POST['coordinator'][$r['id']]);
                         $r['is_admin'] = !empty($_POST['admin'][$r['id']]);
                         $r['is_site_admin'] = !empty($_POST['site_admin'][$r['id']]);
                         $profile = (string) ($_POST['profile'][$r['id']] ?? '');
                         $r['team_profile'] = in_array($profile, $teamIds, true) ? $profile : '';
+                        $r['cm_delegate'] = !empty($_POST['cm_delegate'][$r['id']]) && is_cm_reg($r);
+                        if ($wasCmDelegate && !is_cm_delegate($r)) {
+                            // No longer a delegate: give the seat back.
+                            unset($r['assigned_country'], $r['released'], $r['alloc_fixed']);
+                            if (!$r['is_chair']) {
+                                $r['assigned_committee'] = '';
+                            }
+                        }
                         if ($r['is_chair'] || $r['is_admin'] || $r['is_coordinator']) {
                             unset($r['role_pending']);
                         }
-                        $changed += $before !== json_encode([$r['assigned_committee'], $r['is_chair'], $r['is_coordinator'], $r['is_admin'], $r['is_site_admin'], $r['team_profile']]) ? 1 : 0;
+                        $changed += $before !== json_encode([$r['assigned_committee'], $r['is_chair'], $r['is_coordinator'], $r['is_admin'], $r['is_site_admin'], $r['team_profile'], $r['cm_delegate']]) ? 1 : 0;
                     }
                     return $regs;
                 });
@@ -1482,8 +1495,8 @@ function view_allocation(): void
         <tbody>
         <?php foreach (array_merge($delegates, $tests) as $r): $id = e($r['id']); $isTest = !empty($r['test']); $a = $analysis[$r['id']] ?? ['state' => 'none', 'rivals' => 0]; $complete = alloc_complete($r); $double = !$isTest && $complete && count($bySeat[alloc_key($r)]) > 1; ?>
           <tr<?= $isTest ? ' class="cancelled"' : '' ?>>
-            <td><strong><?= e(reg_display($r)) ?></strong></td>
-            <td><small><?= $wish($r) ?></small></td>
+            <td><strong><?= e(reg_display($r)) ?></strong><?= is_cm_delegate($r) ? '<br><small>Conference Manager</small>' : '' ?></td>
+            <td><small><?= is_cm_delegate($r) && empty($r['wishes_at']) ? '<span class="danger">noch keine Wünsche abgegeben</span>' : $wish($r) ?></small></td>
             <td><?= $a['state'] === 'clear' ? '<span class="st st-confirmed">klar</span>' : ($a['state'] === 'contested' ? '<span class="st st-waitlist">umkämpft (+' . $a['rivals'] . ')</span>' : '<small>–</small>') ?></td>
             <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
             <td><?= country_select('country[' . $r['id'] . ']', reg_committee_slug($r), (string) ($r['assigned_country'] ?? '')) ?><?= $double ? '<br><small class="danger">doppelt vergeben!</small>' : '' ?></td>
@@ -1523,22 +1536,23 @@ function view_allocation(): void
     <?php endif; ?>
 
     <h2 id="team">Team: Chairs, Coordinators, Organisation</h2>
-    <p class="help">Gilt sofort. <strong>Chair</strong> = Chair-Rechte im gewählten Gremium. <strong>MUN Coordinator</strong> = sieht alle Gremien als Zuschauer und überarbeitet abgegebene Resolutionen, bevor sie freigegeben werden. <strong>Admin</strong> = Chair-Rechte in allen Gremien. <strong>Website-Admin</strong> = darf aus dem Teilnehmer-Bereich direkt in diesen Admin-Bereich wechseln (ohne Admin-Passwort; der Bestätigungscode der Zwei-Faktor-Anmeldung wird weiterhin abgefragt). <strong>Team-Profil</strong> = die Person kann Foto und Kurzvorstellung ihres Eintrags auf der Team-Seite im Teilnehmer-Bereich selbst bearbeiten.</p>
+    <p class="help">Gilt sofort. <strong>Chair</strong> = Chair-Rechte im gewählten Gremium. <strong>MUN Coordinator</strong> = sieht alle Gremien als Zuschauer und überarbeitet abgegebene Resolutionen, bevor sie freigegeben werden. <strong>Admin</strong> = Chair-Rechte in allen Gremien. <strong>Website-Admin</strong> = darf aus dem Teilnehmer-Bereich direkt in diesen Admin-Bereich wechseln (ohne Admin-Passwort; der Bestätigungscode der Zwei-Faktor-Anmeldung wird weiterhin abgefragt). <strong>auch Delegierte/r</strong> (nur Conference Manager) = die Person gibt im Teilnehmer-Bereich Gremien- und Länderwünsche ab und wird oben ganz normal mit allen Delegierten eingeteilt, ohne Vorrang; nach dem Herausgeben ist sie in ihrem Gremium Delegierte/r, in allen anderen weiter nur Zuschauer/in. <strong>Team-Profil</strong> = die Person kann Foto und Kurzvorstellung ihres Eintrags auf der Team-Seite im Teilnehmer-Bereich selbst bearbeiten.</p>
     <?php if (!$team): ?><p class="empty">Noch keine Anmeldungen aus dem Team.</p><?php else: ?>
     <form method="post" class="alloc-form">
       <?= csrf_field() ?><input type="hidden" name="a" value="team_save">
       <div class="table-wrap"><table class="alloc-table">
-        <thead><tr><th>Kennung</th><th>Teilnahme</th><th>Gremium</th><th>Chair</th><th>MUN Coordinator</th><th>Admin</th><th>Website-Admin</th><th>Team-Profil</th></tr></thead>
+        <thead><tr><th>Kennung</th><th>Teilnahme</th><th>Gremium</th><th>Chair</th><th>MUN Coordinator</th><th>Admin</th><th>Website-Admin</th><th>auch Delegierte/r</th><th>Team-Profil</th></tr></thead>
         <tbody>
         <?php foreach ($team as $r): $id = e($r['id']); ?>
           <tr<?= ($r['status'] ?? '') === 'cancelled' ? ' class="cancelled"' : '' ?>>
             <td><strong><?= e(reg_display($r)) ?></strong><br><small><?= e($r['email'] ?? '') ?></small></td>
             <td><?= e($r['role'] ?? '') ?><?= !empty($r['role_pending']) ? ' <small>(Bestätigung offen)</small>' : '' ?><?= ($r['status'] ?? '') === 'cancelled' ? ' <small>(abgesagt)</small>' : '' ?></td>
-            <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>
+            <td><input type="hidden" name="row[<?= $id ?>]" value="1"><?php if (is_cm_delegate($r)): ?><small>über die Einteilung der Delegierten<?= ($r['assigned_committee'] ?? '') !== '' ? ': ' . e(committee_display((string) $r['assigned_committee'])) . (($r['assigned_country'] ?? '') !== '' ? ' · ' . e($r['assigned_country']) : '') : '' ?></small><?php else: ?><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?><?php endif; ?></td>
             <td><input type="checkbox" name="chair[<?= $id ?>]" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?> aria-label="Chair"></td>
             <td><input type="checkbox" name="coordinator[<?= $id ?>]" value="1"<?= !empty($r['is_coordinator']) ? ' checked' : '' ?> aria-label="MUN Coordinator"></td>
             <td><input type="checkbox" name="admin[<?= $id ?>]" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?> aria-label="Admin"></td>
             <td><input type="checkbox" name="site_admin[<?= $id ?>]" value="1"<?= !empty($r['is_site_admin']) ? ' checked' : '' ?> aria-label="Website-Admin"></td>
+            <td><?php if (is_cm_reg($r)): ?><input type="checkbox" name="cm_delegate[<?= $id ?>]" value="1"<?= !empty($r['cm_delegate']) ? ' checked' : '' ?> aria-label="Auch als Delegierte/r"><?php else: ?><small>–</small><?php endif; ?></td>
             <td><select name="profile[<?= $id ?>]" aria-label="Team-Profil"><option value="">– keins –</option>
               <?php foreach (c('team', []) as $m): ?><option value="<?= e($m['id']) ?>"<?= ($r['team_profile'] ?? '') === $m['id'] ? ' selected' : '' ?>><?= e(trim(str_replace('*', '', (string) $m['name']))) ?> (<?= e($m['group'] ?? '') ?>)</option><?php endforeach; ?>
             </select></td>
@@ -1611,7 +1625,7 @@ function view_registrations(): void
         <details class="reg" id="reg-<?= e($r['id']) ?>"<?= ($_GET['open'] ?? '') === $r['id'] ? ' open' : '' ?>>
           <summary>
             <strong><?= e(reg_display($r)) ?><?= !empty($r['is_chair']) ? ' <span class="st st-paper">Chair</span>' : '' ?><?= !empty($r['is_manager']) ? ' <span class="st st-paper">Conf. Manager</span>' : '' ?><?= !empty($r['is_admin']) ? ' <span class="st st-paper">Admin</span>' : '' ?><?= !empty($r['role_pending']) ? ' <span class="st st-waitlist">Bestätigung offen</span>' : '' ?> <span class="st st-<?= e($st) ?>"><?= e($statuses[$st][1] ?? $st) ?></span><?= !empty($r['paper']) ? ' <span class="st st-paper">Paper</span>' : '' ?></strong>
-            <span><?= e(implode(' · ', array_filter([$r['role'] ?? '', $r['email'] ?? '']))) ?><?= !empty($r['assigned_country']) && is_delegate_reg($r) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
+            <span><?= e(implode(' · ', array_filter([$r['role'] ?? '', $r['email'] ?? '']))) ?><?= !empty($r['assigned_country']) && sits_as_delegate($r) ? ' · ' . e($r['assigned_country']) : '' ?><?= !empty($r['assigned_committee']) ? ' (' . e(committee_display($r['assigned_committee'])) . ')' : '' ?></span>
             <small><?= e(date('d.m.Y H:i', strtotime($r['created']))) ?></small>
             <?php if (!is_delegate_reg($r) && ($st === 'received' || !empty($r['role_pending']))): ?>
               <form method="post" class="reg-confirm"><?= csrf_field() ?><input type="hidden" name="a" value="reg_confirm"><input type="hidden" name="id" value="<?= e($r['id']) ?>"><button class="btn btn-small">Bestätigen</button></form>
@@ -1625,10 +1639,10 @@ function view_registrations(): void
           <form method="post" class="reg-edit">
             <?= csrf_field() ?><input type="hidden" name="a" value="reg_update"><input type="hidden" name="id" value="<?= e($r['id']) ?>">
             <label>Status<select name="status"><?php foreach ($statuses as $key => [, $label]): ?><option value="<?= e($key) ?>"<?= $st === $key ? ' selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></label>
-            <?php if (is_delegate_reg($r)): ?><label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label><?php endif; ?>
-            <?php if (is_delegate_reg($r) || !empty($r['is_chair']) || ($r['kind'] ?? '') === 'chair'): ?><label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label><?php endif; ?>
+            <?php if (sits_as_delegate($r)): ?><label>Land (zugeteilt)<input name="assigned_country" value="<?= e($r['assigned_country'] ?? '') ?>" placeholder="z. B. Brazil"></label><?php endif; ?>
+            <?php if (sits_as_delegate($r) || !empty($r['is_chair']) || ($r['kind'] ?? '') === 'chair'): ?><label>Gremium (zugeteilt)<?= committee_select('assigned_committee', (string) ($r['assigned_committee'] ?? '')) ?></label><?php endif; ?>
             <label class="check-inline"><input type="checkbox" name="is_chair" value="1"<?= !empty($r['is_chair']) ? ' checked' : '' ?>> Chair dieses Gremiums (darf Resolution bearbeiten, Amendments entscheiden, Beamer-Ansicht)</label>
-            <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern)</label>
+            <label class="check-inline"><input type="checkbox" name="is_manager" value="1"<?= !empty($r['is_manager']) ? ' checked' : '' ?>> Conference Manager (sieht alle Resolutionen und die Beamer-Ansicht, darf nichts ändern<?= is_cm_reg($r) ? ' – zusätzlich als Delegierte/r freischalten: unter Zuteilung → Team, Spalte „auch Delegierte/r“' . (is_cm_delegate($r) ? ' (<strong>freigeschaltet</strong>)' : '') : '' ?>)</label>
             <label class="check-inline"><input type="checkbox" name="is_coordinator" value="1"<?= !empty($r['is_coordinator']) ? ' checked' : '' ?>> MUN Coordinator (sieht alle Gremien als Zuschauer, überarbeitet abgegebene Resolutionen und gibt sie frei)</label>
             <label class="check-inline"><input type="checkbox" name="is_admin" value="1"<?= !empty($r['is_admin']) ? ' checked' : '' ?>> Admin (Chair-Rechte in allen Gremien, ohne Land/Gremium – kein Zugang zu diesem Admin-Bereich)</label>
             <label class="wide">Interne Notiz (nur im Admin sichtbar)<textarea name="admin_note" rows="2"><?= e($r['admin_note'] ?? '') ?></textarea></label>
