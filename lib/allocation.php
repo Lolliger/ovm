@@ -8,7 +8,8 @@ declare(strict_types=1);
  *   one committee = one seat.
  * - Delegates name two committees when registering and two countries for each.
  * - alloc_compute() finds the assignment with the lowest total "cost"
- *   (Hungarian algorithm), see ALLOC_COSTS.
+ *   (Hungarian algorithm), see ALLOC_COSTS. Ties: more MUN conferences
+ *   first, then the earlier registration.
  * - Delegates see their allocation only after it has been released
  *   (admin → Zuteilung → "Einteilung herausgeben"), which also e-mails it.
  */
@@ -132,7 +133,8 @@ function alloc_match(array $r, string $slug, string $country): string
 }
 
 /**
- * Delegates that take part in the allocation (not cancelled), oldest registration first.
+ * Delegates that take part in the allocation (not cancelled), in priority order
+ * for ties: more MUN conferences first, then the earlier registration.
  * Test delegates do not count: they take no seat and are never placed by the algorithm.
  * $tests = true returns only the test delegates (allocated by hand, to try out the delegate area).
  */
@@ -140,12 +142,33 @@ function alloc_delegates(?array $regs = null, bool $tests = false): array
 {
     $regs ??= read_json(REGISTRATIONS_FILE);
     $list = array_values(array_filter($regs, fn ($r) => sits_as_delegate($r) && ($r['status'] ?? '') !== 'cancelled' && empty($r['role_pending']) && !empty($r['test']) === $tests));
-    usort($list, fn ($a, $b) => strcmp(alloc_order_time($a), alloc_order_time($b)));
+    usort($list, fn ($a, $b) => [mun_conferences($b), alloc_order_time($a)] <=> [mun_conferences($a), alloc_order_time($b)]);
     return $list;
 }
 
 /**
- * When someone counts as registered as a delegate (ties go to the earlier one).
+ * Number typed in for "MUN conferences attended": 0–99, or null if it is not a number.
+ * Older registrations chose a range instead; those are read as its lower end.
+ */
+function mun_conferences_input(string $value): ?int
+{
+    $value = trim($value);
+    $legacy = ['This is my first conference' => 0, '1–2 conferences' => 1, '3 or more conferences' => 3];
+    if (isset($legacy[$value])) {
+        return $legacy[$value];
+    }
+    return preg_match('/^\d{1,2}$/', $value) ? (int) $value : null;
+}
+
+/** MUN conferences a delegate has attended (0 if not given). */
+function mun_conferences(array $r): int
+{
+    return mun_conferences_input((string) ($r['experience'] ?? '')) ?? 0;
+}
+
+/**
+ * When someone counts as registered as a delegate (second tie-breaker after the
+ * number of MUN conferences: the earlier one wins).
  * Conference managers: when they handed in their wishes – not their (often much
  * earlier) team registration, so they get no advantage over other delegates.
  */
@@ -251,7 +274,8 @@ function hungarian(array $cost): array
  * Best possible allocation for all delegates that are not fixed (released
  * allocations and rows ticked "fest" keep their seat).
  * Returns id => ['committee' => slug, 'country' => name] ('' / '' = no seat left).
- * Ties go to the earlier registration.
+ * Ties go to the delegate with more MUN conferences, then to the earlier
+ * registration (the order of alloc_delegates()).
  */
 function alloc_compute(array $delegates): array
 {
@@ -275,7 +299,7 @@ function alloc_compute(array $delegates): array
     $n = count($open);
     $cost = [];
     foreach ($open as $i => $r) {
-        // Earlier registrations weigh a little more, so they win ties.
+        // Delegates earlier in the list (more conferences, then earlier registration) weigh a little more, so they win ties.
         $weight = 10000 + ($n - $i);
         $row = [];
         foreach ($seats as [$slug, $country]) {
@@ -535,6 +559,12 @@ function cm_save_wishes(string $regId, array $in): array
         $v[$k] = trim(mb_substr((string) ($in[$k] ?? ''), 0, 150));
     }
     $errors = [];
+    $exp = mun_conferences_input(trim((string) ($in['experience'] ?? '')));
+    if ($exp === null) {
+        $errors[] = 'Please enter the number of MUN conferences you have attended as a number (0 if OMUN is your first).';
+    } else {
+        $v['experience'] = (string) $exp;
+    }
     foreach ([1, 2] as $n) {
         $cm = committee_by_label($v["committee_$n"]);
         if ($v["committee_$n"] !== '' && !$cm) {

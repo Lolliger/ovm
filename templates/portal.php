@@ -151,6 +151,9 @@ $statuses = registration_statuses();
                 </div>
               </div>
               <?php endforeach; ?>
+              <div class="field"><label for="w-<?= e($r['id']) ?>-exp">MUN conferences attended so far *</label>
+                <input id="w-<?= e($r['id']) ?>-exp" class="input-number" type="number" name="experience" min="0" max="99" step="1" inputmode="numeric" required value="<?= e(($n = mun_conferences_input((string) ($r['experience'] ?? ''))) === null ? '' : (string) $n) ?>">
+                <p class="hint">Not counting this one – enter 0 if this is your first MUN conference. Counts only if two delegates would otherwise be equally well placed.</p></div>
               <script type="application/json" id="committee-countries"><?= json_encode(array_combine($wishNames, array_map('committee_countries', $wishCms)), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
               <button class="btn" type="submit"><?= empty($r['wishes_at']) ? 'Save my wishes' : 'Update my wishes' ?></button>
             </form>

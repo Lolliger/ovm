@@ -1486,7 +1486,7 @@ function view_allocation(): void
         <li><span>Noch nicht mitgeteilt / geändert</span><strong><?= $toSend ?></strong></li>
       </ul></div>
     </div>
-    <p class="help"><strong>So geht’s:</strong> 1. „Einteilung berechnen“ verteilt alle Delegierten bestmöglich nach ihren Wünschen (bei Gleichstand gewinnt die frühere Anmeldung). 2. In der Tabelle prüfen und bei Bedarf Gremium oder Land von Hand ändern (zur Auswahl stehen die Länder des gewählten Gremiums); ein Häkchen bei „fest“ schützt die Zeile vor dem nächsten Berechnen. 3. „Einteilung herausgeben“ verschickt die E-Mails und schaltet die Einteilung im Teilnehmer-Bereich frei – vorher sehen die Delegierten nichts davon.</p>
+    <p class="help"><strong>So geht’s:</strong> 1. „Einteilung berechnen“ verteilt alle Delegierten bestmöglich nach ihren Wünschen (bei Gleichstand gewinnt, wer mehr MUN-Konferenzen hat, danach die frühere Anmeldung; die Tabelle ist in dieser Reihenfolge sortiert). 2. In der Tabelle prüfen und bei Bedarf Gremium oder Land von Hand ändern (zur Auswahl stehen die Länder des gewählten Gremiums); ein Häkchen bei „fest“ schützt die Zeile vor dem nächsten Berechnen. 3. „Einteilung herausgeben“ verschickt die E-Mails und schaltet die Einteilung im Teilnehmer-Bereich frei – vorher sehen die Delegierten nichts davon.</p>
     <input type="search" class="filter" placeholder="Suchen (Kennung, Land, Gremium …)" data-filter=".alloc-delegates tbody tr">
     <form method="post" class="alloc-form">
       <?= csrf_field() ?>
@@ -1495,7 +1495,7 @@ function view_allocation(): void
         <tbody>
         <?php foreach (array_merge($delegates, $tests) as $r): $id = e($r['id']); $isTest = !empty($r['test']); $a = $analysis[$r['id']] ?? ['state' => 'none', 'rivals' => 0]; $complete = alloc_complete($r); $double = !$isTest && $complete && count($bySeat[alloc_key($r)]) > 1; ?>
           <tr<?= $isTest ? ' class="cancelled"' : '' ?>>
-            <td><strong><?= e(reg_display($r)) ?></strong><?= is_cm_delegate($r) ? '<br><small>Conference Manager</small>' : '' ?></td>
+            <td><strong><?= e(reg_display($r)) ?></strong><br><small><?= ($k = mun_conferences($r)) === 1 ? '1 Konferenz' : $k . ' Konferenzen' ?><?= is_cm_delegate($r) ? ' · Conference Manager' : '' ?></small></td>
             <td><small><?= is_cm_delegate($r) && empty($r['wishes_at']) ? '<span class="danger">noch keine Wünsche abgegeben</span>' : $wish($r) ?></small></td>
             <td><?= $a['state'] === 'clear' ? '<span class="st st-confirmed">klar</span>' : ($a['state'] === 'contested' ? '<span class="st st-waitlist">umkämpft (+' . $a['rivals'] . ')</span>' : '<small>–</small>') ?></td>
             <td><?= committee_select('committee[' . $r['id'] . ']', (string) ($r['assigned_committee'] ?? '')) ?></td>

@@ -649,6 +649,7 @@ input, select, textarea {
 }
 textarea { resize: vertical; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--un); outline-offset: 0; border-color: transparent; }
+input.input-number { max-width: 8rem; }
 
 .check { display: flex; gap: 0.75rem; align-items: flex-start; font-size: 0.9375rem; }
 .check input { width: 1.15rem; height: 1.15rem; margin-top: 0.2rem; flex: none; accent-color: var(--accent); }

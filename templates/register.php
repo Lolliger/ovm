@@ -73,7 +73,8 @@ $committeeNames = array_map(fn ($cm) => trim(($cm['abbr'] ?? '') . ' – ' . $cm
           </select></div>
         <?php endif; ?>
         <div class="field field-small" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>><label for="f-grade">Grade *</label><input id="f-grade" name="grade" required inputmode="numeric" value="<?= $val('grade') ?>"></div>
-        <div class="field" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>><label for="f-experience">MUN experience</label><?= $select('experience', ['This is my first conference', '1–2 conferences', '3 or more conferences']) ?></div>
+        <div class="field" data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>><label for="f-experience">MUN conferences attended so far *</label><input id="f-experience" class="input-number" type="number" name="experience" min="0" max="99" step="1" inputmode="numeric" required value="<?= $val('experience') ?>">
+          <p class="hint">Not counting this one – enter 0 if this is your first MUN conference.</p></div>
       </fieldset>
 
       <fieldset data-kinds="delegate"<?= $kind === 'delegate' ? '' : ' hidden' ?>>

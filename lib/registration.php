@@ -16,7 +16,7 @@ function registration_fields(): array
         'role' => ['Participation as', true],
         'email' => ['E-mail', true],
         'grade' => ['Grade', true],
-        'experience' => ['MUN experience', false],
+        'experience' => ['MUN conferences attended', true],
         'committee_1' => ['Committee (1st choice)', false],
         'country_1a' => ['1st committee: country, 1st choice', false],
         'country_1b' => ['1st committee: country, 2nd choice', false],
@@ -141,6 +141,13 @@ function handle_registration(): ?array
         $errors[] = 'Please choose your committee.';
     }
     if ($kind === 'delegate') {
+        if ($values['experience'] !== '') {
+            $n = mun_conferences_input($values['experience']);
+            if ($n === null) {
+                $errors[] = 'Please enter the number of MUN conferences you have attended as a number (0 if OMUN is your first).';
+            }
+            $values['experience'] = $n === null ? '' : (string) $n;
+        }
         $values['country_wishes'] = ''; // replaced by the country choices per committee
         foreach ([1, 2] as $n) {
             $cm = committee_by_label($values["committee_$n"]);
